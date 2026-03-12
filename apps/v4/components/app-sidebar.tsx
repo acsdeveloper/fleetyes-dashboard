@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   Map,
+  CloudDownload,
   CalendarCheck,
   TableProperties,
   Truck,
@@ -37,6 +38,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { title: "Trips", href: "/trips", icon: Map },
+  { title: "Import Hub", href: "/import-hub", icon: CloudDownload },
   { title: "Calendar", href: "/calendar", icon: CalendarCheck },
   { title: "Drivers", href: "/drivers", icon: TableProperties },
   { title: "Vehicles", href: "/vehicles", icon: Truck },
