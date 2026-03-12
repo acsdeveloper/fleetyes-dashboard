@@ -20,6 +20,8 @@ import {
   CalendarOff,
   Wrench,
   Settings2,
+  ShieldCheck,
+  Package,
   PanelLeft,
   type LucideIcon,
 } from "lucide-react"
@@ -49,6 +51,8 @@ const navItems: NavItem[] = [
   { title: "Holidays", href: "/holidays", icon: UserX },
   { title: "Off-shift", href: "/off-shift", icon: CalendarOff },
   { title: "Maintenance", href: "/maintenance", icon: Wrench },
+  { title: "Compliance", href: "/compliance", icon: ShieldCheck },
+  { title: "Inventory", href: "/inventory", icon: Package },
   { title: "Allocation Settings", href: "/settings", icon: Settings2 },
 ]
 
