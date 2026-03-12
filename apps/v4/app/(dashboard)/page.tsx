@@ -35,7 +35,7 @@ export default function DashboardPage() {
           Dashboard
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Welcome to FleetOps — your fleet management control center.
+          Welcome to FleetYes — your fleet management control center.
         </p>
       </div>
 

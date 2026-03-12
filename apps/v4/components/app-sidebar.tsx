@@ -121,7 +121,7 @@ export function AppSidebar() {
             </div>
             {(!collapsed || isMobile) && (
               <span className="text-sm font-semibold tracking-tight">
-                FleetOps
+                FleetYes
               </span>
             )}
           </Link>

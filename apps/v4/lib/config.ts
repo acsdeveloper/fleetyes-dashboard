@@ -1,5 +1,5 @@
 export const siteConfig = {
-  name: "FleetOps",
+  name: "FleetYes",
   url: "https://fleetops.vercel.app",
   ogImage: "https://fleetops.vercel.app/og.jpg",
   description:
