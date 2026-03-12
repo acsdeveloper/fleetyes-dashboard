@@ -32,6 +32,17 @@ type Trip = {
   assigned: boolean
 }
 
+type Maintenance = {
+  id: string
+  vehicle: string
+  reg: string
+  type: string
+  technician: string
+  notes: string
+  date: string   // ISO date (yyyy-MM-dd)
+  estCompletion: string
+}
+
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
 const trips: Trip[] = [
@@ -66,6 +77,31 @@ const trips: Trip[] = [
   { id:"28", blockId: "AK-Z6Q9M2L8K",   status: "Completed",  scheduled: "2025-12-01T20:10", estEnd: "2025-12-02T04:30", created: "2025-12-01T20:10", fleet: "Solo",    driver: "Akila", vehicle: "LIFLLJW",  destination: "EMA43",                          assigned: true  },
   { id:"29", blockId: "AK-9XK2LM7QF",   status: "Completed",  scheduled: "2025-12-23T21:05", estEnd: "2025-12-24T04:10", created: "2025-12-23T21:05", fleet: "Solo",    driver: "Akila", vehicle: "LIFLLJW",  destination: "AMAZON MANSFIELD EMA2",          assigned: true  },
   { id:"30", blockId: "AK-A7PLJJ6BZ",   status: "Completed",  scheduled: "2025-10-16T20:15", estEnd: "2025-10-17T03:30", created: "2025-10-16T20:15", fleet: "Solo",    driver: "Akila", vehicle: "",         destination: "DNG2",                           assigned: true  },
+]
+
+// ─── Maintenance events ───────────────────────────────────────────────────────
+
+const maintenanceEvents: Maintenance[] = [
+  {
+    id: "m1",
+    vehicle: "Volvo FH 500",
+    reg: "NUX9VAM",
+    type: "Annual Service & MOT",
+    technician: "Gareth Williams",
+    notes: "Full 6-weekly inspection. Check brake pads, replace engine oil & filter, tyre rotation.",
+    date: "2026-03-17",
+    estCompletion: "2026-03-17",
+  },
+  {
+    id: "m2",
+    vehicle: "DAF XF 480",
+    reg: "TB67KLM",
+    type: "Ad-hoc Repair – DPF Fault",
+    technician: "Sandra Okafor",
+    notes: "DPF warning light triggered on A50. Forced regen & pressure sensor replacement scheduled.",
+    date: "2026-03-26",
+    estCompletion: "2026-03-26",
+  },
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -206,7 +242,11 @@ export default function CalendarPage() {
   const tripsForDay = (date: Date) =>
     trips.filter(t => isSameDay(new Date(t.scheduled), date))
 
+  const maintForDay = (date: Date) =>
+    maintenanceEvents.filter(m => m.date === date.toISOString().slice(0, 10))
+
   const selectedDayTrips = selected ? tripsForDay(selected) : []
+  const selectedDayMaint = selected ? maintForDay(selected) : []
 
   const unassigned = trips.filter(t => !t.assigned)
   const assigned   = trips.filter(t => t.assigned)
@@ -301,6 +341,15 @@ export default function CalendarPage() {
                           {fmtTime(t.scheduled)} {t.blockId}
                         </div>
                       ))}
+                      {/* Maintenance chips */}
+                      {maintForDay(cell.date).map(m => (
+                        <div
+                          key={m.id}
+                          className="truncate rounded border-l-2 border-red-500 bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-red-700 dark:text-red-400"
+                        >
+                          🔧 {m.reg}
+                        </div>
+                      ))}
                       {dayTrips.length > 3 && (
                         <div className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground">
                           +{dayTrips.length - 3} more
@@ -321,14 +370,44 @@ export default function CalendarPage() {
                   {selected.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  {selectedDayTrips.length === 0 ? "No trips scheduled" : `${selectedDayTrips.length} trip${selectedDayTrips.length > 1 ? "s" : ""} scheduled`}
+                  {selectedDayTrips.length === 0 && selectedDayMaint.length === 0
+                    ? "No events scheduled"
+                    : [
+                        selectedDayTrips.length > 0 ? `${selectedDayTrips.length} trip${selectedDayTrips.length > 1 ? "s" : ""}` : "",
+                        selectedDayMaint.length > 0 ? `${selectedDayMaint.length} maintenance` : "",
+                      ].filter(Boolean).join(" · ")
+                  }
                 </p>
               </div>
+
+              {/* Trip cards */}
               {selectedDayTrips.length > 0 && (
                 <div className="flex flex-wrap gap-3 p-4">
                   {selectedDayTrips.map(t => (
                     <div key={t.id} className="min-w-[220px] flex-1">
                       <OrderCard trip={t} />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Maintenance cards */}
+              {selectedDayMaint.length > 0 && (
+                <div className="flex flex-wrap gap-3 border-t p-4">
+                  {selectedDayMaint.map(m => (
+                    <div key={m.id} className="min-w-[260px] flex-1 overflow-hidden rounded-lg border border-red-200 bg-red-50 dark:border-red-900/40 dark:bg-red-950/20 shadow-sm">
+                      <div className="flex items-center justify-between border-b border-red-200 dark:border-red-900/40 bg-red-100/60 dark:bg-red-900/20 px-3 py-2">
+                        <span className="text-xs font-semibold text-red-800 dark:text-red-300">🔧 Scheduled Maintenance</span>
+                        <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-[10px] font-medium text-red-700 dark:text-red-400">maintenance</span>
+                      </div>
+                      <div className="space-y-1.5 p-3 text-xs">
+                        <div className="flex justify-between"><span className="font-medium text-red-900 dark:text-red-200">Vehicle</span><span className="text-red-800 dark:text-red-300">{m.vehicle}</span></div>
+                        <div className="flex justify-between"><span className="font-medium text-red-900 dark:text-red-200">Reg</span><span className="font-mono text-red-800 dark:text-red-300">{m.reg}</span></div>
+                        <div className="flex justify-between"><span className="font-medium text-red-900 dark:text-red-200">Type</span><span className="text-right max-w-[180px] text-red-800 dark:text-red-300">{m.type}</span></div>
+                        <div className="flex justify-between"><span className="font-medium text-red-900 dark:text-red-200">Technician</span><span className="text-red-800 dark:text-red-300">{m.technician}</span></div>
+                        <div className="flex justify-between"><span className="font-medium text-red-900 dark:text-red-200">Est. Completion</span><span className="text-red-800 dark:text-red-300">{m.estCompletion}</span></div>
+                        <p className="pt-1 text-red-700/80 dark:text-red-400/80 border-t border-red-200 dark:border-red-900/40">{m.notes}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
