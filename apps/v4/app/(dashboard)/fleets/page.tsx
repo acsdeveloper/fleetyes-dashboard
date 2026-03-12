@@ -1,0 +1,2 @@
+﻿export const metadata = { title: "Fleets" }
+export default function FleetsPage() { return (<div className="flex flex-1 flex-col gap-6 p-6 md:p-8 lg:p-10"><div><h1 className="text-2xl font-bold tracking-tight md:text-3xl">Fleets</h1><p className="mt-1 text-sm text-muted-foreground">Organize and manage fleet groups.</p></div><div className="flex flex-1 items-center justify-center rounded-xl border border-dashed bg-card p-12"><p className="text-sm text-muted-foreground">Content coming soon.</p></div></div>) }

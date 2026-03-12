@@ -1,0 +1,2 @@
+﻿export const metadata = { title: "Allocation Settings" }
+export default function AllocationSettingsPage() { return (<div className="flex flex-1 flex-col gap-6 p-6 md:p-8 lg:p-10"><div><h1 className="text-2xl font-bold tracking-tight md:text-3xl">Allocation Settings</h1><p className="mt-1 text-sm text-muted-foreground">Configure resource allocation and system settings.</p></div><div className="flex flex-1 items-center justify-center rounded-xl border border-dashed bg-card p-12"><p className="text-sm text-muted-foreground">Content coming soon.</p></div></div>) }
