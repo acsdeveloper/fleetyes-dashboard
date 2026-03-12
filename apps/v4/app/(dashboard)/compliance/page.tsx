@@ -5,7 +5,7 @@ import {
   MapPin, Users, FileText, ShieldCheck, Activity, BadgeCheck,
   CalendarDays, Bell, Upload, Download, ChevronRight, Plus,
   Car, Truck, AlertCircle, RefreshCw, Lock, Zap, BookOpen,
-  BarChart3, Flag,
+  BarChart3, Flag, Wrench,
 } from "lucide-react"
 
 // ─── SHARED DATA ─────────────────────────────────────────────────────────────
@@ -243,9 +243,192 @@ function WalkaroundForm({ onBack }: { onBack: () => void }) {
   )
 }
 
+// historic detail data keyed by check id
+const checkDetails: Record<string, {
+  photo: string; location: string
+  sections: { section: string; items: { name: string; result: "ok"|"advisory"|"fail"; note?:string }[] }[]
+  signature: string
+}> = {
+  wk1: {
+    photo: "nearside rear wheel", location: "52.7233°N 1.6916°W · Towers Business Park",
+    sections: walkaroundItems.map(s => ({ section: s.section, items: s.items.map(i => ({ name:i, result:"ok" as "ok" })) })),
+    signature: "James O'Connor",
+  },
+  wk2: {
+    photo: "offside tyre tread depth", location: "52.7233°N 1.6916°W · Towers Business Park",
+    sections: walkaroundItems.map((s,si) => ({ section: s.section, items: s.items.map((i,ii) => ({
+      name: i,
+      result: (si===0&&ii===2) ? "fail" as "fail" : "ok" as "ok",
+      note:  (si===0&&ii===2) ? "DPF warning lamp illuminated on startup" : undefined,
+    })) })),
+    signature: "Maria Santos",
+  },
+  wk3: {
+    photo: "brake warning lamp dashboard", location: "52.7233°N 1.6916°W · Towers Business Park",
+    sections: walkaroundItems.map(s => ({ section: s.section, items: s.items.map(i => ({ name:i, result:"ok" as "ok" })) })),
+    signature: "Lena Fischer",
+  },
+  wk4: {
+    photo: "fluid reservoir caps closed", location: "52.7233°N 1.6916°W · Towers Business Park",
+    sections: walkaroundItems.map((s,si) => ({ section: s.section, items: s.items.map((i,ii) => ({
+      name: i,
+      result: (si===1&&ii===0) ? "advisory" as "advisory" : "ok" as "ok",
+    })) })),
+    signature: "Piotr Kowalski",
+  },
+  wk5: {
+    photo: "nearside rear wheel", location: "52.7233°N 1.6916°W · Towers Business Park",
+    sections: walkaroundItems.map((s,si) => ({ section: s.section, items: s.items.map((i,ii) => ({
+      name: i,
+      result: (si===0&&ii===3) ? "fail" as "fail" : (si===2&&ii===0) ? "fail" as "fail" : "ok" as "ok",
+      note:  (si===0&&ii===3) ? "Air leak noise from nearside rear axle group" :
+             (si===2&&ii===0) ? "Brake pressure slow to build – 45s to reach working pressure" : undefined,
+    })) })),
+    signature: "Ahmed Hassan",
+  },
+  wk6: {
+    photo: "offside tyre tread depth", location: "52.7233°N 1.6916°W · Towers Business Park",
+    sections: walkaroundItems.map(s => ({ section: s.section, items: s.items.map(i => ({ name:i, result:"ok" as "ok" })) })),
+    signature: "Sophie Turner",
+  },
+}
+
+function WalkaroundDetail({ checkId, onBack }: { checkId: string; onBack: () => void }) {
+  const check = recentChecks.find(c => c.id === checkId)!
+  const detail = checkDetails[checkId]
+  const totalItems = detail.sections.flatMap(s => s.items).length
+  const okCount   = detail.sections.flatMap(s => s.items).filter(i => i.result === "ok").length
+  const advCount  = detail.sections.flatMap(s => s.items).filter(i => i.result === "advisory").length
+  const failCount = detail.sections.flatMap(s => s.items).filter(i => i.result === "fail").length
+
+  const resultStyle = {
+    ok:       "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+    advisory: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+    fail:     "bg-red-100   text-red-700   dark:bg-red-900/30   dark:text-red-400",
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Top nav */}
+      <div className="flex items-center gap-3">
+        <button onClick={onBack} className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs hover:bg-muted">
+          ← Checks List
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold font-mono">{check.reg} — Walkaround Check</p>
+          <p className="text-xs text-muted-foreground">{check.date} · {check.time} · {check.driver}</p>
+        </div>
+        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${check.status === "clear" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"}`}>
+          {check.status === "clear" ? "✓ Nil Defect" : `⚠ ${check.defects} Defect${check.defects > 1 ? "s" : ""}`}
+        </span>
+      </div>
+
+      {/* Summary bar */}
+      <div className="grid gap-4 sm:grid-cols-4 rounded-xl border bg-card p-4 shadow-sm">
+        <div>
+          <p className="text-xs text-muted-foreground">Duration</p>
+          <p className="font-semibold">{check.elapsed}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Location</p>
+          <p className="font-semibold text-xs truncate">{detail.location}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Anti-Cheat Photo</p>
+          <p className="font-semibold text-xs capitalize">{detail.photo}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Results</p>
+          <p className="text-xs">
+            <span className="font-bold text-green-600">{okCount} OK</span>
+            {advCount > 0 && <span className="ml-1 font-bold text-amber-600">{advCount} Advisory</span>}
+            {failCount > 0 && <span className="ml-1 font-bold text-red-600">{failCount} Defect{failCount>1?"s":""}</span>}
+            <span className="ml-1 text-muted-foreground">of {totalItems}</span>
+          </p>
+        </div>
+      </div>
+
+      {/* Defect callout */}
+      {failCount > 0 && (
+        <div className="rounded-xl border border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/20 p-4">
+          <p className="mb-2 text-sm font-semibold text-red-800 dark:text-red-300 flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4" /> Defects Reported — Workshop Notified · VOR Flag Raised
+          </p>
+          {detail.sections.flatMap(s => s.items).filter(i => i.result === "fail").map((item, idx) => (
+            <div key={idx} className="mt-2 rounded-lg border border-red-200 dark:border-red-900 bg-white dark:bg-card p-3">
+              <p className="text-sm font-medium text-red-700 dark:text-red-400">{item.name}</p>
+              {item.note && <p className="mt-0.5 text-xs text-red-600 dark:text-red-400">{item.note}</p>}
+              <div className="mt-2 flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded border border-dashed border-red-400 px-2 py-0.5 text-[10px] text-red-600">
+                  <Camera className="h-3 w-3" /> Photo captured
+                </span>
+                <span className="rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 px-2 py-0.5 text-[10px] font-bold">Dangerous</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Checklist sections */}
+      {detail.sections.map(sec => (
+        <div key={sec.section} className="rounded-xl border bg-card shadow-sm overflow-hidden">
+          <div className="border-b bg-muted/40 px-4 py-2.5 flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+            <span className="font-semibold text-sm">{sec.section}</span>
+            <span className="ml-auto text-[10px] text-muted-foreground">
+              {sec.items.filter(i=>i.result==="ok").length}/{sec.items.length} OK
+            </span>
+          </div>
+          <div className="divide-y">
+            {sec.items.map(item => (
+              <div key={item.name} className="flex items-start justify-between gap-3 px-4 py-2.5">
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm">{item.name}</span>
+                  {item.note && <p className="mt-0.5 text-xs text-muted-foreground">{item.note}</p>}
+                </div>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold capitalize ${resultStyle[item.result]}`}>
+                  {item.result === "ok" ? "OK" : item.result}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {/* Signature block */}
+      <div className="rounded-xl border bg-card p-5 shadow-sm">
+        <h3 className="mb-3 font-semibold flex items-center gap-2"><PenLine className="h-4 w-4 text-indigo-500" /> Driver Declaration</h3>
+        <p className="text-sm text-muted-foreground mb-3">I declare that I carried out the required daily walkaround check and the vehicle is, to the best of my knowledge, safe to drive on the road.</p>
+        <div className="flex items-center gap-3">
+          <CheckCircle2 className="h-5 w-5 text-green-500" />
+          <div>
+            <p className="text-sm font-semibold">{detail.signature}</p>
+            <p className="text-xs text-muted-foreground">Signed {check.date} at {check.time} · {detail.location}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex flex-wrap gap-2">
+        <button className="inline-flex h-9 items-center gap-1.5 rounded-lg border bg-background px-3 text-sm text-muted-foreground hover:bg-muted">
+          <Download className="h-3.5 w-3.5" /> Download PDF
+        </button>
+        {failCount > 0 && (
+          <button className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-red-500 px-3 text-sm font-medium text-white hover:bg-red-600">
+            <Wrench className="h-3.5 w-3.5" /> View Workshop Defect
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function WalkaroundTab() {
-  const [view, setView] = React.useState<"list" | "form">("list")
-  if (view === "form") return <WalkaroundForm onBack={() => setView("list")} />
+  const [view, setView] = React.useState<"list" | "form" | "detail">("list")
+  const [selectedCheck, setSelectedCheck] = React.useState<string | null>(null)
+
+  if (view === "form")   return <WalkaroundForm onBack={() => setView("list")} />
+  if (view === "detail" && selectedCheck) return <WalkaroundDetail checkId={selectedCheck} onBack={() => setView("list")} />
 
   const todayChecked = recentChecks.filter(c => c.date === "2026-03-12").length
   const defectsToday = recentChecks.filter(c => c.date === "2026-03-12" && c.status === "defect").length
@@ -299,7 +482,11 @@ function WalkaroundTab() {
         </div>
         <div className="divide-y">
           {recentChecks.map(c => (
-            <div key={c.id} className="flex items-center gap-4 px-4 py-3">
+            <button
+              key={c.id}
+              onClick={() => { setSelectedCheck(c.id); setView("detail") }}
+              className="w-full flex items-center gap-4 px-4 py-3 text-left hover:bg-muted/30 transition-colors"
+            >
               <div className={`h-2.5 w-2.5 shrink-0 rounded-full ${c.status === "clear" ? "bg-green-500" : "bg-red-500"}`} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -308,13 +495,14 @@ function WalkaroundTab() {
                 </div>
                 <p className="text-xs text-muted-foreground">{c.date} · {c.time} · {c.elapsed}</p>
               </div>
-              <div className="shrink-0 text-right">
+              <div className="shrink-0">
                 {c.defects > 0
                   ? <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700 dark:bg-red-900/30 dark:text-red-400">{c.defects} defect{c.defects > 1 ? "s" : ""}</span>
                   : <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700 dark:bg-green-900/30 dark:text-green-400">Nil defect</span>
                 }
               </div>
-            </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            </button>
           ))}
         </div>
       </div>
