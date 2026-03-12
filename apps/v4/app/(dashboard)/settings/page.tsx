@@ -2,7 +2,7 @@
 import * as React from "react"
 import {
   Clock, CalendarDays, UserCheck, Wrench,
-  Route, UserClock, CalendarCheck, Truck,
+  Route, CalendarCheck, Truck,
   ChevronDown, Lock,
 } from "lucide-react"
 
@@ -128,7 +128,7 @@ export default function AllocationSettingsPage() {
             onChange={() => setMaxWeeklyTrips(p => !p)}
           />
           <RuleRow
-            icon={UserClock}
+            icon={Clock}
             title="Driver Shift Preference Timing"
             description="Prioritizes drivers based on their preferred shift times."
             on={shiftPreference}
