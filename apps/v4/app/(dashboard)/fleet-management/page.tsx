@@ -884,10 +884,47 @@ function VehicleAnalyticsTab({ onSelectVehicle }: { onSelectVehicle?: (plate: st
             <h3 className="text-sm font-semibold">Speed Profile — Today</h3>
             <span className="ml-auto text-xs text-muted-foreground">mph</span>
           </div>
-          <ReactECharts style={{height:180}} option={{
-            animation: true,
-            grid: { top:8, right:8, bottom:24, left:36 },
-            tooltip: { trigger:"axis", formatter:(p:any[])=>`${p[0].axisValue}<br/><b>${p[0].value} mph</b>` },
+          <ReactECharts style={{height:200}} notMerge opts={{renderer:"canvas"}} option={{
+            animation: true, animationDuration:900,
+            grid: { top:14, right:14, bottom:28, left:42 },
+            tooltip: {
+              trigger:"axis",
+              axisPointer:{ type:"cross", crossStyle:{color:"rgba(150,150,170,0.3)",width:1}, label:{show:false} },
+              backgroundColor:"rgba(12,12,20,0.9)", borderColor:"rgba(255,255,255,0.08)", borderWidth:1, padding:[8,12],
+              textStyle:{color:"#f1f5f9",fontSize:11},
+              formatter:(p:any[])=>{
+                const v=p[0].value; const low=v<20;
+                return `<div style="font-size:10px;color:#94a3b8;margin-bottom:4px">${p[0].axisValue}</div>`+
+                  `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${low?"#f59e0b":"#22c55e"};margin-right:6px;vertical-align:middle"></span>`+
+                  `<b style="font-size:15px;color:${low?"#fcd34d":"#86efac"}">${v}%</b>`+
+                  (low?` <span style="font-size:9px;color:#f59e0b;margin-left:4px">âš  LOW FUEL</span>`:"")
+              }
+            },
+            visualMap:{ show:false, type:"piecewise", dimension:1,
+              pieces:[{gt:0,lte:20,color:"#f59e0b"},{gt:20,color:"#22c55e"}] },
+            xAxis:{
+              type:"category", data:series.map(s=>s.time), boundaryGap:false,
+              axisLabel:{fontSize:9,interval:7,color:"#94a3b8"},
+              axisLine:{lineStyle:{color:"rgba(148,163,184,0.15)"}},
+              axisTick:{show:false}, splitLine:{show:false}
+            },
+            yAxis:{
+              type:"value", min:0, max:100, interval:25,
+              axisLabel:{fontSize:9,color:"#94a3b8",formatter:"{value}%"},
+              splitLine:{lineStyle:{color:"rgba(148,163,184,0.1)",type:"solid"}},
+              axisLine:{show:false}, axisTick:{show:false}
+            },
+            series:[{
+              data:series.map(s=>s.fuel),
+              type:"line", smooth:0.45, symbol:"none", lineStyle:{width:2.5},
+              areaStyle:{color:{type:"linear",x:0,y:0,x2:0,y2:1,
+                colorStops:[{offset:0,color:"rgba(34,197,94,0.5)"},{offset:0.65,color:"rgba(34,197,94,0.1)"},{offset:1,color:"rgba(34,197,94,0)"}]}},
+              markLine:{silent:true, symbol:["none","none"],
+                lineStyle:{color:"rgba(245,158,11,0.7)",type:[5,4],width:1.5},
+                label:{formatter:"Low 20%",fontSize:9,color:"#f59e0b",position:"insideMiddleTop"},
+                data:[{yAxis:20}]}
+            }]
+          }}/><b>${p[0].value} mph</b>` },
             xAxis: { type:"category", data:series.map(s=>s.time), axisLabel:{fontSize:9,interval:7}, axisLine:{lineStyle:{color:"#4444"}}, splitLine:{show:false} },
             yAxis: { type:"value", max:80, axisLabel:{fontSize:9}, splitLine:{lineStyle:{color:"#8882",type:"dashed"}} },
             series: [{
@@ -906,10 +943,47 @@ function VehicleAnalyticsTab({ onSelectVehicle }: { onSelectVehicle?: (plate: st
             <h3 className="text-sm font-semibold">Fuel Level — Today</h3>
             <span className="ml-auto text-[10px] rounded-full px-2 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 font-medium">⚠ Low fuel alert &lt;20%</span>
           </div>
-          <ReactECharts style={{height:180}} option={{
-            animation: true,
-            grid: { top:8, right:8, bottom:24, left:36 },
-            tooltip: { trigger:"axis", formatter:(p:any[])=>`${p[0].axisValue}<br/><b>${p[0].value}%</b>` },
+          <ReactECharts style={{height:200}} notMerge opts={{renderer:"canvas"}} option={{
+            animation: true, animationDuration:900,
+            grid: { top:14, right:14, bottom:28, left:42 },
+            tooltip: {
+              trigger:"axis",
+              axisPointer:{ type:"cross", crossStyle:{color:"rgba(150,150,170,0.3)",width:1}, label:{show:false} },
+              backgroundColor:"rgba(12,12,20,0.9)", borderColor:"rgba(255,255,255,0.08)", borderWidth:1, padding:[8,12],
+              textStyle:{color:"#f1f5f9",fontSize:11},
+              formatter:(p:any[])=>{
+                const v=p[0].value; const low=v<20;
+                return `<div style="font-size:10px;color:#94a3b8;margin-bottom:4px">${p[0].axisValue}</div>`+
+                  `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${low?"#f59e0b":"#22c55e"};margin-right:6px;vertical-align:middle"></span>`+
+                  `<b style="font-size:15px;color:${low?"#fcd34d":"#86efac"}">${v}%</b>`+
+                  (low?` <span style="font-size:9px;color:#f59e0b;margin-left:4px">âš  LOW FUEL</span>`:"")
+              }
+            },
+            visualMap:{ show:false, type:"piecewise", dimension:1,
+              pieces:[{gt:0,lte:20,color:"#f59e0b"},{gt:20,color:"#22c55e"}] },
+            xAxis:{
+              type:"category", data:series.map(s=>s.time), boundaryGap:false,
+              axisLabel:{fontSize:9,interval:7,color:"#94a3b8"},
+              axisLine:{lineStyle:{color:"rgba(148,163,184,0.15)"}},
+              axisTick:{show:false}, splitLine:{show:false}
+            },
+            yAxis:{
+              type:"value", min:0, max:100, interval:25,
+              axisLabel:{fontSize:9,color:"#94a3b8",formatter:"{value}%"},
+              splitLine:{lineStyle:{color:"rgba(148,163,184,0.1)",type:"solid"}},
+              axisLine:{show:false}, axisTick:{show:false}
+            },
+            series:[{
+              data:series.map(s=>s.fuel),
+              type:"line", smooth:0.45, symbol:"none", lineStyle:{width:2.5},
+              areaStyle:{color:{type:"linear",x:0,y:0,x2:0,y2:1,
+                colorStops:[{offset:0,color:"rgba(34,197,94,0.5)"},{offset:0.65,color:"rgba(34,197,94,0.1)"},{offset:1,color:"rgba(34,197,94,0)"}]}},
+              markLine:{silent:true, symbol:["none","none"],
+                lineStyle:{color:"rgba(245,158,11,0.7)",type:[5,4],width:1.5},
+                label:{formatter:"Low 20%",fontSize:9,color:"#f59e0b",position:"insideMiddleTop"},
+                data:[{yAxis:20}]}
+            }]
+          }}/><b>${p[0].value}%</b>` },
             xAxis: { type:"category", data:series.map(s=>s.time), axisLabel:{fontSize:9,interval:7}, axisLine:{lineStyle:{color:"#4444"}}, splitLine:{show:false} },
             yAxis: { type:"value", max:100, axisLabel:{fontSize:9}, splitLine:{lineStyle:{color:"#8882",type:"dashed"}} },
             series: [{
@@ -931,10 +1005,47 @@ function VehicleAnalyticsTab({ onSelectVehicle }: { onSelectVehicle?: (plate: st
             <h3 className="text-sm font-semibold">Engine RPM — Today</h3>
             <span className="ml-auto text-xs text-muted-foreground">rpm</span>
           </div>
-          <ReactECharts style={{height:160}} option={{
-            animation: true,
-            grid: { top:8, right:8, bottom:24, left:46 },
-            tooltip: { trigger:"axis", formatter:(p:any[])=>`${p[0].axisValue}<br/><b>${p[0].value} rpm</b>` },
+          <ReactECharts style={{height:175}} notMerge opts={{renderer:"canvas"}} option={{
+            animation: true, animationDuration:900,
+            grid: { top:14, right:14, bottom:28, left:52 },
+            tooltip: {
+              trigger:"axis",
+              axisPointer:{ type:"cross", crossStyle:{color:"rgba(150,150,170,0.3)",width:1}, label:{show:false} },
+              backgroundColor:"rgba(12,12,20,0.9)", borderColor:"rgba(255,255,255,0.08)", borderWidth:1, padding:[8,12],
+              textStyle:{color:"#f1f5f9",fontSize:11},
+              formatter:(p:any[])=>{
+                const v=p[0].value; const over=v>2300;
+                return `<div style="font-size:10px;color:#94a3b8;margin-bottom:4px">${p[0].axisValue}</div>`+
+                  `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${over?"#ef4444":"#8b5cf6"};margin-right:6px;vertical-align:middle"></span>`+
+                  `<b style="font-size:15px;color:${over?"#fca5a5":"#c4b5fd"}">${v.toLocaleString()} rpm</b>`+
+                  (over?` <span style="font-size:9px;color:#ef4444;margin-left:4px">â–² OVER-REV</span>`:"")
+              }
+            },
+            visualMap:{ show:false, type:"piecewise", dimension:1,
+              pieces:[{gt:0,lte:2300,color:"#8b5cf6"},{gt:2300,color:"#ef4444"}] },
+            xAxis:{
+              type:"category", data:series.map(s=>s.time), boundaryGap:false,
+              axisLabel:{fontSize:9,interval:7,color:"#94a3b8"},
+              axisLine:{lineStyle:{color:"rgba(148,163,184,0.15)"}},
+              axisTick:{show:false}, splitLine:{show:false}
+            },
+            yAxis:{
+              type:"value", min:0, max:3000, interval:500,
+              axisLabel:{fontSize:9,color:"#94a3b8",formatter:(v:number)=>v>=1000?`${(v/1000).toFixed(1)}k`:String(v)},
+              splitLine:{lineStyle:{color:"rgba(148,163,184,0.1)",type:"solid"}},
+              axisLine:{show:false}, axisTick:{show:false}
+            },
+            series:[{
+              data:series.map(s=>s.rpm),
+              type:"line", smooth:0.45, symbol:"none", lineStyle:{width:2},
+              areaStyle:{color:{type:"linear",x:0,y:0,x2:0,y2:1,
+                colorStops:[{offset:0,color:"rgba(139,92,246,0.45)"},{offset:0.65,color:"rgba(139,92,246,0.08)"},{offset:1,color:"rgba(139,92,246,0)"}]}},
+              markLine:{silent:true, symbol:["none","none"],
+                lineStyle:{color:"rgba(239,68,68,0.7)",type:[5,4],width:1.5},
+                label:{formatter:"Over-rev 2,300",fontSize:9,color:"#ef4444",position:"insideMiddleTop"},
+                data:[{yAxis:2300}]}
+            }]
+          }}/><b>${p[0].value} rpm</b>` },
             xAxis: { type:"category", data:series.map(s=>s.time), axisLabel:{fontSize:9,interval:7}, axisLine:{lineStyle:{color:"#4444"}}, splitLine:{show:false} },
             yAxis: { type:"value", max:2800, axisLabel:{fontSize:9}, splitLine:{lineStyle:{color:"#8882",type:"dashed"}} },
             series: [{
@@ -977,17 +1088,35 @@ function VehicleAnalyticsTab({ onSelectVehicle }: { onSelectVehicle?: (plate: st
             <AlertCircle className="h-4 w-4 text-red-500"/>
             <h3 className="text-sm font-semibold">Exception Events by Type</h3>
           </div>
-          <ReactECharts style={{height:180}} option={{
-            animation: true,
-            grid: { top:4, right:16, bottom:4, left:100, containLabel:false },
-            tooltip: { trigger:"axis", axisPointer:{type:"shadow"}, formatter:(p:any[])=>`${p[0].name}: <b>${p[0].value}</b>` },
-            xAxis: { type:"value", axisLabel:{fontSize:9}, splitLine:{lineStyle:{color:"#8882",type:"dashed"}} },
-            yAxis: { type:"category", data:safetyData.map(d=>d.name), axisLabel:{fontSize:9}, inverse:false },
-            series: [{
-              type:"bar",
-              data: safetyData.map(d=>({ value:d.value, itemStyle:{color:d.fill, borderRadius:[0,6,6,0]} })),
-              barMaxWidth:20,
-              label:{ show:true, position:"right", fontSize:9, formatter:"{c}" }
+          <ReactECharts style={{height:195}} notMerge opts={{renderer:"canvas"}} option={{
+            animation: true, animationDuration:800,
+            grid: { top:4, right:20, bottom:4, left:110, containLabel:false },
+            tooltip: {
+              trigger:"axis", axisPointer:{type:"shadow"},
+              backgroundColor:"rgba(12,12,20,0.9)", borderColor:"rgba(255,255,255,0.08)", borderWidth:1, padding:[8,12],
+              textStyle:{color:"#f1f5f9",fontSize:11},
+              formatter:(p:any[])=>{
+                const d=p[0];
+                return `<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${d.color};margin-right:6px"></span>`+
+                  `<b>${d.name}:</b> <b style="font-size:14px">${d.value}</b> event${d.value!==1?"s":""}`
+              }
+            },
+            xAxis:{
+              type:"value", axisLabel:{fontSize:9,color:"#94a3b8"},
+              splitLine:{lineStyle:{color:"rgba(148,163,184,0.1)",type:"solid"}},
+              axisLine:{show:false}, axisTick:{show:false}
+            },
+            yAxis:{
+              type:"category", data:safetyData.map(d=>d.name),
+              axisLabel:{fontSize:9,color:"#94a3b8"},
+              axisLine:{show:false}, axisTick:{show:false}
+            },
+            series:[{
+              type:"bar", barMaxWidth:18,
+              data:safetyData.map(d=>({ value:d.value,
+                itemStyle:{color:d.fill, borderRadius:[0,6,6,0], shadowColor:d.fill, shadowBlur:6, opacity:0.92} })),
+              label:{ show:true, position:"right", fontSize:9, color:"#94a3b8", formatter:"{c}" },
+              emphasis:{ itemStyle:{ shadowBlur:12 } }
             }]
           }}/>
         </div>
