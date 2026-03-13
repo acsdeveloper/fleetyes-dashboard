@@ -973,16 +973,6 @@ function VehicleAnalyticsTab({ onSelectVehicle }: { onSelectVehicle?: (plate: st
                 label:{formatter:"Low 20%",fontSize:9,color:"#f59e0b",position:"insideMiddleTop"},
                 data:[{yAxis:20}]}
             }]
-          }}/><b>${p[0].value}%</b>` },
-            xAxis: { type:"category", data:series.map(s=>s.time), axisLabel:{fontSize:9,interval:7}, axisLine:{lineStyle:{color:"#4444"}}, splitLine:{show:false} },
-            yAxis: { type:"value", max:100, axisLabel:{fontSize:9}, splitLine:{lineStyle:{color:"#8882",type:"dashed"}} },
-            series: [{
-              data: series.map(s=>s.fuel),
-              type:"line", smooth:true, symbol:"none", lineStyle:{width:2.5,color:"#22c55e"},
-              areaStyle:{color:{type:"linear",x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:"rgba(34,197,94,0.35)"},{offset:1,color:"rgba(34,197,94,0)"}]}},
-              markLine:{ silent:true, symbol:"none", lineStyle:{color:"#f59e0b",type:"dashed",width:1.5},
-                data:[{yAxis:20, label:{formatter:"Low",fontSize:9,color:"#f59e0b"}}] }
-            }]
           }}/>
         </div>
       </div>
