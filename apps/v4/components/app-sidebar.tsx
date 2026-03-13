@@ -337,12 +337,15 @@ export function AppSidebar() {
       >
         {/* Logo */}
         <div className="flex h-14 items-center border-b px-3">
-          <Link href="/" className="flex items-center gap-2 overflow-hidden">
+          <Link href="/" className="flex items-center gap-2.5 overflow-hidden">
             <img
               src="/logo.svg"
               alt="FleetYes"
-              className={sidebarCollapsed ? "h-7 w-7 object-contain" : "h-7 w-28 object-contain object-left"}
+              className="h-7 w-7 shrink-0 object-contain"
             />
+            {!sidebarCollapsed && (
+              <span className="text-base font-bold tracking-tight text-foreground">FleetYes</span>
+            )}
           </Link>
         </div>
 
