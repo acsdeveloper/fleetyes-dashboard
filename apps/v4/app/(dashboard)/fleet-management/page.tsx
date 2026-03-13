@@ -1025,7 +1025,7 @@ function VehicleAnalyticsTab({ onSelectVehicle }: { onSelectVehicle?: (plate: st
                 label:{formatter:"Over-rev 2,300",fontSize:9,color:"#ef4444",position:"insideMiddleTop"},
                 data:[{yAxis:2300}]}
             }]
-          
+          }}/>
         </div>
 
         <div className="rounded-xl border bg-card shadow-sm p-4 flex flex-col items-center gap-3">
