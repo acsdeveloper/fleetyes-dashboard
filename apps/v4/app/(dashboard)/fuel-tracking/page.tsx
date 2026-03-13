@@ -44,7 +44,7 @@ export default function FuelTrackingPage() {
   return (
     <div className="flex flex-1 flex-col gap-6 p-6 md:p-8 lg:p-10">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div><PageHeader pageKey="fuelTracking" /><p className="mt-1 text-sm text-muted-foreground">Monitor consumption, MPG efficiency, and fuel spend per vehicle.</p></div>
+        <PageHeader pageKey="fuelTracking" />
         <button className="inline-flex h-9 items-center gap-1.5 rounded-lg border bg-background px-3 text-sm text-muted-foreground hover:bg-muted"><Download className="h-3.5 w-3.5" /> Export</button>
       </div>
 
@@ -79,7 +79,7 @@ export default function FuelTrackingPage() {
 
       <div className="overflow-auto rounded-xl border bg-card shadow-sm">
         <table className="w-full text-sm">
-          <thead><tr className="border-b bg-muted/40">{["Date","Ref","Vehicle","Driver","Litres","Cost/L","Total Cost","Odometer","MPG","Depot"].map(h=><th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>)}</tr></thead>
+          <thead><tr className="border-b bg-muted/40">{["Date","Ref","Vehicle","Driver","Litres","Cost/L","Total Cost","Odometer (mi)","MPG","Depot"].map(h=><th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>)}</tr></thead>
           <tbody>
             {filtered.map(r=>(
               <tr key={r.id} className="border-b last:border-0 hover:bg-muted/20">

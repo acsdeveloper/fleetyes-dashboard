@@ -42,12 +42,12 @@ const MOCK_DEVICES: GeotabDevice[] = [
 type VehiclePin = { deviceId: string; name: string; lat: number; lng: number; speed: number; heading: number; status: "moving"|"idle"|"stopped" }
 
 const MOCK_PINS: VehiclePin[] = [
-  { deviceId:"d1", name:"NUX9VAM", lat:52.486, lng:-1.890, speed:87, heading:45,  status:"moving"  },
-  { deviceId:"d2", name:"TB67KLM", lat:52.502, lng:-1.842, speed:72, heading:90,  status:"moving"  },
+  { deviceId:"d1", name:"NUX9VAM", lat:52.486, lng:-1.890, speed:54, heading:45,  status:"moving"  },
+  { deviceId:"d2", name:"TB67KLM", lat:52.502, lng:-1.842, speed:45, heading:90,  status:"moving"  },
   { deviceId:"d3", name:"PN19RFX", lat:52.651, lng:-1.571, speed:0,  heading:180, status:"idle"    },
-  { deviceId:"d4", name:"LK21DVA", lat:52.407, lng:-1.512, speed:56, heading:270, status:"moving"  },
+  { deviceId:"d4", name:"LK21DVA", lat:52.407, lng:-1.512, speed:35, heading:270, status:"moving"  },
   { deviceId:"d5", name:"OU70TBN", lat:52.550, lng:-2.123, speed:0,  heading:0,   status:"stopped" },
-  { deviceId:"d6", name:"YJ19HKP", lat:52.471, lng:-1.950, speed:94, heading:350, status:"moving"  },
+  { deviceId:"d6", name:"YJ19HKP", lat:52.471, lng:-1.950, speed:58, heading:350, status:"moving"  },
 ]
 
 const now = new Date()
@@ -65,7 +65,7 @@ const MOCK_EXCEPTIONS: (GeotabExceptionEvent & { deviceName: string })[] = [
   { id:"e8", device:{id:"d2"}, deviceName:"TB67KLM", rule:{id:"r2",name:"Harsh Braking"},  activeFrom:fmt(hoursAgo(4.2)), activeTo:fmt(hoursAgo(4.19)), distance:90,   duration:10,   state:"Inactive", driver:undefined },
 ]
 
-const DIAG_NAMES = ["Engine Speed (RPM)","Fuel Level (%)","Coolant Temp (°C)","Odometer (km)","Battery Voltage (V)","AdBlue Level (%)"]
+const DIAG_NAMES = ["Engine Speed (RPM)","Fuel Level (%)","Coolant Temp (°C)","Odometer (mi)","Battery Voltage (V)","AdBlue Level (%)"]
 const MOCK_STATUS: (GeotabStatusData & { deviceName: string })[] = MOCK_DEVICES.flatMap(d =>
   DIAG_NAMES.map((name, i) => ({
     id: `s_${d.id}_${i}`,
@@ -113,9 +113,9 @@ const MOCK_TRIPS: (GeotabTrip & {
       toLocation:   pickLoc(di + i, 3),
       start: fmt(hoursAgo(8 - i*2 + di*0.3)),
       stop:  fmt(hoursAgo(7 - i*2 + di*0.3)),
-      distance: 30000 + Math.random()*80000,
-      maxSpeed: 88 + Math.random()*32,
-      averageSpeed: 55 + Math.random()*25,
+      distance: 19 + Math.random()*49,   // miles
+      maxSpeed: 55 + Math.random()*20,   // mph  (>56 means speeding)
+      averageSpeed: 34 + Math.random()*16, // mph
       startLatitude:  52.3 + Math.random()*0.5,
       startLongitude: -2.1 + Math.random()*0.8,
       stopLatitude:   52.3 + Math.random()*0.5,
@@ -129,13 +129,13 @@ const MOCK_TRIPS: (GeotabTrip & {
 type Fleet = {
   id:string; publicId:string; name:string; tripLength:number|null
   drivers:number; activeDrivers:number; color:string
-  vehicles:number; monthlyDistKm:number; safetyScore:number
+  vehicles:number; monthlyDistMi:number; safetyScore:number
   fuelUsedL:number; lastTripTime:string; carriers:string[]
 }
 const FLEETS: Fleet[] = [
-  { id:"1", publicId:"kseAuve", name:"FleetX",  tripLength:null, drivers:6, activeDrivers:0, color:"#6366f1", vehicles:3, monthlyDistKm:12840, safetyScore:88, fuelUsedL:4210, lastTripTime:"10:47", carriers:["Tesco","XPO","DHL"] },
-  { id:"2", publicId:"cEBDNth", name:"Tramper", tripLength:null, drivers:6, activeDrivers:1, color:"#f59e0b", vehicles:2, monthlyDistKm:9620,  safetyScore:74, fuelUsedL:3180, lastTripTime:"09:12", carriers:["Amazon","Evri"] },
-  { id:"3", publicId:"oyC1dgU", name:"Solo",    tripLength:24,   drivers:7, activeDrivers:0, color:"#10b981", vehicles:3, monthlyDistKm:16100, safetyScore:92, fuelUsedL:5340, lastTripTime:"08:55", carriers:["Royal Mail","ASDA","DPD"] },
+  { id:"1", publicId:"kseAuve", name:"FleetX",  tripLength:null, drivers:6, activeDrivers:0, color:"#6366f1", vehicles:3, monthlyDistMi:7982, safetyScore:88, fuelUsedL:4210, lastTripTime:"10:47", carriers:["Tesco","XPO","DHL"] },
+  { id:"2", publicId:"cEBDNth", name:"Tramper", tripLength:null, drivers:6, activeDrivers:1, color:"#f59e0b", vehicles:2, monthlyDistMi:5978,  safetyScore:74, fuelUsedL:3180, lastTripTime:"09:12", carriers:["Amazon","Evri"] },
+  { id:"3", publicId:"oyC1dgU", name:"Solo",    tripLength:24,   drivers:7, activeDrivers:0, color:"#10b981", vehicles:3, monthlyDistMi:10005, safetyScore:92, fuelUsedL:5340, lastTripTime:"08:55", carriers:["Royal Mail","ASDA","DPD"] },
 ]
 
 // Brand colors and abbreviations for logo badges
@@ -178,7 +178,7 @@ const severityColors = {
 }
 const severityDot = { critical:"bg-red-500", warning:"bg-amber-400", info:"bg-blue-400" }
 
-function mToKm(m: number) { return (m/1000).toFixed(1) }
+function mToMi(m: number) { return (m/1609.34).toFixed(2) }
 function fmt2dp(n: number) { return n.toLocaleString("en-GB", {maximumFractionDigits:1}) }
 
 // ─── SUBCOMPONENTS ────────────────────────────────────────────────────────────
@@ -344,7 +344,7 @@ function ActivityFeed({ events }: { events: typeof MOCK_EXCEPTIONS }) {
               <span className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", severityDot[sev])}/>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold">{e.deviceName} — {e.rule.name}</p>
-                <p className="text-[10px] text-muted-foreground">{e.activeFrom} · {mToKm(e.distance)} km</p>
+                <p className="text-[10px] text-muted-foreground">{e.activeFrom} · {mToMi(e.distance)} mi</p>
               </div>
               <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold border", severityColors[sev])}>
                 {sev.toUpperCase()}
@@ -464,13 +464,13 @@ function TripsTable({ data }: { data: typeof MOCK_TRIPS }) {
                 <td className="px-4 py-2 font-mono font-medium">{t.deviceName}</td>
                 <td className="px-4 py-2 text-muted-foreground">{t.start}</td>
                 <td className="px-4 py-2 text-muted-foreground">{t.stop}</td>
-                <td className="px-4 py-2 text-right font-semibold">{mToKm(t.distance)} km</td>
+                <td className="px-4 py-2 text-right font-semibold">{t.distance.toFixed(1)} mi</td>
                 <td className="px-4 py-2 text-right">
-                  <span className={cn("font-bold", t.maxSpeed > 90 && "text-red-500 dark:text-red-400")}>
-                    {t.maxSpeed.toFixed(0)} km/h
+                  <span className={cn("font-bold", t.maxSpeed > 56 && "text-red-500 dark:text-red-400")}>
+                    {t.maxSpeed.toFixed(0)} mph
                   </span>
                 </td>
-                <td className="px-4 py-2 text-right text-muted-foreground">{t.averageSpeed.toFixed(0)} km/h</td>
+                <td className="px-4 py-2 text-right text-muted-foreground">{t.averageSpeed.toFixed(0)} mph</td>
               </tr>
             ))}
           </tbody>
@@ -646,7 +646,7 @@ function FleetsTab() {
                 <div className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2">
                   <Route className="h-3.5 w-3.5 text-indigo-500 shrink-0"/>
                   <div>
-                    <p className="font-semibold">{f.monthlyDistKm.toLocaleString()} km</p>
+                    <p className="font-semibold">{f.monthlyDistMi.toLocaleString()} mi</p>
                     <p className="text-[9px] text-muted-foreground">Monthly distance</p>
                   </div>
                 </div>
@@ -690,7 +690,7 @@ function OverviewTab({ selectedIds }: { selectedIds: string[] }) {
   const trips    = selectedIds.length ? MOCK_TRIPS.filter(t=>selectedIds.includes(t.device.id)) : MOCK_TRIPS
 
   const moving        = pins.filter(p=>p.status==="moving").length
-  const totalDistKm   = trips.reduce((a,t)=>a+t.distance,0)/1000
+  const totalDistMi   = trips.reduce((a,t)=>a+t.distance,0)
   const criticalCount = events.filter(e=>RULE_SEVERITY[e.rule.name]==="critical").length
 
   const [bottomTab, setBottomTab] = React.useState<"diag"|"trips">("diag")
@@ -700,7 +700,7 @@ function OverviewTab({ selectedIds }: { selectedIds: string[] }) {
       {/* KPI Row */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KPICard label="Active Vehicles"    value={moving}              sub={`of ${pins.length} tracked`}      icon={Truck}         color="bg-green-500"/>
-        <KPICard label="Total Distance"     value={`${totalDistKm.toFixed(0)} km`} sub="today across all vehicles" icon={Route}      color="bg-indigo-500"/>
+        <KPICard label="Total Distance"     value={`${totalDistMi.toFixed(0)} mi`} sub="today across all vehicles" icon={Route}      color="bg-indigo-500"/>
         <KPICard label="Critical Alerts"    value={criticalCount}       sub="speeding / harsh braking"         icon={AlertTriangle} color={criticalCount>0?"bg-red-500":"bg-green-500"}/>
         <KPICard label="Exception Events"   value={events.length}       sub="all severity levels"              icon={Shield}        color="bg-amber-500"/>
       </div>
@@ -733,15 +733,15 @@ function OverviewTab({ selectedIds }: { selectedIds: string[] }) {
 // ─── VEHICLE ANALYTICS ───────────────────────────────────────────────────────
 
 // Generate mock hour-by-hour telemetry for a vehicle
-function genTimeSeries(deviceId: string) {
+function genTimeSeries(deviceId: string, vehicleStatus = "active") {
   const seed = deviceId.charCodeAt(1)
   return Array.from({ length: 48 }, (_, i) => {
     const h = i * 0.5
-    const isActive = h >= 6 && h <= 18
+    const isActive = (h >= 6 && h <= 18) && vehicleStatus !== "stopped" && vehicleStatus !== "inactive"
     const base = Math.sin(h / 3 + seed) * 0.3 + 0.7
     return {
       time: `${String(Math.floor(h)).padStart(2,"0")}:${i%2===0?"00":"30"}`,
-      speed:   isActive ? Math.max(0, Math.round(base * 90 + (Math.random()-0.5)*25)) : 0,
+      speed:   isActive ? Math.max(0, Math.round(base * 56 + (Math.random()-0.5)*15)) : 0,  // mph
       rpm:     isActive ? Math.max(600, Math.round(base * 1800 + (Math.random()-0.5)*400)) : 600,
       fuel:    Math.max(5, Math.round(72 - h * 1.2 + Math.random()*3)),
       coolant: isActive ? Math.round(82 + base * 10 + Math.random()*4) : 60,
@@ -807,14 +807,14 @@ function GaugeBar({ label, value, max, unit, warn, crit, icon: Icon, color }:{
 
 function VehicleAnalyticsTab({ onSelectVehicle }: { onSelectVehicle?: (plate: string) => void }) {
   const [selectedVehicle, setSelectedVehicle] = React.useState(VEHICLES[0])
-  const series = React.useMemo(() => genTimeSeries(selectedVehicle.plate), [selectedVehicle.plate])
+  const series = React.useMemo(() => genTimeSeries(selectedVehicle.plate, selectedVehicle.status.toLowerCase()), [selectedVehicle.plate, selectedVehicle.status])
 
   const pin        = MOCK_PINS.find(p => p.name === selectedVehicle.plate) ?? MOCK_PINS[0]
   const exceptions = MOCK_EXCEPTIONS.filter(e => e.deviceName === selectedVehicle.plate)
   const trips      = MOCK_TRIPS.filter(t => t.deviceName === selectedVehicle.plate)
   const score      = safetyScore(selectedVehicle.plate)
   const events     = SAFETY_EVENTS_BY_TYPE[selectedVehicle.plate] ?? [0,0,0,0,0]
-  const totalDist  = trips.reduce((a,t) => a+t.distance, 0) / 1000
+  const totalDist  = trips.reduce((a,t) => a+t.distance, 0)
   const lastSeries = series[series.length - 1]
 
   const safetyData = SAFETY_LABELS.map((l,i) => ({ name: l, value: events[i]!, fill: SAFETY_COLORS[i]! }))
@@ -859,7 +859,7 @@ function VehicleAnalyticsTab({ onSelectVehicle }: { onSelectVehicle?: (plate: st
 
       {/* Live vitals row */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <GaugeBar label="Speed"    value={pin.speed}          max={120}   unit="km/h" warn={90}  crit={110} icon={Activity}    color="bg-indigo-500"/>
+        <GaugeBar label="Speed"    value={pin.speed}          max={80}    unit="mph"  warn={56}  crit={70}  icon={Activity}    color="bg-indigo-500"/>
         <GaugeBar label="Engine RPM" value={lastSeries?.rpm ?? 0}  max={2500}  unit="rpm"  warn={2000} crit={2300} icon={Gauge}       color="bg-violet-500"/>
         <GaugeBar label="Fuel"     value={lastSeries?.fuel ?? 0} max={100}   unit="%"    warn={20}  crit={10}  icon={Fuel}        color="bg-green-500"/>
         <GaugeBar label="Coolant"  value={lastSeries?.coolant ?? 0} max={120} unit="°C"  warn={95}  crit={105} icon={Thermometer} color="bg-orange-500"/>
@@ -882,20 +882,20 @@ function VehicleAnalyticsTab({ onSelectVehicle }: { onSelectVehicle?: (plate: st
           <div className="flex items-center gap-2 mb-3">
             <Activity className="h-4 w-4 text-indigo-500"/>
             <h3 className="text-sm font-semibold">Speed Profile — Today</h3>
-            <span className="ml-auto text-xs text-muted-foreground">km/h</span>
+            <span className="ml-auto text-xs text-muted-foreground">mph</span>
           </div>
           <ReactECharts style={{height:180}} option={{
             animation: true,
             grid: { top:8, right:8, bottom:24, left:36 },
-            tooltip: { trigger:"axis", formatter:(p:any[])=>`${p[0].axisValue}<br/><b>${p[0].value} km/h</b>` },
+            tooltip: { trigger:"axis", formatter:(p:any[])=>`${p[0].axisValue}<br/><b>${p[0].value} mph</b>` },
             xAxis: { type:"category", data:series.map(s=>s.time), axisLabel:{fontSize:9,interval:7}, axisLine:{lineStyle:{color:"#4444"}}, splitLine:{show:false} },
-            yAxis: { type:"value", max:130, axisLabel:{fontSize:9}, splitLine:{lineStyle:{color:"#8882",type:"dashed"}} },
+            yAxis: { type:"value", max:80, axisLabel:{fontSize:9}, splitLine:{lineStyle:{color:"#8882",type:"dashed"}} },
             series: [{
               data: series.map(s=>s.speed),
               type:"line", smooth:true, symbol:"none", lineStyle:{width:2.5,color:"#6366f1"},
               areaStyle:{color:{type:"linear",x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:"rgba(99,102,241,0.35)"},{offset:1,color:"rgba(99,102,241,0)"}]}},
               markLine:{ silent:true, symbol:"none", lineStyle:{color:"#ef4444",type:"dashed",width:1.5},
-                data:[{yAxis:90, label:{formatter:"Speed Limit",fontSize:9,color:"#ef4444"}}] }
+                data:[{yAxis:56, label:{formatter:"HGV Limit",fontSize:9,color:"#ef4444"}}] }
             }]
           }}/>
         </div>
@@ -1010,7 +1010,7 @@ function VehicleAnalyticsTab({ onSelectVehicle }: { onSelectVehicle?: (plate: st
                         <span className="text-[10px] font-bold uppercase tracking-wide rounded px-1.5 py-0.5 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">{t.carrier}</span>
                         <span className="font-mono text-[10px] text-muted-foreground">{t.blockId}</span>
                       </div>
-                      <p className={cn("text-xs font-bold", t.maxSpeed > 90 ? "text-red-500" : "text-foreground")}>{(t.distance/1000).toFixed(1)} km</p>
+                      <p className={cn("text-xs font-bold", t.maxSpeed > 56 ? "text-red-500" : "text-foreground")}>{t.distance.toFixed(1)} mi</p>
                     </div>
                     <div className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
                       <MapPin className="h-2.5 w-2.5"/>
