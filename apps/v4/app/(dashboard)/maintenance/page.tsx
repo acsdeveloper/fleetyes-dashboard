@@ -1,4 +1,5 @@
 "use client"
+import { PageHeader } from "@/components/page-header"
 import * as React from "react"
 import {
   CheckCircle2, XCircle, AlertTriangle, Car, Users, Bell, Settings,
@@ -627,7 +628,7 @@ export default function MaintenancePage() {
       {/* Header */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Maintenance Hub</h1>
+          <PageHeader pageKey="maintenance" />
           <p className="mt-1 text-sm text-muted-foreground">DVSA-compliant PMI management · Fleet compliance tracking</p>
         </div>
         {vor > 0 && (

@@ -1,4 +1,5 @@
 "use client"
+import { PageHeader } from "@/components/page-header"
 
 import * as React from "react"
 import {
@@ -244,7 +245,7 @@ export default function PlacesPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Places</h1>
+          <PageHeader pageKey="places" />
           <p className="mt-1 text-sm text-muted-foreground">
             Manage depots and delivery locations across the UK.
           </p>

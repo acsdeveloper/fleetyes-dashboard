@@ -1,4 +1,5 @@
 "use client"
+import { PageHeader } from "@/components/page-header"
 import * as React from "react"
 import {
   Clock, CalendarDays, UserCheck, Wrench,
@@ -70,7 +71,7 @@ export default function AllocationSettingsPage() {
   return (
     <div className="flex flex-1 flex-col gap-6 p-6 md:p-8 lg:p-10">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Allocation Settings</h1>
+        <PageHeader pageKey="allocationSettings" />
         <p className="mt-1 text-sm text-muted-foreground">
           Configure driver and vehicle allocation rules for automated and manual trip scheduling.
         </p>

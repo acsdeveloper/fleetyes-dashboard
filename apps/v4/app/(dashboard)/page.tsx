@@ -1,3 +1,5 @@
+"use client"
+import { PageHeader } from "@/components/page-header"
 import {
   Map,
   CalendarCheck,
@@ -30,14 +32,7 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-1 flex-col gap-6 p-6 md:p-8 lg:p-10">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-          Dashboard
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Welcome to FleetYes — your fleet management control center.
-        </p>
-      </div>
+      <PageHeader pageKey="dashboard" />
 
       {/* Stats cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -1,4 +1,5 @@
 "use client"
+import { PageHeader } from "@/components/page-header"
 
 import * as React from "react"
 import {
@@ -256,7 +257,7 @@ export default function CalendarPage() {
       {/* Page header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between shrink-0">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Calendar</h1>
+          <PageHeader pageKey="calendar" />
           <p className="mt-1 text-sm text-muted-foreground">
             View and schedule trips on the calendar.
           </p>

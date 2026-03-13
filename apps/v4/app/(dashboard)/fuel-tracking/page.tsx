@@ -1,4 +1,5 @@
 "use client"
+import { PageHeader } from "@/components/page-header"
 import * as React from "react"
 import { Search, Download, RefreshCw, Fuel, TrendingDown, TrendingUp, BarChart3 } from "lucide-react"
 
@@ -43,7 +44,7 @@ export default function FuelTrackingPage() {
   return (
     <div className="flex flex-1 flex-col gap-6 p-6 md:p-8 lg:p-10">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div><h1 className="text-2xl font-bold tracking-tight md:text-3xl">Fuel Tracking</h1><p className="mt-1 text-sm text-muted-foreground">Monitor consumption, MPG efficiency, and fuel spend per vehicle.</p></div>
+        <div><PageHeader pageKey="fuelTracking" /><p className="mt-1 text-sm text-muted-foreground">Monitor consumption, MPG efficiency, and fuel spend per vehicle.</p></div>
         <button className="inline-flex h-9 items-center gap-1.5 rounded-lg border bg-background px-3 text-sm text-muted-foreground hover:bg-muted"><Download className="h-3.5 w-3.5" /> Export</button>
       </div>
 

@@ -1,4 +1,5 @@
 "use client"
+import { PageHeader } from "@/components/page-header"
 import * as React from "react"
 import { Search, Download, Plus, RefreshCw } from "lucide-react"
 
@@ -33,7 +34,7 @@ export default function TollExpensesPage() {
   return (
     <div className="flex flex-1 flex-col gap-6 p-6 md:p-8 lg:p-10">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div><h1 className="text-2xl font-bold tracking-tight md:text-3xl">Toll Expenses</h1><p className="mt-1 text-sm text-muted-foreground">Track road tolls, bridge, and tunnel charges across the fleet.</p></div>
+        <div><PageHeader pageKey="tollExpenses" /><p className="mt-1 text-sm text-muted-foreground">Track road tolls, bridge, and tunnel charges across the fleet.</p></div>
         <div className="flex gap-2">
           <button className="inline-flex h-9 items-center gap-1.5 rounded-lg border bg-background px-3 text-sm text-muted-foreground hover:bg-muted"><Download className="h-3.5 w-3.5" /> Export</button>
           <button className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"><Plus className="h-3.5 w-3.5" /> New Charge</button>

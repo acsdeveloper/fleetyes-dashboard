@@ -1,4 +1,5 @@
 "use client"
+import { PageHeader } from "@/components/page-header"
 
 import * as React from "react"
 import { Search, Upload, Download, MoreHorizontal } from "lucide-react"
@@ -62,7 +63,7 @@ export default function VehiclesPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Vehicles</h1>
+          <PageHeader pageKey="vehicles" />
           <p className="mt-1 text-sm text-muted-foreground">
             Manage your fleet vehicles, plate numbers, and status.
           </p>

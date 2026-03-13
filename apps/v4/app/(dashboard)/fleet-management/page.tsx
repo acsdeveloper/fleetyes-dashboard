@@ -1,4 +1,5 @@
 "use client"
+import { PageHeader } from "@/components/page-header"
 import * as React from "react"
 import dynamic from "next/dynamic"
 import ReactECharts from "echarts-for-react"
@@ -1102,14 +1103,7 @@ export default function FleetManagementPage() {
       />
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-4 md:p-6 lg:p-8">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2 md:text-3xl">
-            <Layers className="h-7 w-7 text-indigo-500"/> Fleet Management
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Live telematics, diagnostics and fleet administration — powered by MyGeotab API
-          </p>
-        </div>
+        <PageHeader pageKey="fleetManagement" />
 
         <div className="flex gap-1 border-b">
           {TABS.map(t=>(

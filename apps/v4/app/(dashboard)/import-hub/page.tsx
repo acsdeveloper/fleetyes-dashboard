@@ -1,4 +1,5 @@
 "use client"
+import { PageHeader } from "@/components/page-header"
 import * as React from "react"
 import {
   CloudDownload, Wifi, WifiOff, RefreshCw, AlertTriangle, CheckCircle2,
@@ -718,13 +719,7 @@ export default function ImportHubPage() {
       {/* Page header */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl flex items-center gap-2">
-            <CloudDownload className="h-7 w-7 text-indigo-500" />
-            Data Import Hub
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Centralised control centre for all logistics provider integrations
-          </p>
+          <PageHeader pageKey="importHub" />
         </div>
         <button className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 self-start sm:self-auto">
           <Plus className="h-4 w-4" /> Add Provider

@@ -1,4 +1,5 @@
 "use client"
+import { PageHeader } from "@/components/page-header"
 import * as React from "react"
 import {
   CheckCircle2, XCircle, AlertTriangle, Camera, PenLine, Clock,
@@ -996,7 +997,7 @@ export default function CompliancePage() {
     <div className="flex flex-1 flex-col gap-4 p-6 md:p-8 lg:p-10">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Compliance Hub</h1>
+          <PageHeader pageKey="compliance" />
           <p className="mt-1 text-sm text-muted-foreground">DVSA · FORS · Earned Recognition · O-Licence management</p>
         </div>
         {alerts > 0 && (

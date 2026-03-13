@@ -1,61 +1,28 @@
-import { cn } from "@/lib/utils"
+"use client"
+import { useLang } from "@/components/lang-context"
+import type { Translations } from "@/components/lang-context"
 
-function PageHeader({
-  className,
-  children,
-  ...props
-}: React.ComponentProps<"section">) {
+type PageKey = keyof Translations["pages"]
+
+interface PageHeaderProps {
+  pageKey: PageKey
+  children?: React.ReactNode
+}
+
+/**
+ * Renders the standard page <h1> + subtitle, fully translated.
+ * Usage: <PageHeader pageKey="calendar" />
+ */
+export function PageHeader({ pageKey, children }: PageHeaderProps) {
+  const { t } = useLang()
+  const page = t.pages[pageKey]
   return (
-    <section className={cn("border-grid", className)} {...props}>
-      <div className="container-wrapper">
-        <div className="container flex flex-col items-center gap-2 px-6 py-8 text-center md:py-16 lg:py-20 xl:gap-4">
-          {children}
-        </div>
+    <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{page.title}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{page.subtitle}</p>
       </div>
-    </section>
+      {children && <div className="shrink-0">{children}</div>}
+    </div>
   )
 }
-
-function PageHeaderHeading({
-  className,
-  ...props
-}: React.ComponentProps<"h1">) {
-  return (
-    <h1
-      className={cn(
-        "leading-tighter max-w-3xl text-3xl font-semibold tracking-tight text-balance text-primary lg:leading-[1.1] lg:font-semibold xl:text-5xl xl:tracking-tighter",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function PageHeaderDescription({
-  className,
-  ...props
-}: React.ComponentProps<"p">) {
-  return (
-    <p
-      className={cn(
-        "max-w-4xl text-base text-balance text-foreground sm:text-lg",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function PageActions({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      className={cn(
-        "flex w-full items-center justify-center gap-2 pt-2 **:data-[slot=button]:shadow-none",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-export { PageActions, PageHeader, PageHeaderDescription, PageHeaderHeading }

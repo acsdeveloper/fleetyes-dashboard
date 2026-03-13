@@ -1,4 +1,5 @@
 "use client"
+import { PageHeader } from "@/components/page-header"
 
 import * as React from "react"
 import { MoreHorizontal, Search, Filter, Download } from "lucide-react"
@@ -118,18 +119,12 @@ export default function TripsPage() {
     <div className="flex flex-1 flex-col gap-4 p-6 md:p-8 lg:p-10">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-            Trips
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Manage trip routes, schedules, and logistics.
-          </p>
-        </div>
+        <PageHeader pageKey="trips" />
         <button className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
           + New Trip
         </button>
       </div>
+
 
       {/* Toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
