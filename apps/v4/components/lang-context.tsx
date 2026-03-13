@@ -8,7 +8,7 @@ export type Lang = "en" | "de"
 export type Translations = {
   nav: {
     trips: string; importHub: string; calendar: string; drivers: string
-    vehicles: string; fleets: string; places: string; fuelTracking: string
+    fleetManagement: string; places: string; fuelTracking: string
     parkingMonitoring: string; tollExpenses: string; tollReceipts: string
     fuelReceipts: string; holidays: string; offShift: string
     maintenance: string; compliance: string; inventory: string
@@ -34,8 +34,7 @@ export const translations: Record<Lang, Translations> = {
       importHub:          "Import Hub",
       calendar:           "Calendar",
       drivers:            "Drivers",
-      vehicles:           "Vehicles",
-      fleets:             "Fleets",
+      fleetManagement:    "Fleet Management",
       places:             "Places",
       fuelTracking:       "Fuel Tracking",
       parkingMonitoring:  "Parking Monitoring",
@@ -78,8 +77,7 @@ export const translations: Record<Lang, Translations> = {
       importHub:          "Import-Hub",
       calendar:           "Kalender",
       drivers:            "Fahrer",
-      vehicles:           "Fahrzeuge",
-      fleets:             "Fuhrparks",
+      fleetManagement:    "Flottenmanagement",
       places:             "Standorte",
       fuelTracking:       "Kraftstoffverfolgung",
       parkingMonitoring:  "Parküberwachung",

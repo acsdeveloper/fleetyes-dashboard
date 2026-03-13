@@ -4,8 +4,8 @@ import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
-  Map, CloudDownload, CalendarCheck, TableProperties, Truck,
-  Container, MapPin, Fuel, ParkingSquare, Banknote,
+  Map, CloudDownload, CalendarCheck, TableProperties,
+  Layers, MapPin, Fuel, ParkingSquare, Banknote,
   FileText, Receipt, UserX, CalendarOff, Wrench,
   Settings2, ShieldCheck, Package, PanelLeft,
   type LucideIcon,
@@ -26,9 +26,8 @@ const navItems: NavItem[] = [
   { key: "trips",              href: "/trips",          icon: Map            },
   { key: "importHub",          href: "/import-hub",     icon: CloudDownload  },
   { key: "calendar",           href: "/calendar",       icon: CalendarCheck  },
-  { key: "drivers",            href: "/drivers",        icon: TableProperties},
-  { key: "vehicles",           href: "/vehicles",       icon: Truck          },
-  { key: "fleets",             href: "/fleets",         icon: Container      },
+  { key: "drivers",            href: "/drivers",          icon: TableProperties},
+  { key: "fleetManagement",    href: "/fleet-management", icon: Layers         },
   { key: "places",             href: "/places",         icon: MapPin         },
   { key: "fuelTracking",       href: "/fuel-tracking",  icon: Fuel           },
   { key: "parkingMonitoring",  href: "/parking",        icon: ParkingSquare  },
