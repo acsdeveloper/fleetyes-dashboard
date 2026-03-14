@@ -732,6 +732,23 @@ function ukDate(iso: string): string {
   if (isNaN(dt.getTime())) return iso
   return dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })
 }
+// Single tick — one party signed
+function SingleTick({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  )
+}
+// Double tick — both parties signed
+function DoubleTick({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 28 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
+      <polyline points="26 6 15 17 12 14" />
+    </svg>
+  )
+}
 
 // ── Seeded data ───────────────────────────────────────────────────────────────
 const VEH_COLS_INIT: DocColumn[] = [
@@ -753,9 +770,9 @@ function seedVehicleCells(): CellMap {
 
 const DRV_COLS_INIT: DocColumn[] = [
   { id: "licence", name: "Driving Licence" },
-  { id: "cpc",     name: "CPC Deadline" },
-  { id: "rtw",     name: "RTW / Visa" },
-  { id: "adr",     name: "ADR Certificate" },
+  { id: "cpc",     name: "CPC" },
+  { id: "rtw",     name: "RTW" },
+  { id: "adr",     name: "ADR" },
 ]
 function seedDriverCells(): CellMap {
   const m: CellMap = {}
@@ -896,7 +913,15 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
               {cols.map((col, ci) => (
               <th key={col.id} className={`px-2 py-2.5 text-center text-xs font-semibold text-muted-foreground w-[216px] ${ci % 2 === 1 ? "bg-muted/30" : ""}`}>
                   <div className="flex items-center justify-center gap-1">
-                    <span>{col.name}</span>
+                    <span title={{
+                      mot:   "Ministry of Transport (MOT) — annual roadworthiness test",
+                      tacho: "Tachograph Calibration — 2-year recalibration certificate",
+                      loler: "LOLER — Lifting Operations & Lifting Equipment Regulations inspection",
+                      cpc:   "CPC — Certificate of Professional Competence (Driver Qualification Card deadline)",
+                      rtw:   "RTW — Right to Work (visa / work permit expiry)",
+                      adr:   "ADR — Agreement on International Carriage of Dangerous Goods by Road",
+                      licence: "Driving Licence expiry date",
+                    }[col.id] ?? col.name}>{col.name}</span>
                     <button
                       onClick={() => onDeleteCol(col.id)}
                       className="ml-1 flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/30 transition-colors"
@@ -966,15 +991,23 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
                           {/* Right column: icons — lighter shade, darker icons, divider only here */}
                           <div className={`w-10 shrink-0 flex flex-col border-l border-black/[0.07] dark:border-white/10 ${cellBgLight(cell.expiry)}`}>
                             <div className="flex-1 flex items-center justify-center">
-                              {sigFull && <CheckCircle2 className="h-4 w-4 text-green-700 dark:text-green-500" />}
+                              {sigFull && (
+                                <span title="Both parties have signed (driver/fleet manager + transport manager/director)">
+                                  <DoubleTick className="h-4 w-4 text-green-700 dark:text-green-500" />
+                                </span>
+                              )}
                               {sigPartial && (
-                                <svg className="h-4 w-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                  <polyline points="20 6 9 17 4 12" />
-                                </svg>
+                                <span title="One party has signed — awaiting second signatory">
+                                  <SingleTick className="h-4 w-4 text-amber-600" />
+                                </span>
                               )}
                             </div>
                             <div className="h-7 flex items-center justify-center border-t border-black/[0.07] dark:border-white/10">
-                              {cell.hasFile && <FileText className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />}
+                              {cell.hasFile && (
+                                <span title="Document file attached">
+                                  <FileText className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -990,18 +1023,15 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
       </div>
 
       {/* Legend */}
-      <div className="mt-3 flex flex-wrap items-center gap-4 text-[10px] text-muted-foreground">
-        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-red-200 border border-red-300 inline-block" /> Expired / critical</span>
-        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-amber-200 border border-amber-300 inline-block" /> Expiring ≤90 days</span>
-        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-green-200 border border-green-300 inline-block" /> Valid</span>
-        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-muted/60 border border-border inline-block" /> N/A / no date</span>
-        <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-green-600" /> All signed</span>
-        <span className="flex items-center gap-1">
-          <svg className="h-3 w-3 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-          Partially signed
-        </span>
-        <span className="flex items-center gap-1"><FileText className="h-3 w-3 text-indigo-500" /> File attached</span>
-        <span className="ml-auto text-[10px] italic">Click any cell to edit</span>
+      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-red-200 border border-red-300 inline-block shrink-0" /> Expired</span>
+        <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-amber-200 border border-amber-300 inline-block shrink-0" /> Expiring within 90 days</span>
+        <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-green-200 border border-green-300 inline-block shrink-0" /> Valid (&gt;90 days)</span>
+        <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-muted/60 border border-border inline-block shrink-0" /> No date set</span>
+        <span className="flex items-center gap-1.5"><DoubleTick className="h-3.5 w-3.5 text-green-700" /> Both parties signed</span>
+        <span className="flex items-center gap-1.5"><SingleTick className="h-3.5 w-3.5 text-amber-600" /> One party signed — awaiting second</span>
+        <span className="flex items-center gap-1.5"><FileText className="h-3.5 w-3.5 text-indigo-600" /> Document file attached</span>
+        <span className="ml-auto text-xs italic">Click any cell to edit</span>
       </div>
     </div>
   )
