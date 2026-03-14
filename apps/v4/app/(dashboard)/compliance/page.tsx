@@ -689,105 +689,395 @@ function DriversTab() {
   )
 }
 
-// ─── TAB 3 · DOCUMENTS ───────────────────────────────────────────────────────
+// ─── TAB 3 · DOCUMENT COMPLIANCE MATRIX ──────────────────────────────────────
 
-function DocumentsTab() {
-  const [cat, setCat]       = React.useState("All")
-  const [search, setSearch] = React.useState("")
-  const cats = ["All","O-Licence","Vehicle","Trailer","Driver","Workshop","Insurance","Audit","H&S"]
+// ── Types ──────────────────────────────────────────────────────────────────────
+interface DocColumn { id: string; name: string }
+interface CellData {
+  expiry: string          // ISO date string or ""
+  sigA: boolean           // first signatory (e.g. Driver / Fleet Manager)
+  sigB: boolean           // second signatory (e.g. Manager / Director)
+  hasFile: boolean
+}
+type CellMap = Record<string, Record<string, CellData>>  // rowId → colId → CellData
 
-  const filtered = documents.filter(d => {
-    const matchCat = cat === "All" || d.cat === cat
-    const matchQ   = !search || d.name.toLowerCase().includes(search.toLowerCase())
-    return matchCat && matchQ
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function cellBg(expiry: string): string {
+  if (!expiry) return "bg-muted/40 border-border"
+  const d = daysUntil(expiry)
+  if (d === null) return "bg-muted/40 border-border"
+  if (d <= 0)  return "bg-red-100 border-red-300 dark:bg-red-950/40 dark:border-red-800"
+  if (d <= 90) return "bg-amber-100 border-amber-300 dark:bg-amber-950/40 dark:border-amber-800"
+  return "bg-green-100 border-green-300 dark:bg-green-950/40 dark:border-green-800"
+}
+function cellText(expiry: string): string {
+  if (!expiry) return ""
+  const d = daysUntil(expiry)
+  if (d === null) return ""
+  if (d < 0) return `${Math.abs(d)}d OD`
+  if (d === 0) return "Today"
+  return `${d}d`
+}
+
+// ── Seeded data ───────────────────────────────────────────────────────────────
+const VEH_COLS_INIT: DocColumn[] = [
+  { id: "mot",   name: "MOT" },
+  { id: "tacho", name: "Tachograph Cal." },
+  { id: "loler", name: "LOLER" },
+]
+function seedVehicleCells(): CellMap {
+  const m: CellMap = {}
+  vehicles.forEach(v => {
+    m[v.reg] = {
+      mot:   { expiry: v.mot,          sigA: true,  sigB: true,  hasFile: true  },
+      tacho: { expiry: v.tacho,        sigA: true,  sigB: false, hasFile: true  },
+      loler: { expiry: v.loler ?? "",  sigA: !!v.loler, sigB: false, hasFile: !!v.loler },
+    }
   })
+  return m
+}
 
-  const expiring30 = documents.filter(d => { const x = daysUntil(d.expiry); return x !== null && x <= 30 })
-  const expiring90 = documents.filter(d => { const x = daysUntil(d.expiry); return x !== null && x > 30 && x <= 90 })
-  const pending    = documents.filter(d => !d.signed)
+const DRV_COLS_INIT: DocColumn[] = [
+  { id: "licence", name: "Driving Licence" },
+  { id: "cpc",     name: "CPC Deadline" },
+  { id: "rtw",     name: "RTW / Visa" },
+  { id: "adr",     name: "ADR Certificate" },
+]
+function seedDriverCells(): CellMap {
+  const m: CellMap = {}
+  drivers.forEach(d => {
+    m[d.id] = {
+      licence: { expiry: d.expiry,         sigA: true,  sigB: true,  hasFile: true  },
+      cpc:     { expiry: d.cpcDeadline,    sigA: true,  sigB: false, hasFile: false },
+      rtw:     { expiry: d.rtw ?? "",      sigA: !!d.rtw, sigB: false, hasFile: !!d.rtw },
+      adr:     { expiry: d.adr ? d.adrExp : "", sigA: d.adr, sigB: false, hasFile: d.adr },
+    }
+  })
+  return m
+}
 
+// ── Cell Popover ──────────────────────────────────────────────────────────────
+function CellPopover({
+  rowLabel, colLabel, data, onChange, onClose,
+}: {
+  rowLabel: string; colLabel: string
+  data: CellData
+  onChange: (next: CellData) => void
+  onClose: () => void
+}) {
+  const [local, setLocal] = React.useState<CellData>({ ...data })
+  function save() { onChange(local); onClose() }
   return (
-    <div className="flex flex-col gap-6">
-      {/* KPIs */}
-      <div className="grid gap-4 sm:grid-cols-4">
-        <KPI label="Total Documents"     value={documents.length}  icon={FileText}      color="bg-indigo-500" sub={`across ${cats.length - 1} categories`} />
-        <KPI label="Pending Signature"   value={pending.length}    icon={PenLine}       color="bg-amber-500"  sub="awaiting sign-off" />
-        <KPI label="Expiring ≤30 Days"   value={expiring30.length} icon={AlertTriangle} color="bg-red-500"    sub="critical — act now" />
-        <KPI label="Expiring 31–90 Days" value={expiring90.length} icon={CalendarDays}  color="bg-amber-500"  sub="book renewals" />
-      </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
+      <div
+        className="w-72 rounded-2xl border bg-card p-5 shadow-2xl flex flex-col gap-4"
+        onClick={e => e.stopPropagation()}
+      >
+        <div>
+          <p className="font-semibold text-sm">{colLabel}</p>
+          <p className="text-xs text-muted-foreground">{rowLabel}</p>
+        </div>
 
-      {/* Expiry alert banner */}
-      {(expiring30.length > 0 || expiring90.length > 0) && (
-        <div className="rounded-xl border border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/20 p-4">
-          <p className="mb-2 text-sm font-semibold text-red-800 dark:text-red-300 flex items-center gap-2">
-            <Lock className="h-4 w-4" /> Expiry Alerts
-          </p>
-          <div className="flex flex-col gap-1">
-            {expiring30.map(d => (
-              <p key={d.id} className="text-xs text-red-700 dark:text-red-400">
-                🔴 {d.name} — expires {d.expiry} ({expiryLabel(d.expiry)})
-              </p>
-            ))}
-            {expiring90.map(d => (
-              <p key={d.id} className="text-xs text-amber-700 dark:text-amber-400">
-                🟡 {d.name} — expires {d.expiry} ({expiryLabel(d.expiry)})
-              </p>
+        {/* Expiry date */}
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">Expiry Date</label>
+          <input
+            type="date"
+            value={local.expiry}
+            onChange={e => setLocal(p => ({ ...p, expiry: e.target.value }))}
+            className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+
+        {/* Signatories */}
+        <div>
+          <p className="mb-2 text-xs font-medium text-muted-foreground">Signatories</p>
+          <div className="flex flex-col gap-2">
+            {[
+              { key: "sigA" as const, label: "Driver / Fleet Manager" },
+              { key: "sigB" as const, label: "Transport Manager / Director" },
+            ].map(s => (
+              <label key={s.key} className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={local[s.key]}
+                  onChange={e => setLocal(p => ({ ...p, [s.key]: e.target.checked }))}
+                  className="h-4 w-4 rounded border-border accent-green-600"
+                />
+                <span className="text-xs">{s.label}</span>
+              </label>
             ))}
           </div>
         </div>
-      )}
 
-      {/* Filter + search + upload */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap gap-1.5">
-          {cats.map(c => (
-            <button key={c} onClick={() => setCat(c)}
-              className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${cat===c ? "bg-primary text-primary-foreground" : "border bg-background hover:bg-muted"}`}
-            >{c}</button>
-          ))}
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search documents…"
-            className="h-8 rounded-lg border bg-background px-3 text-xs outline-none focus:ring-2 focus:ring-ring w-44" />
-          <button className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90">
-            <Upload className="h-3.5 w-3.5" /> Upload
-          </button>
+        {/* File attached */}
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={local.hasFile}
+            onChange={e => setLocal(p => ({ ...p, hasFile: e.target.checked }))}
+            className="h-4 w-4 rounded border-border accent-indigo-600"
+          />
+          <span className="text-xs">Document file attached</span>
+        </label>
+
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 h-9 rounded-lg border text-sm hover:bg-muted">Cancel</button>
+          <button onClick={save}    className="flex-1 h-9 rounded-lg bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90">Save</button>
         </div>
       </div>
+    </div>
+  )
+}
 
-      {/* Table */}
-      <div className="overflow-auto rounded-xl border bg-card shadow-sm">
-        <table className="w-full text-sm">
-          <thead><tr className="border-b bg-muted/40">
-            {["Document","Category","Expiry","Status","Actions"].map(h => <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>)}
-          </tr></thead>
-          <tbody>
-            {filtered.map(d => (
-              <tr key={d.id} className="border-b last:border-0 hover:bg-muted/20">
-                <td className="px-4 py-3 font-medium">{d.name}</td>
-                <td className="px-4 py-3"><span className="rounded-full border px-2 py-0.5 text-[10px]">{d.cat}</span></td>
-                <td className="px-4 py-3">
-                  {d.expiry
-                    ? <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${expiryBadge(d.expiry)}`}>{d.expiry} ({expiryLabel(d.expiry)})</span>
-                    : <span className="text-muted-foreground text-xs">No expiry</span>}
-                </td>
-                <td className="px-4 py-3">
-                  {d.signed
-                    ? <span className="inline-flex items-center gap-1 text-xs text-green-600"><CheckCircle2 className="h-3.5 w-3.5" /> Signed</span>
-                    : <span className="inline-flex items-center gap-1 text-xs text-amber-600"><Clock className="h-3.5 w-3.5" /> Pending</span>}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <button className="text-xs text-indigo-500 hover:underline">View</button>
-                    <button className="text-xs text-muted-foreground hover:underline">Send for Signature</button>
-                    <button className="text-xs text-muted-foreground hover:underline"><Download className="h-3 w-3 inline" /> PDF</button>
+// ── Matrix grid ───────────────────────────────────────────────────────────────
+function ComplianceMatrix<R extends { id: string; label: string; sublabel?: string }>({
+  rows, cols, cells, onCellChange, onAddCol, onDeleteCol,
+}: {
+  rows: R[]
+  cols: DocColumn[]
+  cells: CellMap
+  onCellChange: (rowId: string, colId: string, data: CellData) => void
+  onAddCol: (name: string) => void
+  onDeleteCol: (colId: string) => void
+}) {
+  const [popover, setPopover] = React.useState<{ rowId: string; colId: string } | null>(null)
+  const [addingCol, setAddingCol] = React.useState(false)
+  const [newColName, setNewColName] = React.useState("")
+
+  function confirmAddCol() {
+    if (newColName.trim()) {
+      onAddCol(newColName.trim())
+      setNewColName("")
+      setAddingCol(false)
+    }
+  }
+
+  const popRow = popover ? rows.find(r => r.id === popover.rowId) : null
+  const popCol = popover ? cols.find(c => c.id === popover.colId) : null
+  const popData = popover ? (cells[popover.rowId]?.[popover.colId] ?? { expiry: "", sigA: false, sigB: false, hasFile: false }) : null
+
+  return (
+    <div className="relative">
+      {/* Popover */}
+      {popover && popRow && popCol && popData && (
+        <CellPopover
+          rowLabel={popRow.label}
+          colLabel={popCol.name}
+          data={popData}
+          onChange={d => onCellChange(popover.rowId, popover.colId, d)}
+          onClose={() => setPopover(null)}
+        />
+      )}
+
+      <div className="overflow-x-auto rounded-xl border bg-card shadow-sm">
+        <table className="min-w-full text-xs border-collapse">
+          {/* Header */}
+          <thead>
+            <tr className="border-b bg-muted/40">
+              <th className="sticky left-0 z-10 bg-muted/60 px-4 py-3 text-left text-xs font-semibold text-muted-foreground whitespace-nowrap min-w-[160px]">
+                Entity
+              </th>
+              {cols.map(col => (
+                <th key={col.id} className="px-3 py-3 text-center font-semibold text-muted-foreground whitespace-nowrap min-w-[130px]">
+                  <div className="flex items-center justify-center gap-1">
+                    <span>{col.name}</span>
+                    <button
+                      onClick={() => onDeleteCol(col.id)}
+                      className="ml-1 flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/30 transition-colors"
+                      title="Remove column"
+                    >
+                      ×
+                    </button>
                   </div>
+                </th>
+              ))}
+              {/* Add column */}
+              <th className="px-3 py-3 whitespace-nowrap">
+                {addingCol ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      autoFocus
+                      value={newColName}
+                      onChange={e => setNewColName(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter") confirmAddCol(); if (e.key === "Escape") { setAddingCol(false); setNewColName("") } }}
+                      placeholder="Column name…"
+                      className="h-7 w-28 rounded-lg border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring"
+                    />
+                    <button onClick={confirmAddCol} className="h-7 rounded-lg bg-primary px-2 text-[10px] font-medium text-primary-foreground hover:bg-primary/90">✓</button>
+                    <button onClick={() => { setAddingCol(false); setNewColName("") }} className="h-7 rounded-lg border px-2 text-[10px] hover:bg-muted">✕</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setAddingCol(true)}
+                    className="inline-flex h-7 items-center gap-1 rounded-lg border border-dashed border-indigo-400 px-2 text-[10px] font-medium text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 transition-colors"
+                  >
+                    <Plus className="h-3 w-3" /> Add Column
+                  </button>
+                )}
+              </th>
+            </tr>
+          </thead>
+          {/* Body */}
+          <tbody>
+            {rows.map((row, ri) => (
+              <tr key={row.id} className={`border-b last:border-0 ${ri % 2 === 0 ? "" : "bg-muted/10"}`}>
+                <td className="sticky left-0 z-10 bg-card px-4 py-2 border-r">
+                  <p className="font-semibold font-mono text-xs">{row.label}</p>
+                  {row.sublabel && <p className="text-[10px] text-muted-foreground truncate max-w-[140px]">{row.sublabel}</p>}
                 </td>
+                {cols.map(col => {
+                  const cell: CellData = cells[row.id]?.[col.id] ?? { expiry: "", sigA: false, sigB: false, hasFile: false }
+                  const bg = cellBg(cell.expiry)
+                  const daysTxt = cell.expiry ? cellText(cell.expiry) : "—"
+                  const dateDisplay = cell.expiry ? cell.expiry : null
+                  const sigFull    = cell.sigA && cell.sigB
+                  const sigPartial = (cell.sigA || cell.sigB) && !sigFull
+                  return (
+                    <td key={col.id} className="px-2 py-1.5">
+                      <button
+                        onClick={() => setPopover({ rowId: row.id, colId: col.id })}
+                        className={`w-full min-h-[68px] rounded-lg border p-2 text-left transition-all hover:opacity-80 hover:shadow-md ${bg}`}
+                      >
+                        <div className="mb-1">
+                          <span className="text-[10px] font-bold">{daysTxt}</span>
+                        </div>
+                        {dateDisplay && (
+                          <p className="text-[9px] text-muted-foreground leading-tight mb-1.5">{dateDisplay}</p>
+                        )}
+                        <div className="flex items-center gap-1 mt-auto">
+                          {sigFull && (
+                            <span title="All parties signed" className="inline-flex items-center">
+                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                            </span>
+                          )}
+                          {sigPartial && (
+                            <span title="Partially signed" className="inline-flex items-center">
+                              <svg className="h-3.5 w-3.5 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            </span>
+                          )}
+                          {!cell.sigA && !cell.sigB && (
+                            <span className="text-[9px] text-muted-foreground">unsigned</span>
+                          )}
+                          {cell.hasFile && (
+                            <span title="File attached" className="ml-auto inline-flex"><FileText className="h-3 w-3 text-indigo-500" /></span>
+                          )}
+                        </div>
+                      </button>
+                    </td>
+                  )
+                })}
+                <td />
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* Legend */}
+      <div className="mt-3 flex flex-wrap items-center gap-4 text-[10px] text-muted-foreground">
+        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-red-200 border border-red-300 inline-block" /> Expired / critical</span>
+        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-amber-200 border border-amber-300 inline-block" /> Expiring ≤90 days</span>
+        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-green-200 border border-green-300 inline-block" /> Valid</span>
+        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-muted/60 border border-border inline-block" /> N/A / no date</span>
+        <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-green-600" /> All signed</span>
+        <span className="flex items-center gap-1">
+          <svg className="h-3 w-3 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+          Partially signed
+        </span>
+        <span className="flex items-center gap-1"><FileText className="h-3 w-3 text-indigo-500" /> File attached</span>
+        <span className="ml-auto text-[10px] italic">Click any cell to edit</span>
+      </div>
+    </div>
+  )
+}
+
+// ── DocumentsTab ──────────────────────────────────────────────────────────────
+function DocumentsTab() {
+  const [subTab, setSubTab] = React.useState<"vehicle" | "driver">("vehicle")
+
+  const [vehCols, setVehCols] = React.useState<DocColumn[]>(VEH_COLS_INIT)
+  const [vehCells, setVehCells] = React.useState<CellMap>(seedVehicleCells)
+  const [drvCols, setDrvCols] = React.useState<DocColumn[]>(DRV_COLS_INIT)
+  const [drvCells, setDrvCells] = React.useState<CellMap>(seedDriverCells)
+
+  function addCol(setCols: React.Dispatch<React.SetStateAction<DocColumn[]>>, name: string) {
+    const id = `col_${Date.now()}`
+    setCols(prev => [...prev, { id, name }])
+  }
+  function deleteCol(
+    setCols: React.Dispatch<React.SetStateAction<DocColumn[]>>,
+    setCells: React.Dispatch<React.SetStateAction<CellMap>>,
+    colId: string,
+  ) {
+    setCols(prev => prev.filter(c => c.id !== colId))
+    setCells(prev => {
+      const next = { ...prev }
+      Object.keys(next).forEach(rowId => {
+        const row = { ...next[rowId] }
+        delete row[colId]
+        next[rowId] = row
+      })
+      return next
+    })
+  }
+  function updateCell(setCells: React.Dispatch<React.SetStateAction<CellMap>>, rowId: string, colId: string, data: CellData) {
+    setCells(prev => ({ ...prev, [rowId]: { ...(prev[rowId] ?? {}), [colId]: data } }))
+  }
+
+  const vehRows = vehicles.map(v => ({ id: v.reg, label: v.reg, sublabel: v.make }))
+  const drvRows = drivers.map(d => ({ id: d.id, label: d.name, sublabel: `${d.licence} · ${d.points} pts` }))
+
+  const flatCells = (cols: DocColumn[], cells: CellMap, rowIds: string[]) =>
+    cols.flatMap(col => rowIds.map(id => cells[id]?.[col.id])).filter((c): c is CellData => c !== undefined)
+  const countExpired  = (arr: CellData[]) => arr.filter(c => c.expiry && (daysUntil(c.expiry) ?? 1) <= 0).length
+  const countExpiring = (arr: CellData[]) => arr.filter(c => c.expiry && (daysUntil(c.expiry) ?? 999) > 0 && (daysUntil(c.expiry) ?? 999) <= 90).length
+  const countPending  = (arr: CellData[]) => arr.filter(c => !c.sigA || !c.sigB).length
+
+  const curCells = subTab === "vehicle"
+    ? flatCells(vehCols, vehCells, vehRows.map(r => r.id))
+    : flatCells(drvCols, drvCells, drvRows.map(r => r.id))
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <KPI label="Expired / Overdue"   value={countExpired(curCells)}  icon={AlertTriangle} color="bg-red-500"    sub="requires immediate action" />
+        <KPI label="Expiring ≤ 90 Days"  value={countExpiring(curCells)} icon={CalendarDays}  color="bg-amber-500"  sub="plan renewal" />
+        <KPI label="Awaiting Signatures" value={countPending(curCells)}  icon={PenLine}       color="bg-indigo-500" sub="not fully signed" />
+      </div>
+
+      <div className="flex gap-1 rounded-xl border bg-muted/30 p-1 w-fit">
+        {([{ id: "vehicle" as const, label: "Vehicle", icon: Truck }, { id: "driver" as const, label: "Driver", icon: Users }]).map(t => (
+          <button key={t.id} onClick={() => setSubTab(t.id)}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${subTab === t.id ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            <t.icon className="h-4 w-4" />{t.label}
+          </button>
+        ))}
+      </div>
+
+      {subTab === "vehicle" && (
+        <ComplianceMatrix
+          rows={vehRows}
+          cols={vehCols}
+          cells={vehCells}
+          onCellChange={(r, c, d) => updateCell(setVehCells, r, c, d)}
+          onAddCol={name => addCol(setVehCols, name)}
+          onDeleteCol={colId => deleteCol(setVehCols, setVehCells, colId)}
+        />
+      )}
+      {subTab === "driver" && (
+        <ComplianceMatrix
+          rows={drvRows}
+          cols={drvCols}
+          cells={drvCells}
+          onCellChange={(r, c, d) => updateCell(setDrvCells, r, c, d)}
+          onAddCol={name => addCol(setDrvCols, name)}
+          onDeleteCol={colId => deleteCol(setDrvCols, setDrvCells, colId)}
+        />
+      )}
     </div>
   )
 }
