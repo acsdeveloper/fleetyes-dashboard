@@ -815,8 +815,10 @@ function CellSidebar({
   onClose: () => void
 }) {
   const [local, setLocal] = React.useState<CellData>({ ...data })
-  const [newVerName, setNewVerName]   = React.useState("")
-  const [addingVer, setAddingVer]     = React.useState(false)
+  const [addingVer, setAddingVer]   = React.useState(false)
+  const [dragOver,  setDragOver]    = React.useState(false)
+  const [pickedFile, setPickedFile] = React.useState<File | null>(null)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   function save() { onChange(local); onClose() }
 
@@ -836,11 +838,31 @@ function CellSidebar({
     : "bg-green-600"
 
   function submitVersion() {
-    const n = newVerName.trim()
-    if (!n) return
-    setLocal(p => ({ ...p, files: [{ name: n, uploadedAt: new Date().toISOString().slice(0, 10) }, ...p.files] }))
-    setNewVerName("")
+    if (!pickedFile) return
+    setLocal(p => ({ ...p, files: [
+      { name: pickedFile.name, uploadedAt: new Date().toISOString().slice(0, 10) },
+      ...p.files,
+    ]}))
+    setPickedFile(null)
     setAddingVer(false)
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault(); setDragOver(false)
+    const f = e.dataTransfer.files?.[0]
+    if (f) setPickedFile(f)
+  }
+
+  function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (f) setPickedFile(f)
+    e.target.value = ""
+  }
+
+  function formatBytes(b: number) {
+    if (b < 1024) return `${b} B`
+    if (b < 1048576) return `${(b / 1024).toFixed(1)} KB`
+    return `${(b / 1048576).toFixed(1)} MB`
   }
 
   return (
@@ -922,28 +944,79 @@ function CellSidebar({
                 )}
               </div>
 
-              {/* Inline version upload */}
-              {addingVer && (
-                <div className="flex gap-2 mb-4 items-center rounded-xl bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800 px-3 py-2">
-                  <Upload className="h-4 w-4 text-indigo-500 shrink-0" />
+              {/* Upload zone — shown when addingVer OR no files yet */}
+              {(addingVer || local.files.length === 0) && (
+                <div className="mb-4">
                   <input
-                    autoFocus
-                    value={newVerName}
-                    onChange={e => setNewVerName(e.target.value)}
-                    onKeyDown={e => { if (e.key === "Enter") submitVersion(); if (e.key === "Escape") setAddingVer(false) }}
-                    placeholder="e.g. MOT_Certificate_Nov26.pdf"
-                    className="flex-1 text-xs bg-transparent outline-none placeholder:text-indigo-400"
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx"
+                    className="hidden"
+                    onChange={handleFileInput}
                   />
-                  <button onClick={submitVersion} className="h-6 px-2 text-[10px] font-semibold bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Add</button>
-                  <button onClick={() => { setAddingVer(false); setNewVerName("") }} className="h-6 px-1 text-[10px] text-muted-foreground hover:text-foreground">✕</button>
-                </div>
-              )}
 
-              {local.files.length === 0 && !addingVer && (
-                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-8 text-center">
-                  <Files className="h-8 w-8 text-muted-foreground/40 mb-2" />
-                  <p className="text-sm text-muted-foreground">No documents uploaded yet</p>
-                  <button onClick={() => setAddingVer(true)} className="mt-2 text-xs text-indigo-600 hover:underline">Upload first version →</button>
+                  {pickedFile ? (
+                    /* File preview card */
+                    <div className="rounded-xl border bg-muted/30 p-4 flex flex-col gap-4">
+                      <div className="flex items-start gap-3">
+                        <div className="h-10 w-10 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center shrink-0">
+                          <FileText className="h-5 w-5 text-indigo-600" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold truncate">{pickedFile.name}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{formatBytes(pickedFile.size)}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setPickedFile(null)}
+                          className="h-6 w-6 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground text-sm transition-colors shrink-0"
+                        >×</button>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => { setPickedFile(null); setAddingVer(false) }}
+                          className="flex-1 h-9 rounded-lg border text-sm hover:bg-muted transition-colors"
+                        >Cancel</button>
+                        <button
+                          type="button"
+                          onClick={submitVersion}
+                          className="flex-1 h-9 rounded-lg bg-indigo-600 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1.5"
+                        ><Upload className="h-3.5 w-3.5" /> Add to history</button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Drop zone */
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                      onDragLeave={() => setDragOver(false)}
+                      onDrop={handleDrop}
+                      className={`w-full rounded-xl border-2 border-dashed px-6 py-8 flex flex-col items-center gap-3 transition-all cursor-pointer ${
+                        dragOver
+                          ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30 scale-[1.01]"
+                          : "border-border hover:border-indigo-400 hover:bg-muted/40"
+                      }`}
+                    >
+                      <div className={`h-12 w-12 rounded-full flex items-center justify-center transition-colors ${
+                        dragOver ? "bg-indigo-100 dark:bg-indigo-900/40" : "bg-muted"
+                      }`}>
+                        <Upload className={`h-5 w-5 transition-colors ${dragOver ? "text-indigo-600" : "text-muted-foreground"}`} />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-semibold">{dragOver ? "Drop to upload" : "Drag & drop or click to browse"}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">PDF, PNG, JPG, DOCX, XLSX</p>
+                      </div>
+                      {addingVer && local.files.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); setAddingVer(false) }}
+                          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                        >Cancel</button>
+                      )}
+                    </button>
+                  )}
                 </div>
               )}
 
