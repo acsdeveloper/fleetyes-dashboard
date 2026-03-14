@@ -974,9 +974,32 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
           <tbody>
             {rows.map((row, ri) => (
               <tr key={row.id} className="border-b last:border-0">
-                <td className="sticky left-0 z-10 bg-card px-3 py-2 border-r w-[216px]">
-                  <p className="font-semibold text-xs truncate">{row.label}</p>
-                  {row.sublabel && <p className="text-[10px] text-muted-foreground truncate">{row.sublabel}</p>}
+                <td className="sticky left-0 z-10 bg-card border-r w-[216px]">
+                  <div className="flex flex-col h-full min-h-[56px] px-3">
+                    {/* Top half: name — aligns with countdown row */}
+                    <div className="flex-1 pt-2.5 pb-1 flex items-center">
+                      <p className="font-semibold text-xs truncate">{row.label}</p>
+                    </div>
+                    {/* Bottom half: sublabel — aligns with date row */}
+                    {row.sublabel && (
+                      <div className="flex-1 pb-2.5 flex items-center">
+                        <p
+                          className="text-[11px] text-muted-foreground truncate"
+                          title={('licenceCat' in row) ? ({
+                            "C":    "Category C — rigid lorry over 3.5 t (requires CPC)",
+                            "C+E":  "Category C+E — articulated lorry / rigid with trailer (requires CPC)",
+                            "C1":   "Category C1 — medium-sized lorry 3.5–7.5 t",
+                            "C1+E": "Category C1+E — medium lorry with trailer",
+                            "D":    "Category D — full-size bus / coach (requires CPC)",
+                            "D1":   "Category D1 — minibus up to 16 passengers",
+                            "B":    "Category B — car and light vehicles up to 3.5 t",
+                          }[(row as {licenceCat: string}).licenceCat] ?? (row as {licenceCat: string}).licenceCat) : undefined}
+                        >
+                          {row.sublabel}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </td>
                 {cols.map((col, ci) => {
                   const cell: CellData = cells[row.id]?.[col.id] ?? { expiry: "", sigA: false, sigB: false, fileCount: 0 }
@@ -1095,7 +1118,7 @@ function DocumentsTab() {
   }
 
   const vehRows = vehicles.map(v => ({ id: v.reg, label: v.reg, sublabel: v.make }))
-  const drvRows = drivers.map(d => ({ id: d.id, label: d.name, sublabel: `${d.licence} · ${d.points} pts` }))
+  const drvRows = drivers.map(d => ({ id: d.id, label: d.name, sublabel: `${d.licence} · ${d.points} pts`, licenceCat: d.licence }))
 
   const flatCells = (cols: DocColumn[], cells: CellMap, rowIds: string[]) =>
     cols.flatMap(col => rowIds.map(id => cells[id]?.[col.id])).filter((c): c is CellData => c !== undefined)
