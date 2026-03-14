@@ -693,7 +693,7 @@ function DriversTab() {
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface DocColumn { id: string; name: string }
-interface FileRecord { name: string; uploadedAt: string }
+interface FileRecord { name: string; uploadedAt: string; url?: string }
 interface CellData {
   expiry: string          // ISO date string or ""
   sigA: boolean           // first signatory (e.g. Driver / Fleet Manager)
@@ -967,14 +967,37 @@ function CellSidebar({
                         </div>
                         <p className="text-xs text-muted-foreground">Version {version} · uploaded {ukDate(f.uploadedAt)}</p>
                       </div>
-                      {isCurrent && (
-                        <button
-                          type="button"
-                          title="Remove current version (previous becomes current)"
-                          onClick={() => setLocal(p => ({ ...p, files: p.files.slice(1) }))}
-                          className="shrink-0 h-6 w-6 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 flex items-center justify-center text-sm transition-colors"
-                        >×</button>
-                      )}
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        {/* Download */}
+                        {f.url ? (
+                          <a
+                            href={f.url}
+                            download={f.name}
+                            title={`Download ${f.name}`}
+                            className="h-6 w-6 rounded-lg text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 flex items-center justify-center transition-colors"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                          </a>
+                        ) : (
+                          <button
+                            type="button"
+                            title="Download not available — file storage not yet connected"
+                            className="h-6 w-6 rounded-lg text-muted-foreground/40 cursor-not-allowed flex items-center justify-center"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {/* Remove current version */}
+                        {isCurrent && (
+                          <button
+                            type="button"
+                            title="Remove current version (previous becomes current)"
+                            onClick={() => setLocal(p => ({ ...p, files: p.files.slice(1) }))}
+                            className="h-6 w-6 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 flex items-center justify-center text-sm transition-colors"
+                          >×</button>
+                        )}
+                      </div>
                     </div>
                   )
                 })}
