@@ -912,6 +912,32 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
         />
       )}
 
+      {/* Pinned New Doc Type button — always visible above the table */}
+      <div className="flex justify-end mb-2">
+        {addingCol ? (
+          <div className="flex items-center gap-1">
+            <input
+              autoFocus
+              value={newColName}
+              onChange={e => setNewColName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") confirmAddCol(); if (e.key === "Escape") { setAddingCol(false); setNewColName("") } }}
+              placeholder="Document type name…"
+              className="h-8 w-44 rounded-lg border bg-background px-3 text-xs outline-none focus:ring-2 focus:ring-ring"
+            />
+            <button onClick={confirmAddCol} className="h-8 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90">Add</button>
+            <button onClick={() => { setAddingCol(false); setNewColName("") }} className="h-8 rounded-lg border px-3 text-xs hover:bg-muted">Cancel</button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setAddingCol(true)}
+            title="Add a new document type column — each column tracks a specific compliance document (e.g. ADR Certificate, Fleet Insurance) across all entries in this tab"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-dashed border-indigo-400 px-3 text-xs font-medium text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" /> New Doc Type
+          </button>
+        )}
+      </div>
+
       <div className="overflow-auto max-h-[560px] rounded-xl border bg-card shadow-sm">
         <table className="w-full text-xs border-collapse table-fixed">
           {/* Header */}
