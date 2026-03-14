@@ -714,9 +714,9 @@ function cellText(expiry: string): string {
   if (!expiry) return ""
   const d = daysUntil(expiry)
   if (d === null) return ""
-  if (d < 0) return `${Math.abs(d)}d OD`
-  if (d === 0) return "Today"
-  return `${d}d`
+  if (d < 0) return `${Math.abs(d)} days overdue`
+  if (d === 0) return "Expires today"
+  return `${d} days`
 }
 
 // ── Seeded data ───────────────────────────────────────────────────────────────
@@ -923,8 +923,8 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
             {rows.map((row, ri) => (
               <tr key={row.id} className={`border-b last:border-0 ${ri % 2 === 0 ? "" : "bg-muted/10"}`}>
                 <td className="sticky left-0 z-10 bg-card px-4 py-2 border-r">
-                  <p className="font-semibold font-mono text-xs">{row.label}</p>
-                  {row.sublabel && <p className="text-[10px] text-muted-foreground truncate max-w-[140px]">{row.sublabel}</p>}
+                  <p className="font-semibold text-sm">{row.label}</p>
+                  {row.sublabel && <p className="text-xs text-muted-foreground truncate max-w-[140px]">{row.sublabel}</p>}
                 </td>
                 {cols.map(col => {
                   const cell: CellData = cells[row.id]?.[col.id] ?? { expiry: "", sigA: false, sigB: false, hasFile: false }
@@ -937,13 +937,13 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
                     <td key={col.id} className="px-2 py-1.5">
                       <button
                         onClick={() => setPopover({ rowId: row.id, colId: col.id })}
-                        className={`w-full min-h-[68px] rounded-lg border p-2 text-left transition-all hover:opacity-80 hover:shadow-md ${bg}`}
+                        className={`w-full min-h-[84px] rounded-lg border p-2.5 text-left transition-all hover:opacity-80 hover:shadow-md ${bg}`}
                       >
-                        <div className="mb-1">
-                          <span className="text-[10px] font-bold">{daysTxt}</span>
+                        <div className="mb-1.5">
+                          <span className="text-sm font-bold">{daysTxt}</span>
                         </div>
                         {dateDisplay && (
-                          <p className="text-[9px] text-muted-foreground leading-tight mb-1.5">{dateDisplay}</p>
+                          <p className="text-xs text-muted-foreground leading-tight mb-2">{dateDisplay}</p>
                         )}
                         <div className="flex items-center gap-1 mt-auto">
                           {sigFull && (
@@ -959,7 +959,7 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
                             </span>
                           )}
                           {!cell.sigA && !cell.sigB && (
-                            <span className="text-[9px] text-muted-foreground">unsigned</span>
+                            <span className="text-xs text-muted-foreground">unsigned</span>
                           )}
                           {cell.hasFile && (
                             <span title="File attached" className="ml-auto inline-flex"><FileText className="h-3 w-3 text-indigo-500" /></span>
