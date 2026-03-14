@@ -962,9 +962,10 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
                 ) : (
                   <button
                     onClick={() => setAddingCol(true)}
+                    title="Add a new document type column — each column tracks a specific compliance document (e.g. ADR Certificate, Fleet Insurance) across all entries in this tab"
                     className="inline-flex h-7 items-center gap-1 rounded-lg border border-dashed border-indigo-400 px-2 text-[10px] font-medium text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 transition-colors"
                   >
-                    <Plus className="h-3 w-3" /> Add Column
+                    <Plus className="h-3 w-3" /> New Doc Type
                   </button>
                 )}
               </th>
