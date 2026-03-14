@@ -889,7 +889,7 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
           {/* Header */}
           <thead>
             <tr className="border-b bg-muted/40">
-              <th className="sticky left-0 z-10 bg-muted/60 px-2 py-2.5 text-left text-xs font-semibold text-muted-foreground w-[80px]">
+              <th className="sticky left-0 z-10 bg-muted/60 px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground w-[144px]">
                 Entity
               </th>
               {cols.map((col, ci) => (
@@ -936,7 +936,7 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
           <tbody>
             {rows.map((row, ri) => (
               <tr key={row.id} className="border-b last:border-0">
-                <td className="sticky left-0 z-10 bg-card px-2 py-2 border-r w-[80px]">
+                <td className="sticky left-0 z-10 bg-card px-3 py-2 border-r w-[144px]">
                   <p className="font-semibold text-xs truncate">{row.label}</p>
                   {row.sublabel && <p className="text-[10px] text-muted-foreground truncate">{row.sublabel}</p>}
                 </td>
