@@ -1117,8 +1117,18 @@ function DocumentsTab() {
     setCells(prev => ({ ...prev, [rowId]: { ...(prev[rowId] ?? {}), [colId]: data } }))
   }
 
-  const vehRows = vehicles.map(v => ({ id: v.reg, label: v.reg, sublabel: v.make }))
-  const drvRows = drivers.map(d => ({ id: d.id, label: d.name, sublabel: `${d.licence} · ${d.points} pts`, licenceCat: d.licence }))
+  function docStatus(rowCells: Record<string, CellData> | undefined): string {
+    const all = Object.values(rowCells ?? {})
+    const expired  = all.filter(c => c.expiry && (daysUntil(c.expiry) ?? 1) <= 0).length
+    const expiring = all.filter(c => c.expiry && (daysUntil(c.expiry) ?? 999) > 0 && (daysUntil(c.expiry) ?? 999) <= 90).length
+    if (expired > 0 && expiring > 0) return `${expired} expired, ${expiring} expiring`
+    if (expired > 0)  return `${expired} expired doc${expired  > 1 ? "s" : ""}`
+    if (expiring > 0) return `${expiring} expiring soon`
+    return "All in order"
+  }
+
+  const vehRows = vehicles.map(v => ({ id: v.reg, label: v.reg, sublabel: docStatus(vehCells[v.reg]) }))
+  const drvRows = drivers.map(d  => ({ id: d.id,  label: d.name, sublabel: docStatus(drvCells[d.id]),  licenceCat: d.licence }))
 
   const flatCells = (cols: DocColumn[], cells: CellMap, rowIds: string[]) =>
     cols.flatMap(col => rowIds.map(id => cells[id]?.[col.id])).filter((c): c is CellData => c !== undefined)
