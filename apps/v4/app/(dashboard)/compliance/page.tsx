@@ -959,7 +959,7 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
                               <p className="text-sm font-bold truncate">{daysTxt}</p>
                             </div>
                             <div className="h-7 px-3 pb-2 flex items-center">
-                              <p className="text-[11px] text-muted-foreground/60 truncate">{dateDisplay ? ukDate(dateDisplay) : ""}</p>
+                              <p className="text-[11px] text-muted-foreground truncate">{dateDisplay ? ukDate(dateDisplay) : ""}</p>
                             </div>
                           </div>
                           {/* Right column: icons — lighter shade, darker icons, divider only here */}
