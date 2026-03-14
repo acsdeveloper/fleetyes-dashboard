@@ -859,34 +859,56 @@ function CellPopover({
           </div>
         </div>
 
-        {/* Documents attached */}
+        {/* Document Version History */}
         <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-xs font-medium text-muted-foreground">Attached documents</label>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-medium text-muted-foreground">Document History</p>
             <button
               type="button"
               onClick={() => {
-                const name = prompt("File name (e.g. MOT_Certificate.pdf)")
-                if (name?.trim()) setLocal(p => ({ ...p, files: [...p.files, { name: name.trim(), uploadedAt: new Date().toISOString().slice(0, 10) }] }))
+                const name = prompt("File name for the new version (e.g. MOT_Certificate_2026.pdf)")
+                if (name?.trim()) {
+                  setLocal(p => ({ ...p, files: [
+                    { name: name.trim(), uploadedAt: new Date().toISOString().slice(0, 10) },
+                    ...p.files,
+                  ]}))
+                }
               }}
               className="h-6 px-2 text-[10px] rounded-lg border border-dashed border-indigo-400 text-indigo-600 hover:bg-indigo-50 flex items-center gap-1"
-            ><Plus className="h-3 w-3" /> Add file</button>
+            ><Upload className="h-3 w-3" /> Upload new version</button>
           </div>
-          {local.files.length === 0 && <p className="text-xs text-muted-foreground italic">No files attached</p>}
-          <div className="flex flex-col gap-1 max-h-28 overflow-y-auto">
-            {local.files.map((f, i) => (
-              <div key={i} className="flex items-center justify-between gap-2 rounded-lg bg-muted/40 px-2 py-1">
-                <div className="min-w-0">
-                  <p className="text-xs font-medium truncate">{f.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{ukDate(f.uploadedAt)}</p>
+          {local.files.length === 0 && <p className="text-xs text-muted-foreground italic">No documents uploaded yet</p>}
+          <div className="relative flex flex-col gap-0 max-h-40 overflow-y-auto">
+            {/* Vertical timeline line */}
+            {local.files.length > 1 && <div className="absolute left-[7px] top-3 bottom-3 w-px bg-border" />}
+            {local.files.map((f, i) => {
+              const isCurrent = i === 0
+              const version = local.files.length - i
+              return (
+                <div key={i} className="flex items-start gap-3 py-1.5 relative">
+                  {/* Timeline dot */}
+                  <div className={`shrink-0 h-3.5 w-3.5 rounded-full border-2 mt-0.5 z-10 ${
+                    isCurrent ? "border-indigo-600 bg-indigo-600" : "border-border bg-background"
+                  }`} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs font-medium truncate">{f.name}</p>
+                      {isCurrent && <span className="shrink-0 text-[9px] font-semibold bg-indigo-100 text-indigo-700 rounded px-1 py-0.5">Current</span>}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">v{version} · uploaded {ukDate(f.uploadedAt)}</p>
+                  </div>
+                  {/* Only allow removing current version */}
+                  {isCurrent && (
+                    <button
+                      type="button"
+                      title="Remove current version"
+                      onClick={() => setLocal(p => ({ ...p, files: p.files.slice(1) }))}
+                      className="shrink-0 h-5 w-5 rounded text-muted-foreground hover:text-red-600 hover:bg-red-50 flex items-center justify-center text-xs"
+                    >×</button>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setLocal(p => ({ ...p, files: p.files.filter((_, j) => j !== i) }))}
-                  className="shrink-0 h-5 w-5 rounded text-muted-foreground hover:text-red-600 hover:bg-red-50 flex items-center justify-center text-xs"
-                >×</button>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 
@@ -1006,8 +1028,15 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
                     <td key={col.id} className={`px-1 py-1.5 w-[216px] ${ci % 2 === 1 ? "bg-muted/20" : ""}`}>
                       <button
                         onClick={() => setPopover({ rowId: row.id, colId: col.id })}
-                        className={`w-full rounded-lg border overflow-hidden text-left transition-all hover:opacity-80 hover:shadow-md ${cellBg(cell.expiry)}`}
+                        title="Click to view or edit this document record"
+                        className={`group relative w-full rounded-lg border overflow-hidden text-left transition-all hover:shadow-md hover:ring-2 hover:ring-ring/40 ${cellBg(cell.expiry)}`}
                       >
+                        {/* Hover edit affordance */}
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/5 dark:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                          <span className="flex items-center gap-1 rounded-md bg-background/90 px-2 py-0.5 text-[10px] font-medium shadow-sm border">
+                            <PenLine className="h-3 w-3" /> Edit
+                          </span>
+                        </div>
                         <div className="flex items-stretch min-h-[56px]">
                           {/* Left: text — equal top/bottom halves */}
                           <div className="flex-1 flex flex-col min-w-0">
