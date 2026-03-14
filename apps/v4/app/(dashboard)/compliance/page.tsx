@@ -978,13 +978,13 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
                         onClick={() => setPopover({ rowId: row.id, colId: col.id })}
                         className={`w-full rounded-lg border overflow-hidden text-left transition-all hover:opacity-80 hover:shadow-md ${cellBg(cell.expiry)}`}
                       >
-                        <div className="flex items-stretch">
-                          {/* Left column: text */}
+                        <div className="flex items-stretch min-h-[56px]">
+                          {/* Left: text — equal top/bottom halves */}
                           <div className="flex-1 flex flex-col min-w-0">
                             <div className="flex-1 px-3 pt-2.5 pb-1 flex items-center">
                               <p className="text-sm font-bold truncate">{daysTxt}</p>
                             </div>
-                            <div className="h-7 px-3 pb-2 flex items-center">
+                            <div className="flex-1 px-3 pb-2.5 flex items-center">
                               <p className="text-[11px] text-muted-foreground truncate">{dateDisplay ? ukDate(dateDisplay) : ""}</p>
                             </div>
                           </div>
@@ -1002,7 +1002,7 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
                                 </span>
                               )}
                             </div>
-                            <div className="h-7 flex items-center justify-center border-t border-black/[0.07] dark:border-white/10">
+                            <div className="flex-1 flex items-center justify-center border-t border-black/[0.07] dark:border-white/10">
                               {cell.hasFile && (
                                 <span title="Document file attached">
                                   <FileText className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
