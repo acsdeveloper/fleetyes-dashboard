@@ -693,11 +693,12 @@ function DriversTab() {
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface DocColumn { id: string; name: string }
+interface FileRecord { name: string; uploadedAt: string }
 interface CellData {
   expiry: string          // ISO date string or ""
   sigA: boolean           // first signatory (e.g. Driver / Fleet Manager)
   sigB: boolean           // second signatory (e.g. Manager / Director)
-  fileCount: number       // 0 = none, 1 = one file, 2+ = multiple
+  files: FileRecord[]     // attached document versions
 }
 type CellMap = Record<string, Record<string, CellData>>  // rowId → colId → CellData
 
@@ -760,9 +761,16 @@ function seedVehicleCells(): CellMap {
   const m: CellMap = {}
   vehicles.forEach(v => {
     m[v.reg] = {
-      mot:   { expiry: v.mot,          sigA: true,  sigB: true,  fileCount: 2 },
-      tacho: { expiry: v.tacho,        sigA: true,  sigB: false, fileCount: 1 },
-      loler: { expiry: v.loler ?? "",  sigA: !!v.loler, sigB: false, fileCount: v.loler ? 1 : 0 },
+      mot:   { expiry: v.mot,   sigA: true,  sigB: true,  files: [
+        { name: `MOT_Certificate_${v.reg}.pdf`,       uploadedAt: "2025-11-01" },
+        { name: `Annual_Test_Report_${v.reg}.pdf`,    uploadedAt: "2025-11-01" },
+      ]},
+      tacho: { expiry: v.tacho, sigA: true,  sigB: false, files: [
+        { name: `Tachograph_Cal_${v.reg}.pdf`,        uploadedAt: "2024-08-01" },
+      ]},
+      loler: { expiry: v.loler ?? "", sigA: !!v.loler, sigB: false, files: v.loler ? [
+        { name: `LOLER_Inspection_${v.reg}_${v.lolerType?.replace(" ","_")}.pdf`, uploadedAt: "2026-03-01" },
+      ] : [] },
     }
   })
   return m
@@ -777,11 +785,21 @@ const DRV_COLS_INIT: DocColumn[] = [
 function seedDriverCells(): CellMap {
   const m: CellMap = {}
   drivers.forEach(d => {
+    const slug = d.name.replace(/[^a-zA-Z]/g, "_")
     m[d.id] = {
-      licence: { expiry: d.expiry,              sigA: true,  sigB: true,  fileCount: 2 },
-      cpc:     { expiry: d.cpcDeadline,         sigA: true,  sigB: false, fileCount: 1 },
-      rtw:     { expiry: d.rtw ?? "",           sigA: !!d.rtw, sigB: false, fileCount: d.rtw ? 1 : 0 },
-      adr:     { expiry: d.adr ? d.adrExp : "", sigA: d.adr,  sigB: false, fileCount: d.adr ? 1 : 0 },
+      licence: { expiry: d.expiry, sigA: true, sigB: true, files: [
+        { name: `DL_${slug}_Front.pdf`,  uploadedAt: "2024-05-01" },
+        { name: `DL_${slug}_Back.pdf`,   uploadedAt: "2024-05-01" },
+      ]},
+      cpc:  { expiry: d.cpcDeadline, sigA: true, sigB: false, files: [
+        { name: `CPC_DQC_${slug}.pdf`,   uploadedAt: "2024-09-01" },
+      ]},
+      rtw:  { expiry: d.rtw ?? "",    sigA: !!d.rtw, sigB: false, files: d.rtw ? [
+        { name: `RTW_${slug}_Visa.pdf`,  uploadedAt: "2024-01-10" },
+      ] : [] },
+      adr:  { expiry: d.adr ? d.adrExp : "", sigA: d.adr, sigB: false, files: d.adr ? [
+        { name: `ADR_Certificate_${slug}.pdf`, uploadedAt: "2024-11-01" },
+      ] : [] },
     }
   })
   return m
@@ -843,22 +861,32 @@ function CellPopover({
 
         {/* Documents attached */}
         <div>
-          <label className="block mb-1 text-xs font-medium text-muted-foreground">Documents attached</label>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs font-medium text-muted-foreground">Attached documents</label>
             <button
               type="button"
-              onClick={() => setLocal(p => ({ ...p, fileCount: Math.max(0, p.fileCount - 1) }))}
-              className="h-8 w-8 rounded-lg border text-sm font-bold hover:bg-muted flex items-center justify-center"
-            >−</button>
-            <span className="w-8 text-center text-sm font-semibold">{local.fileCount}</span>
-            <button
-              type="button"
-              onClick={() => setLocal(p => ({ ...p, fileCount: p.fileCount + 1 }))}
-              className="h-8 w-8 rounded-lg border text-sm font-bold hover:bg-muted flex items-center justify-center"
-            >+</button>
-            <span className="text-xs text-muted-foreground">
-              {local.fileCount === 0 ? "No files" : local.fileCount === 1 ? "1 document" : `${local.fileCount} documents`}
-            </span>
+              onClick={() => {
+                const name = prompt("File name (e.g. MOT_Certificate.pdf)")
+                if (name?.trim()) setLocal(p => ({ ...p, files: [...p.files, { name: name.trim(), uploadedAt: new Date().toISOString().slice(0, 10) }] }))
+              }}
+              className="h-6 px-2 text-[10px] rounded-lg border border-dashed border-indigo-400 text-indigo-600 hover:bg-indigo-50 flex items-center gap-1"
+            ><Plus className="h-3 w-3" /> Add file</button>
+          </div>
+          {local.files.length === 0 && <p className="text-xs text-muted-foreground italic">No files attached</p>}
+          <div className="flex flex-col gap-1 max-h-28 overflow-y-auto">
+            {local.files.map((f, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 rounded-lg bg-muted/40 px-2 py-1">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium truncate">{f.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{ukDate(f.uploadedAt)}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLocal(p => ({ ...p, files: p.files.filter((_, j) => j !== i) }))}
+                  className="shrink-0 h-5 w-5 rounded text-muted-foreground hover:text-red-600 hover:bg-red-50 flex items-center justify-center text-xs"
+                >×</button>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -969,7 +997,7 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
                   </div>
                 </td>
                 {cols.map((col, ci) => {
-                  const cell: CellData = cells[row.id]?.[col.id] ?? { expiry: "", sigA: false, sigB: false, fileCount: 0 }
+                  const cell: CellData = cells[row.id]?.[col.id] ?? { expiry: "", sigA: false, sigB: false, files: [] }
                   const daysTxt = cell.expiry ? cellText(cell.expiry) : "—"
                   const dateDisplay = cell.expiry ? cell.expiry : null
                   const sigFull    = cell.sigA && cell.sigB
@@ -1005,18 +1033,18 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
                               )}
                             </div>
                             <div className="flex-1 flex items-center justify-center border-t border-black/[0.07] dark:border-white/10">
-                              {cell.fileCount > 0 && (
+                              {cell.files.length > 0 && (
                                 <span
-                                  title={cell.fileCount === 1 ? "1 document attached" : `${cell.fileCount} documents attached`}
+                                  title={cell.files.length === 1 ? `1 document: ${cell.files[0].name}` : `${cell.files.length} documents attached`}
                                   className="relative inline-flex"
                                 >
-                                  {cell.fileCount === 1
+                                  {cell.files.length === 1
                                     ? <FileText className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
                                     : <Files className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
                                   }
-                                  {cell.fileCount > 1 && (
+                                  {cell.files.length > 1 && (
                                     <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-indigo-600 text-[8px] font-bold text-white leading-none">
-                                      {cell.fileCount}
+                                      {cell.files.length}
                                     </span>
                                   )}
                                 </span>
@@ -1051,9 +1079,157 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
   )
 }
 
+// ── Compliance Timeline ───────────────────────────────────────────────────────
+type ExpiryEvent = { entity: string; docType: string; expiry: string; days: number | null }
+function ComplianceTimeline({ vehCols, vehCells, drvCols, drvCells }:
+  { vehCols: DocColumn[]; vehCells: CellMap; drvCols: DocColumn[]; drvCells: CellMap }) {
+
+  // Build sorted event list
+  const events: ExpiryEvent[] = []
+  vehicles.forEach(v => {
+    vehCols.forEach(col => {
+      const c = vehCells[v.reg]?.[col.id]
+      if (c?.expiry) events.push({ entity: v.reg, docType: col.name, expiry: c.expiry, days: daysUntil(c.expiry) })
+    })
+  })
+  drivers.forEach(d => {
+    drvCols.forEach(col => {
+      const c = drvCells[d.id]?.[col.id]
+      if (c?.expiry) events.push({ entity: d.name, docType: col.name, expiry: c.expiry, days: daysUntil(c.expiry) })
+    })
+  })
+  events.sort((a, b) => a.expiry.localeCompare(b.expiry))
+
+  // 12-month columns starting from current month
+  const now = new Date()
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
+    return { year: d.getFullYear(), month: d.getMonth(), label: d.toLocaleDateString("en-GB", { month: "short", year: "2-digit" }) }
+  })
+
+  function eventMonth(ev: ExpiryEvent) {
+    const d = new Date(ev.expiry)
+    return months.findIndex(m => m.year === d.getFullYear() && m.month === d.getMonth())
+  }
+
+  function dotColor(days: number | null) {
+    if (days === null) return "bg-muted-foreground/40"
+    if (days <= 0)  return "bg-red-500"
+    if (days <= 90) return "bg-amber-500"
+    return "bg-green-500"
+  }
+
+  if (events.length === 0) return <p className="text-sm text-muted-foreground">No expiry dates recorded.</p>
+
+  return (
+    <div className="overflow-auto rounded-xl border bg-card shadow-sm">
+      <table className="w-full text-xs border-collapse">
+        <thead className="sticky top-0 z-10 bg-muted/60">
+          <tr className="border-b">
+            <th className="sticky left-0 z-20 bg-muted/60 px-3 py-2.5 text-left font-semibold text-muted-foreground whitespace-nowrap min-w-[140px]">Entity</th>
+            <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground whitespace-nowrap min-w-[120px]">Document</th>
+            <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground whitespace-nowrap">Expiry</th>
+            {months.map((m, i) => (
+              <th key={i} className={`px-2 py-2.5 text-center font-semibold text-muted-foreground whitespace-nowrap w-16 ${i === 0 ? "text-indigo-600" : ""}`}>{m.label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {events.map((ev, ri) => {
+            const mi = eventMonth(ev)
+            return (
+              <tr key={ri} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                <td className="sticky left-0 bg-card px-3 py-2 font-semibold border-r">{ev.entity}</td>
+                <td className="px-3 py-2 text-muted-foreground">{ev.docType}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{ukDate(ev.expiry)}</td>
+                {months.map((_, ci) => (
+                  <td key={ci} className={`text-center py-2 ${ci % 2 === 1 ? "bg-muted/10" : ""}`}>
+                    {ci === mi && (
+                      <span
+                        title={`${ev.entity} — ${ev.docType}: ${ukDate(ev.expiry)}${
+                          ev.days === null ? "" : ev.days <= 0 ? " (EXPIRED)" : ` (${ev.days}d)`}`}
+                        className={`inline-block h-3 w-3 rounded-full ${dotColor(ev.days)}`}
+                      />
+                    )}
+                  </td>
+                ))}
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ── PDF Export ────────────────────────────────────────────────────────────────
+function exportCompliancePDF(
+  rows: { id: string; label: string; sublabel?: string }[],
+  cols: DocColumn[],
+  cells: CellMap,
+  entityLabel: string
+) {
+  const statusLabel = (expiry: string) => {
+    if (!expiry) return ""
+    const d = daysUntil(expiry)
+    if (d === null) return ""
+    if (d <= 0) return "EXPIRED"
+    if (d <= 90) return `${d}d (expiring)`
+    return `${d}d (valid)`
+  }
+  const sigStr = (c: CellData) => {
+    if (c.sigA && c.sigB) return "✓✓ Both signed"
+    if (c.sigA || c.sigB) return "✓ One signed"
+    return "— Unsigned"
+  }
+  const rowsHtml = rows.map(row => {
+    const cells2 = cols.map(col => {
+      const c = cells[row.id]?.[col.id]
+      if (!c) return `<td style="padding:6px 10px;border:1px solid #ddd;color:#999">N/A</td>`
+      const bg = c.expiry && (daysUntil(c.expiry) ?? 1) <= 0 ? "#fee2e2"
+        : c.expiry && (daysUntil(c.expiry) ?? 999) <= 90 ? "#fef3c7" : "#dcfce7"
+      return `<td style="padding:6px 10px;border:1px solid #ddd;background:${bg};vertical-align:top">
+        <div style="font-weight:600">${c.expiry ? ukDate(c.expiry) : "—"}</div>
+        <div style="font-size:11px;color:#555">${statusLabel(c.expiry)}</div>
+        <div style="font-size:11px;margin-top:2px">${sigStr(c)}</div>
+        ${c.files.length ? `<div style="font-size:10px;color:#4f46e5;margin-top:2px">📎 ${c.files.length} file${c.files.length > 1 ? "s" : ""}</div>` : ""}
+      </td>`
+    }).join("")
+    return `<tr>
+      <td style="padding:6px 10px;border:1px solid #ddd;font-weight:600;background:#f9fafb">
+        ${row.label}
+        ${row.sublabel ? `<div style="font-size:11px;color:#6b7280;font-weight:400">${row.sublabel}</div>` : ""}
+      </td>
+      ${cells2}
+    </tr>`
+  }).join("")
+
+  const headCells = cols.map(col =>
+    `<th style="padding:8px 10px;border:1px solid #bbb;background:#f3f4f6;text-align:left">${col.name}</th>`
+  ).join("")
+
+  const html = `<!DOCTYPE html><html><head><title>Compliance Report — ${entityLabel}</title>
+  <style>body{font-family:system-ui,sans-serif;font-size:12px;color:#111;padding:24px}
+  table{border-collapse:collapse;width:100%}h1{font-size:18px;margin-bottom:4px}
+  .meta{color:#6b7280;font-size:11px;margin-bottom:16px}
+  @media print{body{padding:0}}</style></head>
+  <body>
+  <h1>Document Compliance Report — ${entityLabel}s</h1>
+  <p class="meta">Generated ${new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"})}</p>
+  <table><thead><tr>
+    <th style="padding:8px 10px;border:1px solid #bbb;background:#f3f4f6;text-align:left">${entityLabel}</th>
+    ${headCells}
+  </tr></thead><tbody>${rowsHtml}</tbody></table>
+  <script>window.onload=()=>window.print()<\/script>
+  </body></html>`
+
+  const w = window.open("", "_blank")
+  if (w) { w.document.write(html); w.document.close() }
+}
+
 // ── DocumentsTab ──────────────────────────────────────────────────────────────
 function DocumentsTab() {
-  const [subTab, setSubTab] = React.useState<"vehicle" | "driver">("vehicle")
+  const [subTab, setSubTab] = React.useState<"vehicle" | "driver" | "timeline">("vehicle")
 
   const [vehCols, setVehCols] = React.useState<DocColumn[]>(VEH_COLS_INIT)
   const [vehCells, setVehCells] = React.useState<CellMap>(seedVehicleCells)
@@ -1129,37 +1305,52 @@ function DocumentsTab() {
 
       <div className="flex items-center justify-between gap-4">
         <div className="flex gap-1 rounded-xl border bg-muted/30 p-1 w-fit">
-          {([{ id: "vehicle" as const, label: "Vehicle", icon: Truck }, { id: "driver" as const, label: "Driver", icon: Users }]).map(t => (
+          {([{ id: "vehicle" as const, label: "Vehicle", icon: Truck },
+            { id: "driver"  as const, label: "Driver",  icon: Users },
+            { id: "timeline" as const, label: "Timeline", icon: CalendarDays },
+          ] as const).map(t => (
             <button key={t.id} onClick={() => setSubTab(t.id)}
-              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${subTab === t.id ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                subTab === t.id ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
             >
               <t.icon className="h-4 w-4" />{t.label}
             </button>
           ))}
         </div>
-        {/* New Doc Type — inline with tabs, always visible */}
-        {addingCol ? (
-          <div className="flex items-center gap-1">
-            <input
-              autoFocus
-              value={newColName}
-              onChange={e => setNewColName(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") confirmAddCol(); if (e.key === "Escape") { setAddingCol(false); setNewColName("") } }}
-              placeholder="Document type name…"
-              className="h-9 w-48 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-            />
-            <button onClick={confirmAddCol} className="h-9 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">Add</button>
-            <button onClick={() => { setAddingCol(false); setNewColName("") }} className="h-9 rounded-lg border px-3 text-sm hover:bg-muted">Cancel</button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setAddingCol(true)}
-            title="Add a new document type column — each column tracks a specific compliance document (e.g. ADR Certificate, Fleet Insurance) across all entries in this tab"
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-dashed border-indigo-400 px-3 text-sm font-medium text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 transition-colors"
-          >
-            <Plus className="h-4 w-4" /> New Doc Type
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Export PDF */}
+          {subTab !== "timeline" && (
+            <button
+              onClick={() => {
+                if (subTab === "vehicle") exportCompliancePDF(vehRows, vehCols, vehCells, "Vehicle")
+                else exportCompliancePDF(drvRows, drvCols, drvCells, "Driver")
+              }}
+              title="Export a printer-friendly PDF with all columns, expiry status, and signatories"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
+            >
+              <Download className="h-4 w-4" /> Export PDF
+            </button>
+          )}
+          {/* New Doc Type — hidden on Timeline tab */}
+          {subTab !== "timeline" && (addingCol ? (
+            <div className="flex items-center gap-1">
+              <input autoFocus value={newColName} onChange={e => setNewColName(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") confirmAddCol(); if (e.key === "Escape") { setAddingCol(false); setNewColName("") } }}
+                placeholder="Document type name…"
+                className="h-9 w-48 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
+              <button onClick={confirmAddCol} className="h-9 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">Add</button>
+              <button onClick={() => { setAddingCol(false); setNewColName("") }} className="h-9 rounded-lg border px-3 text-sm hover:bg-muted">Cancel</button>
+            </div>
+          ) : (
+            <button onClick={() => setAddingCol(true)}
+              title="Add a new document type column — each column tracks a specific compliance document (e.g. ADR Certificate, Fleet Insurance) across all entries in this tab"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-dashed border-indigo-400 px-3 text-sm font-medium text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 transition-colors"
+            >
+              <Plus className="h-4 w-4" /> New Doc Type
+            </button>
+          ))}
+        </div>
       </div>
 
       {subTab === "vehicle" && (
@@ -1180,6 +1371,12 @@ function DocumentsTab() {
           entityLabel="Driver"
           onCellChange={(r, c, d) => updateCell(setDrvCells, r, c, d)}
           onDeleteCol={colId => deleteCol(setDrvCols, setDrvCells, colId)}
+        />
+      )}
+      {subTab === "timeline" && (
+        <ComplianceTimeline
+          vehCols={vehCols} vehCells={vehCells}
+          drvCols={drvCols} drvCells={drvCells}
         />
       )}
     </div>
