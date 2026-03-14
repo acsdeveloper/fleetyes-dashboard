@@ -846,7 +846,7 @@ function CellPopover({
 
 // ── Matrix grid ───────────────────────────────────────────────────────────────
 function ComplianceMatrix<R extends { id: string; label: string; sublabel?: string }>({
-  rows, cols, cells, onCellChange, onAddCol, onDeleteCol,
+  rows, cols, cells, onCellChange, onAddCol, onDeleteCol, entityLabel,
 }: {
   rows: R[]
   cols: DocColumn[]
@@ -854,6 +854,7 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
   onCellChange: (rowId: string, colId: string, data: CellData) => void
   onAddCol: (name: string) => void
   onDeleteCol: (colId: string) => void
+  entityLabel: string
 }) {
   const [popover, setPopover] = React.useState<{ rowId: string; colId: string } | null>(null)
   const [addingCol, setAddingCol] = React.useState(false)
@@ -889,8 +890,8 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
           {/* Header */}
           <thead>
             <tr className="border-b bg-muted/40">
-              <th className="sticky left-0 z-10 bg-muted/60 px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground w-[144px]">
-                Entity
+              <th className="sticky left-0 z-10 bg-muted/60 px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground w-[216px]">
+                {entityLabel}
               </th>
               {cols.map((col, ci) => (
               <th key={col.id} className={`px-2 py-2.5 text-center text-xs font-semibold text-muted-foreground w-[216px] ${ci % 2 === 1 ? "bg-muted/30" : ""}`}>
@@ -936,7 +937,7 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
           <tbody>
             {rows.map((row, ri) => (
               <tr key={row.id} className="border-b last:border-0">
-                <td className="sticky left-0 z-10 bg-card px-3 py-2 border-r w-[144px]">
+                <td className="sticky left-0 z-10 bg-card px-3 py-2 border-r w-[216px]">
                   <p className="font-semibold text-xs truncate">{row.label}</p>
                   {row.sublabel && <p className="text-[10px] text-muted-foreground truncate">{row.sublabel}</p>}
                 </td>
@@ -1075,6 +1076,7 @@ function DocumentsTab() {
           rows={vehRows}
           cols={vehCols}
           cells={vehCells}
+          entityLabel="Vehicle"
           onCellChange={(r, c, d) => updateCell(setVehCells, r, c, d)}
           onAddCol={name => addCol(setVehCols, name)}
           onDeleteCol={colId => deleteCol(setVehCols, setVehCells, colId)}
@@ -1085,6 +1087,7 @@ function DocumentsTab() {
           rows={drvRows}
           cols={drvCols}
           cells={drvCells}
+          entityLabel="Driver"
           onCellChange={(r, c, d) => updateCell(setDrvCells, r, c, d)}
           onAddCol={name => addCol(setDrvCols, name)}
           onDeleteCol={colId => deleteCol(setDrvCols, setDrvCells, colId)}
