@@ -873,31 +873,21 @@ function CellPopover({
 
 // ── Matrix grid ───────────────────────────────────────────────────────────────
 function ComplianceMatrix<R extends { id: string; label: string; sublabel?: string }>({
-  rows, cols, cells, onCellChange, onAddCol, onDeleteCol, entityLabel,
+  rows, cols, cells, onCellChange, onDeleteCol, entityLabel,
 }: {
   rows: R[]
   cols: DocColumn[]
   cells: CellMap
   onCellChange: (rowId: string, colId: string, data: CellData) => void
-  onAddCol: (name: string) => void
   onDeleteCol: (colId: string) => void
   entityLabel: string
 }) {
   const [popover, setPopover] = React.useState<{ rowId: string; colId: string } | null>(null)
-  const [addingCol, setAddingCol] = React.useState(false)
-  const [newColName, setNewColName] = React.useState("")
 
-  function confirmAddCol() {
-    if (newColName.trim()) {
-      onAddCol(newColName.trim())
-      setNewColName("")
-      setAddingCol(false)
-    }
-  }
 
   const popRow = popover ? rows.find(r => r.id === popover.rowId) : null
   const popCol = popover ? cols.find(c => c.id === popover.colId) : null
-  const popData = popover ? (cells[popover.rowId]?.[popover.colId] ?? { expiry: "", sigA: false, sigB: false, hasFile: false }) : null
+  const popData = popover ? (cells[popover.rowId]?.[popover.colId] ?? { expiry: "", sigA: false, sigB: false, fileCount: 0 }) : null
 
   return (
     <div className="relative">
@@ -911,32 +901,6 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
           onClose={() => setPopover(null)}
         />
       )}
-
-      {/* Pinned New Doc Type button — always visible above the table */}
-      <div className="flex justify-end mb-2">
-        {addingCol ? (
-          <div className="flex items-center gap-1">
-            <input
-              autoFocus
-              value={newColName}
-              onChange={e => setNewColName(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") confirmAddCol(); if (e.key === "Escape") { setAddingCol(false); setNewColName("") } }}
-              placeholder="Document type name…"
-              className="h-8 w-44 rounded-lg border bg-background px-3 text-xs outline-none focus:ring-2 focus:ring-ring"
-            />
-            <button onClick={confirmAddCol} className="h-8 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90">Add</button>
-            <button onClick={() => { setAddingCol(false); setNewColName("") }} className="h-8 rounded-lg border px-3 text-xs hover:bg-muted">Cancel</button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setAddingCol(true)}
-            title="Add a new document type column — each column tracks a specific compliance document (e.g. ADR Certificate, Fleet Insurance) across all entries in this tab"
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-dashed border-indigo-400 px-3 text-xs font-medium text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 transition-colors"
-          >
-            <Plus className="h-3.5 w-3.5" /> New Doc Type
-          </button>
-        )}
-      </div>
 
       <div className="overflow-auto max-h-[560px] rounded-xl border bg-card shadow-sm">
         <table className="w-full text-xs border-collapse table-fixed">
@@ -970,31 +934,7 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
                   </div>
                 </th>
               ))}
-              {/* Add column */}
-              <th className="px-3 py-3 whitespace-nowrap">
-                {addingCol ? (
-                  <div className="flex items-center gap-1">
-                    <input
-                      autoFocus
-                      value={newColName}
-                      onChange={e => setNewColName(e.target.value)}
-                      onKeyDown={e => { if (e.key === "Enter") confirmAddCol(); if (e.key === "Escape") { setAddingCol(false); setNewColName("") } }}
-                      placeholder="Column name…"
-                      className="h-7 w-28 rounded-lg border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    <button onClick={confirmAddCol} className="h-7 rounded-lg bg-primary px-2 text-[10px] font-medium text-primary-foreground hover:bg-primary/90">✓</button>
-                    <button onClick={() => { setAddingCol(false); setNewColName("") }} className="h-7 rounded-lg border px-2 text-[10px] hover:bg-muted">✕</button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setAddingCol(true)}
-                    title="Add a new document type column — each column tracks a specific compliance document (e.g. ADR Certificate, Fleet Insurance) across all entries in this tab"
-                    className="inline-flex h-7 items-center gap-1 rounded-lg border border-dashed border-indigo-400 px-2 text-[10px] font-medium text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 transition-colors"
-                  >
-                    <Plus className="h-3 w-3" /> New Doc Type
-                  </button>
-                )}
-              </th>
+              <th className="px-3 py-3" />
             </tr>
           </thead>
           {/* Body */}
@@ -1167,6 +1107,18 @@ function DocumentsTab() {
     ? flatCells(vehCols, vehCells, vehRows.map(r => r.id))
     : flatCells(drvCols, drvCells, drvRows.map(r => r.id))
 
+  const [addingCol, setAddingCol] = React.useState(false)
+  const [newColName, setNewColName] = React.useState("")
+
+  function confirmAddCol() {
+    const name = newColName.trim()
+    if (!name) return
+    if (subTab === "vehicle") addCol(setVehCols, name)
+    else addCol(setDrvCols, name)
+    setNewColName("")
+    setAddingCol(false)
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-4 sm:grid-cols-3">
@@ -1175,14 +1127,39 @@ function DocumentsTab() {
         <KPI label="Awaiting Signatures" value={countPending(curCells)}  icon={PenLine}       color="bg-indigo-500" sub="not fully signed" />
       </div>
 
-      <div className="flex gap-1 rounded-xl border bg-muted/30 p-1 w-fit">
-        {([{ id: "vehicle" as const, label: "Vehicle", icon: Truck }, { id: "driver" as const, label: "Driver", icon: Users }]).map(t => (
-          <button key={t.id} onClick={() => setSubTab(t.id)}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${subTab === t.id ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex gap-1 rounded-xl border bg-muted/30 p-1 w-fit">
+          {([{ id: "vehicle" as const, label: "Vehicle", icon: Truck }, { id: "driver" as const, label: "Driver", icon: Users }]).map(t => (
+            <button key={t.id} onClick={() => setSubTab(t.id)}
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${subTab === t.id ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              <t.icon className="h-4 w-4" />{t.label}
+            </button>
+          ))}
+        </div>
+        {/* New Doc Type — inline with tabs, always visible */}
+        {addingCol ? (
+          <div className="flex items-center gap-1">
+            <input
+              autoFocus
+              value={newColName}
+              onChange={e => setNewColName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") confirmAddCol(); if (e.key === "Escape") { setAddingCol(false); setNewColName("") } }}
+              placeholder="Document type name…"
+              className="h-9 w-48 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+            <button onClick={confirmAddCol} className="h-9 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">Add</button>
+            <button onClick={() => { setAddingCol(false); setNewColName("") }} className="h-9 rounded-lg border px-3 text-sm hover:bg-muted">Cancel</button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setAddingCol(true)}
+            title="Add a new document type column — each column tracks a specific compliance document (e.g. ADR Certificate, Fleet Insurance) across all entries in this tab"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-dashed border-indigo-400 px-3 text-sm font-medium text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 transition-colors"
           >
-            <t.icon className="h-4 w-4" />{t.label}
+            <Plus className="h-4 w-4" /> New Doc Type
           </button>
-        ))}
+        )}
       </div>
 
       {subTab === "vehicle" && (
@@ -1192,7 +1169,6 @@ function DocumentsTab() {
           cells={vehCells}
           entityLabel="Vehicle"
           onCellChange={(r, c, d) => updateCell(setVehCells, r, c, d)}
-          onAddCol={name => addCol(setVehCols, name)}
           onDeleteCol={colId => deleteCol(setVehCols, setVehCells, colId)}
         />
       )}
@@ -1203,7 +1179,6 @@ function DocumentsTab() {
           cells={drvCells}
           entityLabel="Driver"
           onCellChange={(r, c, d) => updateCell(setDrvCells, r, c, d)}
-          onAddCol={name => addCol(setDrvCols, name)}
           onDeleteCol={colId => deleteCol(setDrvCols, setDrvCells, colId)}
         />
       )}
