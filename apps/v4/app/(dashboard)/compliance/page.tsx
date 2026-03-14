@@ -881,7 +881,7 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
           {/* Header */}
           <thead>
             <tr className="border-b bg-muted/40">
-              <th className="sticky left-0 z-10 bg-muted/60 px-4 py-3 text-left text-xs font-semibold text-muted-foreground whitespace-nowrap min-w-[160px]">
+              <th className="sticky left-0 z-10 bg-muted/60 px-3 py-3 text-left text-xs font-semibold text-muted-foreground whitespace-nowrap min-w-[120px]">
                 Entity
               </th>
               {cols.map(col => (
@@ -928,9 +928,9 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
           <tbody>
             {rows.map((row, ri) => (
               <tr key={row.id} className={`border-b last:border-0 ${ri % 2 === 0 ? "" : "bg-muted/10"}`}>
-                <td className="sticky left-0 z-10 bg-card px-4 py-2 border-r">
-                  <p className="font-semibold text-sm">{row.label}</p>
-                  {row.sublabel && <p className="text-xs text-muted-foreground truncate max-w-[140px]">{row.sublabel}</p>}
+                <td className="sticky left-0 z-10 bg-card px-3 py-2 border-r min-w-[120px]">
+                  <p className="font-semibold text-xs truncate max-w-[110px]">{row.label}</p>
+                  {row.sublabel && <p className="text-[10px] text-muted-foreground truncate max-w-[110px]">{row.sublabel}</p>}
                 </td>
                 {cols.map(col => {
                   const cell: CellData = cells[row.id]?.[col.id] ?? { expiry: "", sigA: false, sigB: false, hasFile: false }
@@ -940,22 +940,19 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
                   const sigFull    = cell.sigA && cell.sigB
                   const sigPartial = (cell.sigA || cell.sigB) && !sigFull
                   return (
-                    <td key={col.id} className="px-1.5 py-1.5">
+                    <td key={col.id} className="px-1.5 py-1.5 w-[100px]">
                       <button
                         onClick={() => setPopover({ rowId: row.id, colId: col.id })}
-                        className={`w-full rounded-lg border px-2.5 py-2 text-left transition-all hover:opacity-80 hover:shadow-md ${bg}`}
+                        className={`w-full min-h-[56px] rounded-lg border p-3 text-left transition-all hover:opacity-80 hover:shadow-md ${bg}`}
                       >
-                        {/* 2-line text + icon column */}
-                        <div className="flex items-start justify-between gap-1.5">
-                          {/* Left: countdown + date */}
-                          <div className="min-w-0">
-                            <p className="text-sm font-bold leading-tight truncate">{daysTxt}</p>
-                            {dateDisplay && (
-                              <p className="text-xs text-muted-foreground leading-tight mt-0.5">{ukDate(dateDisplay)}</p>
-                            )}
+                        <div className="flex items-center justify-between gap-2">
+                          {/* Left: fixed-height countdown + date so rows align */}
+                          <div className="min-w-0 flex-1">
+                            <p className="h-5 text-sm font-bold leading-tight truncate">{daysTxt}</p>
+                            <p className="text-[11px] text-muted-foreground/60 leading-tight truncate">{dateDisplay ? ukDate(dateDisplay) : ""}</p>
                           </div>
-                          {/* Right: icons stacked */}
-                          <div className="flex flex-col items-center gap-0.5 shrink-0">
+                          {/* Right: icons vertically centred */}
+                          <div className="flex flex-col items-center justify-center gap-1 shrink-0">
                             {sigFull && (
                               <span title="All parties signed"><CheckCircle2 className="h-3.5 w-3.5 text-green-600" /></span>
                             )}
@@ -966,11 +963,8 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
                                 </svg>
                               </span>
                             )}
-                            {!cell.sigA && !cell.sigB && (
-                              <span title="Unsigned" className="text-[10px] text-muted-foreground leading-none">—</span>
-                            )}
                             {cell.hasFile && (
-                              <span title="File attached"><FileText className="h-3 w-3 text-indigo-500" /></span>
+                              <span title="File attached"><FileText className="h-3 w-3 text-indigo-400" /></span>
                             )}
                           </div>
                         </div>
