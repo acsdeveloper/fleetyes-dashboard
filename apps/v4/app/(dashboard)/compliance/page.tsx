@@ -912,12 +912,12 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
         />
       )}
 
-      <div className="overflow-x-auto rounded-xl border bg-card shadow-sm">
+      <div className="overflow-auto max-h-[560px] rounded-xl border bg-card shadow-sm">
         <table className="w-full text-xs border-collapse table-fixed">
           {/* Header */}
-          <thead>
+          <thead className="sticky top-0 z-20">
             <tr className="border-b bg-muted/40">
-              <th className="sticky left-0 z-10 bg-muted/60 px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground w-[216px]">
+              <th className="sticky left-0 z-30 bg-muted/60 px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground w-[216px]">
                 {entityLabel}
               </th>
               {cols.map((col, ci) => (
