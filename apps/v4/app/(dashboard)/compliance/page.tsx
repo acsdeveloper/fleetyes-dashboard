@@ -922,13 +922,15 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
                       adr:   "ADR — Agreement on International Carriage of Dangerous Goods by Road",
                       licence: "Driving Licence expiry date",
                     }[col.id] ?? col.name}>{col.name}</span>
-                    <button
-                      onClick={() => onDeleteCol(col.id)}
-                      className="ml-1 flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/30 transition-colors"
-                      title="Remove column"
-                    >
-                      ×
-                    </button>
+                    {!rows.some(r => cells[r.id]?.[col.id]?.expiry) && (
+                      <button
+                        onClick={() => onDeleteCol(col.id)}
+                        className="ml-1 flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/30 transition-colors"
+                        title="Remove column (only available while empty)"
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
                 </th>
               ))}
