@@ -703,12 +703,20 @@ type CellMap = Record<string, Record<string, CellData>>  // rowId → colId → 
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function cellBg(expiry: string): string {
-  if (!expiry) return "bg-muted/40 border-border"
+  if (!expiry) return "bg-muted/50 border-border"
   const d = daysUntil(expiry)
-  if (d === null) return "bg-muted/40 border-border"
+  if (d === null) return "bg-muted/50 border-border"
   if (d <= 0)  return "bg-red-100 border-red-300 dark:bg-red-950/40 dark:border-red-800"
   if (d <= 90) return "bg-amber-100 border-amber-300 dark:bg-amber-950/40 dark:border-amber-800"
   return "bg-green-100 border-green-300 dark:bg-green-950/40 dark:border-green-800"
+}
+function cellBgLight(expiry: string): string {
+  if (!expiry) return "bg-muted/30"
+  const d = daysUntil(expiry)
+  if (d === null) return "bg-muted/30"
+  if (d <= 0)  return "bg-red-50 dark:bg-red-950/20"
+  if (d <= 90) return "bg-amber-50 dark:bg-amber-950/20"
+  return "bg-green-50 dark:bg-green-950/20"
 }
 function cellText(expiry: string): string {
   if (!expiry) return ""
@@ -877,15 +885,15 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
       )}
 
       <div className="overflow-x-auto rounded-xl border bg-card shadow-sm">
-        <table className="min-w-full text-xs border-collapse">
+        <table className="w-full text-xs border-collapse table-fixed">
           {/* Header */}
           <thead>
             <tr className="border-b bg-muted/40">
-              <th className="sticky left-0 z-10 bg-muted/60 px-3 py-3 text-left text-xs font-semibold text-muted-foreground whitespace-nowrap min-w-[120px]">
+              <th className="sticky left-0 z-10 bg-muted/60 px-2 py-2.5 text-left text-xs font-semibold text-muted-foreground w-[80px]">
                 Entity
               </th>
               {cols.map(col => (
-                <th key={col.id} className="px-2 py-3 text-center font-semibold text-muted-foreground whitespace-nowrap min-w-[100px] w-[100px]">
+              <th key={col.id} className="px-2 py-2.5 text-center text-xs font-semibold text-muted-foreground w-[120px]">
                   <div className="flex items-center justify-center gap-1">
                     <span>{col.name}</span>
                     <button
@@ -928,9 +936,9 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
           <tbody>
             {rows.map((row, ri) => (
               <tr key={row.id} className={`border-b last:border-0 ${ri % 2 === 0 ? "" : "bg-muted/10"}`}>
-                <td className="sticky left-0 z-10 bg-card px-3 py-2 border-r min-w-[120px]">
-                  <p className="font-semibold text-xs truncate max-w-[110px]">{row.label}</p>
-                  {row.sublabel && <p className="text-[10px] text-muted-foreground truncate max-w-[110px]">{row.sublabel}</p>}
+                <td className="sticky left-0 z-10 bg-card px-2 py-2 border-r w-[80px]">
+                  <p className="font-semibold text-xs truncate">{row.label}</p>
+                  {row.sublabel && <p className="text-[10px] text-muted-foreground truncate">{row.sublabel}</p>}
                 </td>
                 {cols.map(col => {
                   const cell: CellData = cells[row.id]?.[col.id] ?? { expiry: "", sigA: false, sigB: false, hasFile: false }
@@ -940,19 +948,21 @@ function ComplianceMatrix<R extends { id: string; label: string; sublabel?: stri
                   const sigFull    = cell.sigA && cell.sigB
                   const sigPartial = (cell.sigA || cell.sigB) && !sigFull
                   return (
-                    <td key={col.id} className="px-1.5 py-1.5 w-[100px]">
+                    <td key={col.id} className="px-1 py-1.5 w-[120px]">
                       <button
                         onClick={() => setPopover({ rowId: row.id, colId: col.id })}
-                        className={`w-full min-h-[56px] rounded-lg border p-3 text-left transition-all hover:opacity-80 hover:shadow-md ${bg}`}
+                        className={`w-full rounded-lg border overflow-hidden text-left transition-all hover:opacity-80 hover:shadow-md border-current/20 ${cellBg(cell.expiry)}`}
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          {/* Left: fixed-height countdown + date so rows align */}
-                          <div className="min-w-0 flex-1">
-                            <p className="h-5 text-sm font-bold leading-tight truncate">{daysTxt}</p>
-                            <p className="text-[11px] text-muted-foreground/60 leading-tight truncate">{dateDisplay ? ukDate(dateDisplay) : ""}</p>
-                          </div>
-                          {/* Right: icons vertically centred */}
-                          <div className="flex flex-col items-center justify-center gap-1 shrink-0">
+                        {/* Top zone: countdown */}
+                        <div className={`px-2.5 pt-2 pb-1.5 ${cellBg(cell.expiry)}`}>
+                          <p className="h-5 text-sm font-bold leading-tight truncate">{daysTxt}</p>
+                        </div>
+                        {/* Bottom zone: lighter shade — date + icons */}
+                        <div className={`px-2.5 pb-2 pt-1 flex items-center justify-between gap-1 ${cellBgLight(cell.expiry)}`}>
+                          <p className="text-[11px] text-muted-foreground/70 truncate flex-1 leading-tight">
+                            {dateDisplay ? ukDate(dateDisplay) : ""}
+                          </p>
+                          <div className="flex items-center gap-0.5 shrink-0">
                             {sigFull && (
                               <span title="All parties signed"><CheckCircle2 className="h-3.5 w-3.5 text-green-600" /></span>
                             )}
