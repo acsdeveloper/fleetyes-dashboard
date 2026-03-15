@@ -133,16 +133,25 @@ function DashboardTab() {
         </div>
       </div>
 
-      {/* Traffic Light Grid */}
+      {/* Traffic Light Grid — sorted: red → amber → green */}
       <div className="rounded-xl border bg-card p-5 shadow-sm">
         <h3 className="mb-4 font-semibold">Fleet Status Board</h3>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {vehicles.map(v => {
+        <div className="flex flex-col gap-2">
+          {([...vehicles].sort((a,b)=>({red:0,amber:1,green:2}[a.status as string]??3)-({red:0,amber:1,green:2}[b.status as string]??3))).map((v,idx,arr) => {
             const next = nextPMIDate(v.lastPMI, v.interval)
             const days = daysUntil(next)
             const s = statusConfig[v.status as keyof typeof statusConfig]
+            const showDivider = idx > 0 && v.status === 'green' && arr[idx-1]?.status !== 'green'
             return (
-              <div key={v.id} className={`flex items-center gap-3 rounded-lg border-l-4 ${s.border} ${s.bg} p-3`}>
+              <React.Fragment key={v.id}>
+                {showDivider && (
+                  <div className="flex items-center gap-2 my-1">
+                    <div className="flex-1 border-t border-dashed" />
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Compliant</span>
+                    <div className="flex-1 border-t border-dashed" />
+                  </div>
+                )}
+                <div className={`flex items-center gap-3 rounded-lg border-l-4 ${s.border} ${s.bg} p-3 ${v.status!=='green'?(v.status==='red'?'ring-1 ring-inset ring-red-400/50':'ring-1 ring-inset ring-amber-400/50'):''}`}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <StatusDot s={v.status as keyof typeof statusConfig} />
@@ -155,7 +164,8 @@ function DashboardTab() {
                   </p>
                 </div>
                 <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${s.text} ${s.bg}`}>{s.label}</span>
-              </div>
+                </div>
+              </React.Fragment>
             )
           })}
         </div>

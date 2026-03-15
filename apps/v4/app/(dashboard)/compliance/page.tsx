@@ -465,7 +465,8 @@ function WalkaroundForm({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
-      {/* Checklist */}
+      {/* Checklist — 3-column grid of compact section cards */}
+      <div className="grid grid-cols-3 gap-3">
       {walkaroundItems.map(sec => (
         <div key={sec.section} className="rounded-xl border bg-card shadow-sm overflow-hidden">
           <div className="border-b bg-muted/40 px-4 py-2.5 flex items-center gap-2">
@@ -477,17 +478,23 @@ function WalkaroundForm({ onBack }: { onBack: () => void }) {
               const key = `${sec.section}::${item}`
               const st  = states[key]
               return (
-                <div key={item} className="flex items-center justify-between gap-3 px-4 py-3">
-                  <span className="text-sm">{item}</span>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button onClick={() => set(key,"ok")}       className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${st==="ok"       ? "bg-green-500 text-white" : "border hover:bg-green-50 dark:hover:bg-green-950/20 text-muted-foreground"}`}>OK</button>
-                    <button onClick={() => set(key,"advisory")} className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${st==="advisory"  ? "bg-amber-500 text-white" : "border hover:bg-amber-50 dark:hover:bg-amber-950/20 text-muted-foreground"}`}>Advisory</button>
-                    <button onClick={() => set(key,"fail")}     className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${st==="fail"      ? "bg-red-500 text-white"   : "border hover:bg-red-50 dark:hover:bg-red-950/20 text-muted-foreground"}`}>Defect</button>
+                <div key={item} className="flex items-center justify-between gap-2 px-3 py-2">
+                  <span className="text-xs flex-1 min-w-0 truncate" title={item}>{item}</span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => set(key,"ok")}       className={`rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${st==="ok"       ? "bg-green-500 text-white" : "border hover:bg-green-50 dark:hover:bg-green-950/20 text-muted-foreground"}`}>OK</button>
+                    <button onClick={() => set(key,"advisory")} className={`rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${st==="advisory"  ? "bg-amber-500 text-white" : "border hover:bg-amber-50 dark:hover:bg-amber-950/20 text-muted-foreground"}`}>Adv</button>
+                    <button onClick={() => set(key,"fail")}     className={`rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${st==="fail"      ? "bg-red-500 text-white"   : "border hover:bg-red-50 dark:hover:bg-red-950/20 text-muted-foreground"}`}>Fail</button>
+                    {/* Photo evidence — colour-coded by result; always available */}
+                    <button
+                      title={`Attach photo evidence${st === "fail" ? " (required for defect)" : st === "advisory" ? " (recommended)" : " (optional)"}`}
+                      className={`flex items-center justify-center h-6 w-6 rounded border transition-colors ${
+                        st === "fail"     ? "border-red-400 text-red-600 bg-red-50 dark:bg-red-950/20 hover:bg-red-100" :
+                        st === "advisory" ? "border-amber-400 text-amber-600 bg-amber-50 dark:bg-amber-950/20 hover:bg-amber-100" :
+                        "border-dashed border-muted-foreground/40 text-muted-foreground/40 hover:border-muted-foreground hover:text-muted-foreground"
+                      }`}
+                    ><Camera className="h-3 w-3" /></button>
                     {st === "fail" && (
-                      <div className="flex items-center gap-1">
-                        <button className="flex items-center gap-1 rounded-lg border border-dashed border-red-400 px-2 py-1 text-[10px] text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"><Camera className="h-3 w-3" /> Photo</button>
-                        <select className="h-7 rounded border text-[10px] bg-background px-1"><option>Advisory</option><option>Dangerous</option></select>
-                      </div>
+                      <select className="h-5 rounded border text-[9px] bg-background px-0.5"><option>Advisory</option><option>Dangerous</option></select>
                     )}
                   </div>
                 </div>
@@ -495,7 +502,7 @@ function WalkaroundForm({ onBack }: { onBack: () => void }) {
             })}
           </div>
         </div>
-      ))}
+      ))}</div>
 
       {/* E-Signature */}
       <div className="rounded-xl border bg-card p-5 shadow-sm">
@@ -2235,26 +2242,27 @@ function OverviewTab() {
   )
 }
 
-// ─── VEHICLES TAB (vehicle checks + walkaround) ───────────────────────────────
+// ─── VEHICLES TAB (PMI documents + Walkaround checks) ──────────────────────────
 
 function VehiclesTab() {
-  const [showWalkaround, setShowWalkaround] = React.useState(false)
+  const [vehicleView, setVehicleView] = React.useState<"pmi" | "walkaround">("pmi")
   return (
     <div className="flex flex-col gap-4">
-      <VehicleComplianceTab />
-      {/* Walkaround checks — collapsed by default */}
-      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-        <button
-          onClick={() => setShowWalkaround(p => !p)}
-          className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors"
-        >
-          <span className="font-semibold flex items-center gap-2 text-sm">
-            <CheckCircle2 className="h-4 w-4 text-indigo-500" /> Walkaround Checks
-          </span>
-          <span className="text-xs text-muted-foreground">{showWalkaround ? "▴ collapse" : "▾ expand"}</span>
-        </button>
-        {showWalkaround && <div className="p-4 border-t"><WalkaroundTab /></div>}
+      {/* Sub-tab switcher */}
+      <div className="flex gap-1 rounded-xl border bg-muted/30 p-1 w-fit">
+        {([
+          { id: "pmi"       as const, label: "Preventive Maintenance", icon: ShieldCheck },
+          { id: "walkaround" as const, label: "Walkaround Checks",     icon: CheckCircle2 },
+        ]).map(t => (
+          <button key={t.id} onClick={() => setVehicleView(t.id)}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${vehicleView === t.id ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            <t.icon className="h-4 w-4" />{t.label}
+          </button>
+        ))}
       </div>
+      {vehicleView === "pmi"        && <VehicleComplianceTab />}
+      {vehicleView === "walkaround" && <WalkaroundTab />}
     </div>
   )
 }
