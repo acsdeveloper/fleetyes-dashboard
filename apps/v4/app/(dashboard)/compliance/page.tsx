@@ -928,24 +928,25 @@ function CpcSection({ driver }: { driver: Driver }) {
         <div className="grid grid-cols-3 gap-2">
           {driver.cpcModules.map((m,i) => (
             <div key={m.id} className="rounded-lg border bg-muted/20 p-2.5 flex flex-col gap-1">
-              <div className="flex items-center justify-between mb-0.5">
-                <span className="text-[9px] font-bold text-green-700 dark:text-green-400 uppercase tracking-wide">#{i+1} ✓</span>
-                <span className="text-[9px] font-bold text-green-700 dark:text-green-400">{m.hours}h</span>
+              {/* Header: badge · subject (truncated, full in tooltip) · hours */}
+              <div className="flex items-center gap-1 mb-0.5">
+                <span className="shrink-0 text-[9px] font-bold text-green-700 dark:text-green-400 uppercase tracking-wide">#{i+1}✓</span>
+                <p className="flex-1 text-[10px] font-semibold truncate min-w-0" title={`${m.subject} — ATP: ${m.atpRef}`}>{m.subject}</p>
+                <span className="shrink-0 text-[9px] font-bold text-green-700 dark:text-green-400">{m.hours}h</span>
               </div>
-              <p className="text-[11px] font-semibold leading-tight line-clamp-2">{m.subject}</p>
               <p className="text-[9px] text-muted-foreground truncate">{m.provider}</p>
-              <p className="text-[9px] text-muted-foreground mt-auto">{ukDate(m.date)}</p>
+              <p className="text-[9px] text-muted-foreground">{ukDate(m.date)}</p>
             </div>
           ))}
           {/* Outstanding placeholder cards */}
           {remaining>0 && Array.from({length:Math.ceil(remaining/7)}).map((_,i)=>(
             <div key={`p${i}`} className="rounded-lg border border-dashed p-2.5 flex flex-col gap-1 opacity-50">
-              <div className="flex items-center justify-between mb-0.5">
-                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wide">#{filledSlots+i+1}</span>
-                <span className="text-[9px] text-muted-foreground">7h</span>
+              <div className="flex items-center gap-1 mb-0.5">
+                <span className="shrink-0 text-[9px] font-bold text-muted-foreground uppercase tracking-wide">#{filledSlots+i+1}</span>
+                <p className="flex-1 text-[10px] font-medium text-muted-foreground truncate">Outstanding</p>
+                <span className="shrink-0 text-[9px] text-muted-foreground">7h</span>
               </div>
-              <p className="text-[11px] font-medium text-muted-foreground leading-tight">Outstanding</p>
-              <p className="text-[9px] text-muted-foreground mt-auto">By {ukDate(driver.cpcDeadline)}</p>
+              <p className="text-[9px] text-muted-foreground">By {ukDate(driver.cpcDeadline)}</p>
             </div>
           ))}
         </div>
