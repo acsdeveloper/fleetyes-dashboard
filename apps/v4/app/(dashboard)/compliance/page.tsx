@@ -840,16 +840,16 @@ function LicenceSection({ driver }: { driver: Driver }) {
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Endorsements {driver.endorsements.length===0&&<span className="text-green-600 normal-case font-normal ml-1">— clean licence</span>}</p>
           {driver.endorsements.length>0 ? (
-            <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {driver.endorsements.map((e,i)=>(
-                <div key={i} className="flex items-center gap-3 rounded-lg border bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 px-3 py-2">
-                  <span className="shrink-0 font-mono font-bold text-sm text-amber-700 dark:text-amber-400 w-10">{e.code}</span>
-                  <span className="flex-1 text-xs text-muted-foreground truncate">{e.offence}</span>
-                  <span className="shrink-0 text-xs font-bold text-amber-700 dark:text-amber-400">{e.points}pts</span>
-                  <div className="shrink-0 text-right">
-                    <p className="text-[10px] text-muted-foreground">Conv. {ukDate(e.convictionDate)}</p>
-                    <span className={`text-[10px] rounded-full px-1.5 py-0.5 ${expiryBadge(e.expiryDate)}`}>Exp {ukDate(e.expiryDate)}</span>
+                <div key={i} className="rounded-lg border bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 p-2.5 flex flex-col gap-1">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="font-mono font-bold text-xs text-amber-700 dark:text-amber-400">{e.code}</span>
+                    <span className="text-[9px] font-bold text-amber-700 dark:text-amber-400">{e.points}pts</span>
                   </div>
+                  <p className="text-[11px] font-semibold leading-tight line-clamp-2">{e.offence}</p>
+                  <p className="text-[9px] text-muted-foreground mt-auto">Conv. {ukDate(e.convictionDate)}</p>
+                  <span className={`text-[9px] rounded-full px-1.5 py-0.5 self-start ${expiryBadge(e.expiryDate)}`}>Exp {ukDate(e.expiryDate)}</span>
                 </div>
               ))}
             </div>
