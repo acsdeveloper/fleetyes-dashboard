@@ -1078,34 +1078,41 @@ function DriversTab() {
         <KPI label="RTW Expiring"    value={rtwExp}    icon={Flag}          color="bg-red-500"                              sub="<90d to expiry"/>
         <KPI label="Disqualified"    value={disq}      icon={AlertCircle}   color={disq>0?"bg-red-700":"bg-muted"}          sub="must not drive"/>
       </div>
-      {/* ── Horizontal driver tab bar ─────────────────────────────────── */}
-      <div className="flex gap-1 overflow-x-auto rounded-xl border bg-card p-1">
-        {drivers.map(d => {
-          const active = sel === d.id
-          const riskBg  = d.risk==="high" ? "bg-red-500" : d.risk==="medium" ? "bg-amber-500" : "bg-green-500"
-          const statusDot = d.licenceStatus==="valid" ? "bg-green-500" : "bg-red-500"
-          return (
-            <button
-              key={d.id}
-              onClick={() => setSel(d.id)}
-              className={`shrink-0 flex items-center gap-2 rounded-lg px-3 py-2 transition-colors text-left ${
-                active ? "bg-primary text-primary-foreground shadow-sm" : "hover:bg-muted"
-              }`}
-            >
-              <div className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${riskBg}`}>
-                {d.name.split(" ").map((n: string) => n[0]).join("")}
-                <span className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 ${active ? "border-primary" : "border-card"} ${statusDot}`} />
-              </div>
-              <div className="min-w-0">
-                <p className={`text-xs font-semibold leading-tight ${active ? "text-primary-foreground" : ""}`}>{d.name.split(" ")[0]}</p>
-                <p className={`text-[10px] leading-tight ${active ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{d.licence} · {d.points}pts</p>
-              </div>
-            </button>
-          )
-        })}
+      {/* ── Driver selector + detail ─────────────────────────────── */}
+      <div className="flex gap-4 items-start">
+        {/* Vertical tab list */}
+        <div className="flex flex-col w-44 shrink-0 rounded-xl border bg-card overflow-hidden">
+          {drivers.map(d => {
+            const active    = sel === d.id
+            const riskBg    = d.risk==="high" ? "bg-red-500" : d.risk==="medium" ? "bg-amber-500" : "bg-green-500"
+            const statusDot = d.licenceStatus==="valid" ? "bg-green-500" : "bg-red-500"
+            return (
+              <button
+                key={d.id}
+                onClick={() => setSel(d.id)}
+                className={`flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors border-l-2 ${
+                  active
+                    ? "border-primary bg-primary/8 text-foreground"
+                    : "border-transparent hover:bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <div className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${riskBg}`}>
+                  {d.name.split(" ").map((n: string) => n[0]).join("")}
+                  <span className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-card ${statusDot}`} />
+                </div>
+                <div className="min-w-0">
+                  <p className={`truncate text-xs font-semibold leading-tight ${active ? "text-foreground" : ""}`}>{d.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{d.points}pts · {d.risk}</p>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+        {/* Detail panel */}
+        <div className="flex-1 min-w-0">
+          <DriverDetail driver={driver} key={driver.id}/>
+        </div>
       </div>
-      {/* Detail panel — full width below tab bar */}
-      <DriverDetail driver={driver} key={driver.id}/>
     </div>
   )
 }
