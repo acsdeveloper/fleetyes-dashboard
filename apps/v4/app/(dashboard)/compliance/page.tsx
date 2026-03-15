@@ -2958,7 +2958,759 @@ function SettingsTab() {
   function sendTest(ch: "email"|"mobile") { setTestStatus(ch); setTimeout(() => setTestStatus(null), 2500) }
 
   const VIEWS = [
-    { id:"notifications" as const, label:"Notifications", icon:Bell       },
+    { id:"notifications" as const, label:"Settings", icon:Bell       },
+    { id:"alerts"        as const, label:"Alerts",         icon:AlertCircle },
+    { id:"integrations"  as const, label:"Integrations",   icon:Zap         },
+  ]
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Sub-tab switcher */}
+      <div className="flex gap-1 rounded-xl border bg-muted/30 p-1 w-fit">
+        {VIEWS.map(v => (
+          <button key={v.id} onClick={() => setView(v.id)}
+            className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${view === v.id ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            <v.icon className="h-3.5 w-3.5" />{v.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Notifications sub-tab ── */}
+      {view === "notifications" && (
+        <div className="grid gap-4 sm:grid-cols-3">
+          {/* Compliance Manager */}
+          <div className="rounded-xl border bg-card p-4 shadow-sm flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-500 text-[9px] font-bold text-white shrink-0">CM</div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Compliance Manager</p>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              First to receive non-urgent alerts. Escalates automatically to <strong>all admins</strong> at 7 days or for operational events.
+            </p>
+            <select value={complianceMgr} onChange={e => { setComplianceMgr(e.target.value); setSaved(false) }}
+              className="h-9 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring">
+              {adminUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+            <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2 text-[11px]">
+              <div className={`h-6 w-6 shrink-0 flex items-center justify-center rounded-full ${cm.color} text-[9px] font-bold text-white`}>{cm.initials}</div>
+              <div className="min-w-0">
+                <p className="font-semibold text-xs truncate">{cm.name}</p>
+                <p className="text-muted-foreground truncate">{cm.email}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Channels */}
+          <div className="rounded-xl border bg-card p-4 shadow-sm flex flex-col gap-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notification Channels</p>
+            <div className="flex items-center gap-3">
+              <Toggle on={emailEnabled} onToggle={() => { setEmailEnabled(v => !v); setSaved(false) }} />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium">Email</p>
+                <p className="text-[10px] text-muted-foreground truncate">{adminUsers.map(u => u.email).join(" · ")}</p>
+              </div>
+              <button onClick={() => sendTest("email")}
+                className={`shrink-0 inline-flex h-6 items-center rounded-lg border px-2 text-[10px] transition-colors ${testStatus==="email" ? "border-green-400 bg-green-50 text-green-700" : "hover:bg-muted text-muted-foreground"}`}
+              >{testStatus==="email" ? "✓ Sent!" : "Test"}</button>
+            </div>
+            <div className="flex items-center gap-3">
+              <Toggle on={mobileEnabled} onToggle={() => { setMobileEnabled(v => !v); setSaved(false) }} />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium">Mobile Notification</p>
+                <p className="text-[10px] text-muted-foreground">{adminUsers.map(u => u.mobile).join(" · ")}</p>
+              </div>
+              <button onClick={() => sendTest("mobile")}
+                className={`shrink-0 inline-flex h-6 items-center rounded-lg border px-2 text-[10px] transition-colors ${testStatus==="mobile" ? "border-green-400 bg-green-50 text-green-700" : "hover:bg-muted text-muted-foreground"}`}
+              >{testStatus==="mobile" ? "✓ Sent!" : "Test"}</button>
+            </div>
+          </div>
+
+          {/* Daily Digest */}
+          <div className="rounded-xl border bg-card p-4 shadow-sm flex flex-col gap-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Daily Digest</p>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Batches expiry reminders into one morning email. <strong>Operational events</strong> (defects, VOR, infringements) always send immediately.
+            </p>
+            <div className="flex items-center gap-3">
+              <Toggle on={digestEnabled} onToggle={() => { setDigestEnabled(v => !v); setSaved(false) }} />
+              <span className="text-xs font-medium">{digestEnabled ? "Digest on" : "Send individually"}</span>
+            </div>
+            {digestEnabled && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-muted-foreground">Deliver at</span>
+                <input type="time" value={digestTime} onChange={e => { setDigestTime(e.target.value); setSaved(false) }}
+                  className="h-7 rounded-lg border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring" />
+                <span className="text-muted-foreground">each morning</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Alerts sub-tab ── */}
+      {view === "alerts" && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* LEFT — Expiry Alerts */}
+          <div className="rounded-xl border bg-card shadow-sm overflow-hidden flex flex-col">
+            <div className="border-b bg-muted/40 px-4 py-3 flex items-center gap-2">
+              <CalendarDays className="h-4 w-4 text-indigo-500" />
+              <span className="font-semibold text-sm">Expiry Alerts</span>
+              <span className="ml-auto text-[11px] text-muted-foreground">Multi-phase · 7d always active</span>
+            </div>
+            <div className="grid border-b bg-muted/20 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+              style={{ gridTemplateColumns: "1fr 76px 70px 36px 28px 28px" }}>
+              <span>Alert</span><span className="text-center">Early</span><span className="text-center">Remind</span>
+              <span className="text-center">7d</span><span className="text-center">✉</span><span className="text-center">📱</span>
+            </div>
+            {expiryCats.map(cat => (
+              <div key={cat.id}>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 border-y bg-muted/10">
+                  <div className={`flex h-4 w-4 items-center justify-center rounded ${cat.color}`}><cat.icon className="h-2.5 w-2.5 text-white" /></div>
+                  <span className="text-[11px] font-semibold">{cat.label}</span>
+                </div>
+                {cat.rules.map(rule => (
+                  <div key={rule.id} className="grid items-center px-3 py-2 border-b last:border-0 hover:bg-muted/10 transition-colors"
+                    style={{ gridTemplateColumns: "1fr 76px 70px 36px 28px 28px" }}>
+                    <div className="flex items-center gap-1 min-w-0 pr-1">
+                      <span className="text-[11px] truncate" title={rule.name}>{rule.name}</span>
+                      <span className={`shrink-0 text-[8px] font-medium px-1 py-0.5 rounded-full ${rule.who === "cm_first" ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"}`}>
+                        {rule.who === "cm_first" ? "CM" : "All"}
+                      </span>
+                    </div>
+                    <div className="flex justify-center">
+                      <select value={rule.early} onChange={e => patchExpiry(cat.id, rule.id, { early: e.target.value as AlertRule["early"] })}
+                        className="h-5 rounded border bg-background text-[9px] px-0.5 w-[70px]">
+                        <option value="90d">90 days</option><option value="60d">60 days</option><option value="off">Off</option>
+                      </select>
+                    </div>
+                    <div className="flex justify-center">
+                      <select value={rule.reminder} onChange={e => patchExpiry(cat.id, rule.id, { reminder: e.target.value as AlertRule["reminder"] })}
+                        className="h-5 rounded border bg-background text-[9px] px-0.5 w-[64px]">
+                        <option value="30d">30 days</option><option value="21d">21 days</option><option value="14d">14 days</option>
+                      </select>
+                    </div>
+                    <div className="flex justify-center">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 text-[9px] font-bold">7d</span>
+                    </div>
+                    <div className="flex justify-center"><SmToggle on={rule.email} onToggle={() => patchExpiry(cat.id, rule.id, { email: !rule.email })} disabled={!emailEnabled} /></div>
+                    <div className="flex justify-center"><SmToggle on={rule.mobile} onToggle={() => patchExpiry(cat.id, rule.id, { mobile: !rule.mobile })} disabled={!mobileEnabled} /></div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+
+          {/* RIGHT — Event Alerts */}
+          <div className="rounded-xl border bg-card shadow-sm overflow-hidden flex flex-col">
+            <div className="border-b bg-muted/40 px-4 py-3 flex items-center gap-2">
+              <Bell className="h-4 w-4 text-red-500" />
+              <span className="font-semibold text-sm">Event Alerts</span>
+              <span className="ml-auto text-[11px] text-muted-foreground">Real-time · Always all admins</span>
+            </div>
+            <div className="grid border-b bg-muted/20 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+              style={{ gridTemplateColumns: "1fr 60px 28px 28px" }}>
+              <span>Alert</span><span className="text-center">When</span><span className="text-center">✉</span><span className="text-center">📱</span>
+            </div>
+            {eventCats.map(cat => (
+              <div key={cat.id}>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 border-y bg-muted/10">
+                  <div className={`flex h-4 w-4 items-center justify-center rounded ${cat.color}`}><cat.icon className="h-2.5 w-2.5 text-white" /></div>
+                  <span className="text-[11px] font-semibold">{cat.label}</span>
+                </div>
+                {cat.rules.map(rule => (
+                  <div key={rule.id} className="grid items-center px-3 py-2 border-b last:border-0 hover:bg-muted/10 transition-colors"
+                    style={{ gridTemplateColumns: "1fr 60px 28px 28px" }}>
+                    <span className="text-[11px] truncate pr-1" title={rule.name}>{rule.name}</span>
+                    <div className="flex justify-center">
+                      <span className="rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 px-1.5 py-0.5 text-[8px] font-bold">Instant</span>
+                    </div>
+                    <div className="flex justify-center"><SmToggle on={rule.email} onToggle={() => patchEvent(cat.id, rule.id, { email: !rule.email })} disabled={!emailEnabled} /></div>
+                    <div className="flex justify-center"><SmToggle on={rule.mobile} onToggle={() => patchEvent(cat.id, rule.id, { mobile: !rule.mobile })} disabled={!mobileEnabled} /></div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Integrations sub-tab ── */}
+      {view === "integrations" && <IntegrationsSubTab />}
+
+      {/* Save bar — only on notifications + alerts */}
+      {view !== "integrations" && (
+        <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${saved ? "border-green-300 bg-green-50 dark:border-green-900 dark:bg-green-950/20" : "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20"}`}>
+          {saved
+            ? <><CheckCircle2 className="h-4 w-4 text-green-600" /><span className="text-xs font-medium text-green-700 dark:text-green-400">All settings saved</span></>
+            : <><AlertCircle  className="h-4 w-4 text-amber-600" /><span className="text-xs font-medium text-amber-700 dark:text-amber-400">Unsaved changes</span></>
+          }
+          <div className="ml-auto flex items-center gap-2">
+            {!saved && (
+              <button onClick={() => { setExpiryCats(expiryAlertCats); setEventCats(eventAlertCats); setSaved(true) }}
+                className="inline-flex h-8 items-center rounded-lg border px-3 text-xs text-muted-foreground hover:bg-muted">Reset defaults</button>
+            )}
+            <button onClick={() => setSaved(true)}
+              className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-4 text-xs font-medium transition-colors ${saved ? "border hover:bg-muted text-muted-foreground" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
+              {saved ? "Saved ✓" : "Save Changes"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+
+// ─── AUDIT LOG TAB ────────────────────────────────────────────────────────────
+
+type AuditSeverity = "create" | "edit" | "upload" | "delete" | "sign" | "alert" | "approve"
+type AuditCategory = "vehicle" | "driver" | "document" | "walkaround" | "pmi" | "settings" | "system"
+type SortCol = "ts" | "user" | "action" | "category"
+
+interface AuditEvent {
+  id: string; ts: string
+  user: string; initials: string; userColor: string
+  action: string; desc: string
+  category: AuditCategory; categoryLabel: string
+  severity: AuditSeverity
+  before?: string; after?: string
+}
+
+const auditRows: AuditEvent[] = [
+  { id:"a01", ts:"2026-03-15T09:14:00Z", user:"M. Patel",    initials:"MP", userColor:"bg-indigo-500", action:"Edited",    desc:"MOT expiry — NUX9VAM",                      category:"vehicle",    categoryLabel:"Vehicle",    severity:"edit",    before:"28 Mar 2026",   after:"28 Mar 2027"         },
+  { id:"a02", ts:"2026-03-15T09:12:00Z", user:"J. O'Connor", initials:"JO", userColor:"bg-emerald-500",action:"Submitted",  desc:"Walkaround WA-2026-0124 · NUX9VAM",         category:"walkaround", categoryLabel:"Walkaround", severity:"create",                              after:"Clear – 0 defects" },
+  { id:"a03", ts:"2026-03-15T08:47:00Z", user:"S. Johnson",  initials:"SJ", userColor:"bg-rose-500",   action:"Uploaded",   desc:"MOT certificate — TB67KLM",                 category:"document",   categoryLabel:"Document",   severity:"upload",                              after:"MOT_TB67KLM_2026.pdf" },
+  { id:"a04", ts:"2026-03-15T08:31:00Z", user:"System",      initials:"SY", userColor:"bg-slate-500",  action:"Alert sent", desc:"Tacho calibration 30-day alert — YJ19HKP",  category:"system",     categoryLabel:"System",     severity:"alert"    },
+  { id:"a05", ts:"2026-03-15T08:00:00Z", user:"System",      initials:"SY", userColor:"bg-slate-500",  action:"Alert sent", desc:"Daily digest — 3 items · M. Patel + S. Johnson", category:"system", categoryLabel:"System",   severity:"alert"    },
+  { id:"a06", ts:"2026-03-14T16:52:00Z", user:"M. Patel",    initials:"MP", userColor:"bg-indigo-500", action:"Approved",   desc:"DVLA licence check — Maria Santos",          category:"driver",     categoryLabel:"Driver",     severity:"approve",  before:"Risk 68",       after:"Risk 74 · monitoring" },
+  { id:"a07", ts:"2026-03-14T15:30:00Z", user:"S. Johnson",  initials:"SJ", userColor:"bg-rose-500",   action:"Signed",     desc:"PMI inspection WA-PMI-0041 · OU70TBN",      category:"pmi",        categoryLabel:"PMI",        severity:"sign",     before:"Draft",         after:"Submitted" },
+  { id:"a08", ts:"2026-03-14T14:20:00Z", user:"M. Patel",    initials:"MP", userColor:"bg-indigo-500", action:"Edited",     desc:"CPC module record — James O'Connor",         category:"driver",     categoryLabel:"Driver",     severity:"edit",     before:"28h completed", after:"35h completed" },
+  { id:"a09", ts:"2026-03-14T13:05:00Z", user:"S. Johnson",  initials:"SJ", userColor:"bg-rose-500",   action:"Uploaded",   desc:"ADR certificate — James O'Connor",           category:"document",   categoryLabel:"Document",   severity:"upload",                              after:"ADR_JOC_2026.pdf" },
+  { id:"a10", ts:"2026-03-14T12:00:00Z", user:"M. Patel",    initials:"MP", userColor:"bg-indigo-500", action:"Created",    desc:"Vehicle LK21DVA added to fleet",             category:"vehicle",    categoryLabel:"Vehicle",    severity:"create",                              after:"Scania R 450 · unassigned" },
+  { id:"a11", ts:"2026-03-14T11:45:00Z", user:"M. Santos",   initials:"MS", userColor:"bg-amber-500",  action:"Submitted",  desc:"Walkaround WA-2026-0123 · TB67KLM",         category:"walkaround", categoryLabel:"Walkaround", severity:"create",                              after:"1 Advisory – Wiper blade" },
+  { id:"a12", ts:"2026-03-14T10:30:00Z", user:"System",      initials:"SY", userColor:"bg-slate-500",  action:"Alert sent", desc:"VOR alert — TB67KLM defect · workshop notified", category:"system", categoryLabel:"System",     severity:"alert"    },
+  { id:"a13", ts:"2026-03-14T09:55:00Z", user:"M. Patel",    initials:"MP", userColor:"bg-indigo-500", action:"Edited",     desc:"Notification settings — digest time",        category:"settings",   categoryLabel:"Settings",   severity:"edit",     before:"07:00",         after:"08:00" },
+  { id:"a14", ts:"2026-03-13T17:10:00Z", user:"S. Johnson",  initials:"SJ", userColor:"bg-rose-500",   action:"Deleted",    desc:"Expired insurance doc — PN19RFX",            category:"document",   categoryLabel:"Document",   severity:"delete",   before:"Insurance_2025.pdf" },
+  { id:"a15", ts:"2026-03-13T16:00:00Z", user:"M. Patel",    initials:"MP", userColor:"bg-indigo-500", action:"Verified",   desc:"Right to Work — Ahmed Khalid",               category:"driver",     categoryLabel:"Driver",     severity:"approve",                             after:"Share code · visa exp 2027-08-01" },
+  { id:"a16", ts:"2026-03-13T14:30:00Z", user:"System",      initials:"SY", userColor:"bg-slate-500",  action:"DVLA check", desc:"DAVIS licence check — James O'Connor",       category:"driver",     categoryLabel:"Driver",     severity:"approve",                             after:"Clear · 2pts · No change" },
+  { id:"a17", ts:"2026-03-13T11:00:00Z", user:"M. Patel",    initials:"MP", userColor:"bg-indigo-500", action:"Edited",     desc:"PMI interval — OU70TBN",                    category:"pmi",        categoryLabel:"PMI",        severity:"edit",     before:"6 weeks",       after:"4 weeks (intensive)" },
+  { id:"a18", ts:"2026-03-12T16:45:00Z", user:"S. Johnson",  initials:"SJ", userColor:"bg-rose-500",   action:"Uploaded",   desc:"LOLER certificate — NUX9VAM",               category:"document",   categoryLabel:"Document",   severity:"upload",                              after:"LOLER_NUX9VAM_2026.pdf" },
+  { id:"a19", ts:"2026-03-12T09:00:00Z", user:"M. Patel",    initials:"MP", userColor:"bg-indigo-500", action:"Edited",     desc:"Compliance Manager designation",             category:"settings",   categoryLabel:"Settings",   severity:"edit",     before:"M. Patel",      after:"S. Johnson" },
+  { id:"a20", ts:"2026-03-11T15:30:00Z", user:"System",      initials:"SY", userColor:"bg-slate-500",  action:"Alert sent", desc:"MOT 90-day alert — PN19RFX (due 10 Jun 2026)", category:"system",  categoryLabel:"System",     severity:"alert"    },
+]
+
+const auditSeverityCfg: Record<AuditSeverity, { badge: string; label: string }> = {
+  create:  { badge:"bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",       label:"Created"  },
+  edit:    { badge:"bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400",   label:"Edited"   },
+  upload:  { badge:"bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",           label:"Uploaded" },
+  delete:  { badge:"bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",               label:"Deleted"  },
+  sign:    { badge:"bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",   label:"Signed"   },
+  alert:   { badge:"bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",       label:"Alert"    },
+  approve: { badge:"bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",label:"Approved" },
+}
+
+const auditCategoryLabels: Record<AuditCategory, string> = {
+  vehicle:"Vehicle", driver:"Driver", document:"Document",
+  walkaround:"Walkaround", pmi:"PMI", settings:"Settings", system:"System",
+}
+
+function auditRelTime(ts: string) {
+  const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000)
+  if (diff < 60)    return `${diff}s ago`
+  if (diff < 3600)  return `${Math.floor(diff/60)}m ago`
+  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`
+  return `${Math.floor(diff/86400)}d ago`
+}
+function auditAbsTime(ts: string) {
+  return new Date(ts).toLocaleString("en-GB", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit"})
+}
+
+const PRESET_RANGES: { label: string; days: number | null }[] = [
+  { label:"Today", days:1 }, { label:"7 days", days:7 },
+  { label:"30 days", days:30 }, { label:"90 days", days:90 }, { label:"All", days:null },
+]
+
+function AuditTab() {
+  const [catFilter,  setCatFilter]  = React.useState<AuditCategory|"all">("all")
+  const [sevFilter,  setSevFilter]  = React.useState<AuditSeverity|"all">("all")
+  const [userFilter, setUserFilter] = React.useState("all")
+  const [search,     setSearch]     = React.useState("")
+  const [preset,     setPreset]     = React.useState<number | null>(null)   // days; null = all
+  const [sortCol,    setSortCol]    = React.useState<SortCol>("ts")
+  const [sortDir,    setSortDir]    = React.useState<"asc"|"desc">("desc")
+
+  const uniqueUsers = [...new Set(auditRows.map(e => e.user))]
+
+  function toggleSort(col: SortCol) {
+    if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc")
+    else { setSortCol(col); setSortDir("desc") }
+  }
+
+  function sortIcon(col: SortCol) {
+    if (sortCol !== col) return <span className="ml-0.5 opacity-20">↕</span>
+    return <span className="ml-0.5">{sortDir === "asc" ? "↑" : "↓"}</span>
+  }
+
+  const cutoff = preset ? Date.now() - preset * 86400000 : null
+
+  const filtered = auditRows
+    .filter(e => {
+      if (catFilter  !== "all" && e.category !== catFilter)   return false
+      if (sevFilter  !== "all" && e.severity !== sevFilter)   return false
+      if (userFilter !== "all" && e.user !== userFilter)      return false
+      if (cutoff && new Date(e.ts).getTime() < cutoff)        return false
+      if (search && ![e.desc, e.user, e.action, e.categoryLabel, e.before ?? "", e.after ?? ""]
+          .some(f => f.toLowerCase().includes(search.toLowerCase()))) return false
+      return true
+    })
+    .sort((a, b) => {
+      let va: string, vb: string
+      if (sortCol === "ts")       { va = a.ts;          vb = b.ts }
+      else if (sortCol === "user"){ va = a.user;        vb = b.user }
+      else if (sortCol === "action"){ va = a.action;    vb = b.action }
+      else                        { va = a.categoryLabel; vb = b.categoryLabel }
+      return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va)
+    })
+
+  const hasFilters = catFilter !== "all" || sevFilter !== "all" || userFilter !== "all" || search || preset !== null
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Top bar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div>
+          <p className="text-sm font-semibold">Audit Log</p>
+          <p className="text-xs text-muted-foreground">Immutable trail of all compliance changes — available for Traffic Commissioner inspection</p>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <button className="inline-flex h-8 items-center gap-1.5 rounded-lg border bg-background px-3 text-xs hover:bg-muted text-muted-foreground">
+            <Download className="h-3.5 w-3.5" /> CSV
+          </button>
+          <button className="inline-flex h-8 items-center gap-1.5 rounded-lg border bg-background px-3 text-xs hover:bg-muted text-muted-foreground">
+            <Download className="h-3.5 w-3.5" /> PDF
+          </button>
+        </div>
+      </div>
+
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…"
+          className="h-8 w-44 rounded-lg border bg-background px-3 text-xs outline-none focus:ring-2 focus:ring-ring" />
+
+        <select value={catFilter} onChange={e => setCatFilter(e.target.value as AuditCategory|"all")}
+          className="h-8 rounded-lg border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring">
+          <option value="all">All categories</option>
+          {(Object.keys(auditCategoryLabels) as AuditCategory[]).map(c =>
+            <option key={c} value={c}>{auditCategoryLabels[c]}</option>)}
+        </select>
+
+        <select value={sevFilter} onChange={e => setSevFilter(e.target.value as AuditSeverity|"all")}
+          className="h-8 rounded-lg border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring">
+          <option value="all">All actions</option>
+          {(Object.keys(auditSeverityCfg) as AuditSeverity[]).map(s =>
+            <option key={s} value={s}>{auditSeverityCfg[s].label}</option>)}
+        </select>
+
+        <select value={userFilter} onChange={e => setUserFilter(e.target.value)}
+          className="h-8 rounded-lg border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring">
+          <option value="all">All users</option>
+          {uniqueUsers.map(u => <option key={u} value={u}>{u}</option>)}
+        </select>
+
+        {/* Date range presets */}
+        <div className="flex gap-1 rounded-lg border bg-muted/30 p-0.5">
+          {PRESET_RANGES.map(p => (
+            <button key={p.label}
+              onClick={() => setPreset(preset === p.days ? null : p.days)}
+              className={`rounded px-2 py-1 text-[11px] font-medium transition-colors ${
+                preset === p.days ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >{p.label}</button>
+          ))}
+        </div>
+
+        {hasFilters && (
+          <button onClick={() => { setCatFilter("all"); setSevFilter("all"); setUserFilter("all"); setSearch(""); setPreset(null) }}
+            className="h-8 rounded-lg border px-3 text-xs text-muted-foreground hover:bg-muted">Clear</button>
+        )}
+        <span className="text-xs text-muted-foreground">{filtered.length} / {auditRows.length} events</span>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <colgroup>
+              <col style={{ width:"110px" }} />
+              <col style={{ width:"110px" }} />
+              <col style={{ width:"90px"  }} />
+              <col />
+              <col style={{ width:"140px" }} />
+              <col style={{ width:"140px" }} />
+            </colgroup>
+            <thead>
+              <tr className="border-b bg-muted/40 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <th className="px-3 py-2 text-left">
+                  <button className="flex items-center gap-0.5 hover:text-foreground" onClick={() => toggleSort("ts")}>
+                    When {sortIcon("ts")}
+                  </button>
+                </th>
+                <th className="px-3 py-2 text-left">
+                  <button className="flex items-center gap-0.5 hover:text-foreground" onClick={() => toggleSort("user")}>
+                    User {sortIcon("user")}
+                  </button>
+                </th>
+                <th className="px-3 py-2 text-left">
+                  <button className="flex items-center gap-0.5 hover:text-foreground" onClick={() => toggleSort("action")}>
+                    Action {sortIcon("action")}
+                  </button>
+                </th>
+                <th className="px-3 py-2 text-left">
+                  <button className="flex items-center gap-0.5 hover:text-foreground" onClick={() => toggleSort("category")}>
+                    Description {sortIcon("category")}
+                  </button>
+                </th>
+                <th className="px-3 py-2 text-left">Before</th>
+                <th className="px-3 py-2 text-left">After</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {filtered.length === 0 ? (
+                <tr><td colSpan={6} className="py-12 text-center text-muted-foreground">No events match your filters.</td></tr>
+              ) : filtered.map(evt => {
+                const s = auditSeverityCfg[evt.severity]
+                return (
+                  <tr key={evt.id} className="hover:bg-muted/20 transition-colors">
+                    {/* When */}
+                    <td className="px-3 py-2 whitespace-nowrap text-[11px] text-muted-foreground">{auditAbsTime(evt.ts)}</td>
+                    {/* User */}
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1.5">
+                        <div className={`h-5 w-5 shrink-0 flex items-center justify-center rounded-full ${evt.userColor} text-[8px] font-bold text-white`}>{evt.initials}</div>
+                        <span className="truncate">{evt.user}</span>
+                      </div>
+                    </td>
+                    {/* Action badge */}
+                    <td className="px-3 py-2">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap ${s.badge}`}>{s.label}</span>
+                    </td>
+                    {/* Description */}
+                    <td className="px-3 py-2 max-w-0">
+                      <span className="block truncate text-xs" title={evt.desc}>{evt.desc}</span>
+                    </td>
+                    {/* Before */}
+                    <td className="px-3 py-2">
+                      {evt.before
+                        ? <span className="font-mono text-[11px] text-muted-foreground line-through truncate block" title={evt.before}>{evt.before}</span>
+                        : <span className="text-muted-foreground/30">—</span>}
+                    </td>
+                    {/* After */}
+                    <td className="px-3 py-2">
+                      {evt.after
+                        ? <span className="font-mono text-[11px] text-green-700 dark:text-green-400 truncate block" title={evt.after}>{evt.after}</span>
+                        : <span className="text-muted-foreground/30">—</span>}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <p className="text-[11px] text-muted-foreground px-1">
+        Records retained for <strong>15 months</strong> per DVSA guidance · Immutable — cannot be edited or deleted by any user
+      </p>
+    </div>
+  )
+}
+
+
+
+// ─── SETTINGS TAB ─────────────────────────────────────────────────────────────
+
+const adminUsers = [
+  { id:"a1", name:"Michael Patel",  email:"m.patel@fleetco.com",   mobile:"+44 7911 123456", initials:"MP", color:"bg-indigo-500" },
+  { id:"a2", name:"Sarah Johnson",  email:"s.johnson@fleetco.com", mobile:"+44 7922 654321", initials:"SJ", color:"bg-rose-500"   },
+]
+
+interface AlertRule {
+  id: string; name: string
+  type: "expiry" | "event"
+  who: "cm_first" | "all"
+  early?: "90d" | "60d" | "off"
+  reminder?: "30d" | "21d" | "14d"
+  email: boolean; mobile: boolean
+}
+interface AlertCatItem { id: string; label: string; icon: React.ElementType; color: string; rules: AlertRule[] }
+
+const expiryAlertCats: AlertCatItem[] = [
+  { id:"vehicle_docs", label:"Vehicle Documents", icon:Truck, color:"bg-blue-500", rules:[
+    { id:"mot",   name:"MOT Expiry",               type:"expiry", who:"cm_first", early:"90d", reminder:"30d", email:true,  mobile:false },
+    { id:"tacho", name:"Tachograph Calibration",   type:"expiry", who:"cm_first", early:"90d", reminder:"30d", email:true,  mobile:false },
+    { id:"loler", name:"LOLER Certificate",        type:"expiry", who:"cm_first", early:"60d", reminder:"14d", email:true,  mobile:false },
+  ]},
+  { id:"driver_docs", label:"Driver Documents", icon:Users, color:"bg-violet-500", rules:[
+    { id:"lic",   name:"Driving Licence",           type:"expiry", who:"cm_first", early:"90d", reminder:"30d", email:true,  mobile:false },
+    { id:"tcard", name:"Tachograph Card",           type:"expiry", who:"cm_first", early:"60d", reminder:"30d", email:true,  mobile:true  },
+    { id:"dqc",   name:"DQC / CPC Deadline",        type:"expiry", who:"cm_first", early:"90d", reminder:"30d", email:true,  mobile:true  },
+    { id:"adr",   name:"ADR Certificate",           type:"expiry", who:"cm_first", early:"90d", reminder:"30d", email:true,  mobile:false },
+    { id:"d4",    name:"D4 Medical",                type:"expiry", who:"cm_first", early:"90d", reminder:"30d", email:true,  mobile:false },
+    { id:"rtw",   name:"Right to Work (Visa)",      type:"expiry", who:"all",      early:"60d", reminder:"21d", email:true,  mobile:false },
+  ]},
+  { id:"pmi_sched", label:"PMI Schedule", icon:ClipboardList, color:"bg-amber-500", rules:[
+    { id:"pmi_due", name:"PMI Due (7 days advance)", type:"expiry", who:"cm_first", early:"off", reminder:"14d", email:true, mobile:false },
+  ]},
+]
+
+const eventAlertCats: AlertCatItem[] = [
+  { id:"pmi_ops",    label:"PMI & Maintenance",   icon:ClipboardList, color:"bg-amber-500",   rules:[
+    { id:"pmi_overdue", name:"PMI Overdue",                  who:"all",      type:"event", email:true, mobile:true  },
+  ]},
+  { id:"walkaround", label:"Walkaround Checks",   icon:CheckCircle2,  color:"bg-emerald-500", rules:[
+    { id:"wa_miss",   name:"Missing Daily Check (CoB)",       who:"all",      type:"event", email:true, mobile:true  },
+    { id:"wa_defect", name:"Defect Reported",                 who:"all",      type:"event", email:true, mobile:true  },
+    { id:"wa_vor",    name:"VOR Raised",                      who:"all",      type:"event", email:true, mobile:true  },
+  ]},
+  { id:"olicence",   label:"O-Licence",           icon:ShieldCheck,   color:"bg-red-500",     rules:[
+    { id:"olim_warn",   name:"Approaching Limit (90%)",       who:"all",      type:"event", email:true, mobile:true  },
+    { id:"olim_breach", name:"Vehicle Limit Breached",        who:"all",      type:"event", email:true, mobile:true  },
+  ]},
+  { id:"tacho_wtd",  label:"Tachograph & WTD",    icon:Activity,      color:"bg-orange-500",  rules:[
+    { id:"infringement", name:"Infringement Logged",           who:"all",      type:"event", email:true, mobile:true  },
+    { id:"dl_overdue",   name:"Download Overdue (3 days)",    who:"cm_first", type:"event", email:true, mobile:false },
+  ]},
+]
+
+function Toggle({ on, onToggle, disabled = false }: { on: boolean; onToggle: () => void; disabled?: boolean }) {
+  return (
+    <button onClick={onToggle} disabled={disabled}
+      className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${on && !disabled ? "bg-indigo-500" : "bg-muted"} ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+    >
+      <span className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${on && !disabled ? "translate-x-4" : ""}`} />
+    </button>
+  )
+}
+function SmToggle({ on, onToggle, disabled = false }: { on: boolean; onToggle: () => void; disabled?: boolean }) {
+  return (
+    <button onClick={onToggle} disabled={disabled}
+      className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${on && !disabled ? "bg-indigo-500" : "bg-muted"} ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+    >
+      <span className={`absolute top-0.5 left-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform ${on && !disabled ? "translate-x-3" : ""}`} />
+    </button>
+  )
+}
+
+// ── Integration cards data ────────────────────────────────────────────────────
+interface Integration {
+  id: string; name: string; icon: React.ElementType; color: string
+  tagline: string; description: string
+  status: "connected" | "disconnected" | "coming_soon"
+  fields: { label: string; placeholder: string; type?: string; hint?: string }[]
+  docsUrl?: string
+  lastSync?: string
+}
+
+const integrationDefs: Integration[] = [
+  {
+    id: "trutac",
+    name: "TruTac / Tachograph Analysis",
+    icon: Activity,
+    color: "bg-orange-500",
+    tagline: "Remote tacho download · WTD infringement import",
+    description: "Automatically pulls driver infringement reports and working time data from TruTac into the compliance dashboard. Replaces manual tacho analysis.",
+    status: "connected",
+    lastSync: "Today at 06:00",
+    fields: [
+      { label: "API Key",        placeholder: "tt_live_••••••••••••••••",            type: "password" },
+      { label: "Operator Code",  placeholder: "e.g. OPC-12345",                      hint: "Found in your TruTac portal settings" },
+      { label: "Webhook URL",    placeholder: "https://app.fleetyes.com/webhooks/tt", hint: "Paste this URL into TruTac → Integrations" },
+    ],
+    docsUrl: "#",
+  },
+  {
+    id: "dvla",
+    name: "DVLA DAVIS API",
+    icon: Car,
+    color: "bg-blue-500",
+    tagline: "Live driving licence checks · Consent-based",
+    description: "Checks driving licences in real time against the DVLA database via the DAVIS consent gateway. Requires drivers to sign a mandate under the Road Safety Act 2006.",
+    status: "disconnected",
+    fields: [
+      { label: "Client ID",      placeholder: "davis_client_••••••••",               type: "password" },
+      { label: "Client Secret",  placeholder: "secret_••••••••••••••••••••",         type: "password", hint: "Provided by DVLA when you register" },
+      { label: "Operator ID",    placeholder: "e.g. OP12345",                        hint: "Your O-Licence number without spaces" },
+    ],
+    docsUrl: "#",
+  },
+  {
+    id: "maintenance",
+    name: "Maintenance Module",
+    icon: Wrench,
+    color: "bg-indigo-500",
+    tagline: "Internal · PMI records · Defect sync",
+    description: "Links the Maintenance module to Compliance so PMI inspection records, VOR flags and defect reports appear in the compliance view without re-entry.",
+    status: "connected",
+    lastSync: "Real-time",
+    fields: [
+      { label: "Sync Scope",     placeholder: "PMI + Defects + VOR (default)",       hint: "All sync options are on by default" },
+      { label: "Defect Webhook", placeholder: "Auto-configured — no action needed",  hint: "Internal endpoint managed by the platform" },
+    ],
+    docsUrl: "#",
+  },
+  {
+    id: "fors",
+    name: "FORS Connect",
+    icon: BadgeCheck,
+    color: "bg-green-500",
+    tagline: "KPI export · FORS accreditation portal",
+    description: "Automatically exports compliance KPIs (walkaround pass rate, PMI on-time rate, licence check frequency) to the FORS portal on a monthly schedule.",
+    status: "coming_soon",
+    fields: [
+      { label: "FORS Membership No.", placeholder: "e.g. FORS-012345",       hint: "Available in your FORS account dashboard" },
+      { label: "Export Schedule",     placeholder: "1st of each month · 09:00" },
+    ],
+    docsUrl: "#",
+  },
+]
+
+function IntegrationsSubTab() {
+  const [configs, setConfigs] = React.useState<Record<string, Record<string, string>>>({})
+  const [testStatus, setTestStatus] = React.useState<string | null>(null)
+  const [expanded, setExpanded] = React.useState<string | null>("trutac")
+
+  function setField(intId: string, field: string, val: string) {
+    setConfigs(p => ({ ...p, [intId]: { ...(p[intId] ?? {}), [field]: val } }))
+  }
+  function test(intId: string) {
+    setTestStatus(intId)
+    setTimeout(() => setTestStatus(null), 2500)
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {integrationDefs.map(intg => {
+        const isExpanded = expanded === intg.id
+        const isComingSoon = intg.status === "coming_soon"
+        const isConnected  = intg.status === "connected"
+        return (
+          <div key={intg.id} className="rounded-xl border bg-card shadow-sm overflow-hidden">
+            {/* Header row — always visible */}
+            <button
+              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/20 transition-colors"
+              onClick={() => setExpanded(isExpanded ? null : intg.id)}
+              disabled={isComingSoon}
+            >
+              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${intg.color}`}>
+                <intg.icon className="h-4.5 w-4.5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-semibold">{intg.name}</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    isConnected    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+                    isComingSoon   ? "bg-muted text-muted-foreground" :
+                                     "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                  }`}>
+                    {isConnected ? "Connected" : isComingSoon ? "Coming Soon" : "Not Connected"}
+                  </span>
+                  {intg.lastSync && <span className="text-[10px] text-muted-foreground">Last sync: {intg.lastSync}</span>}
+                </div>
+                <p className="text-[11px] text-muted-foreground">{intg.tagline}</p>
+              </div>
+              <ChevronRight className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+            </button>
+
+            {/* Expanded config panel */}
+            {isExpanded && !isComingSoon && (
+              <div className="border-t px-4 py-4 flex flex-col gap-4">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">{intg.description}</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {intg.fields.map(f => (
+                    <div key={f.label}>
+                      <label className="mb-1 block text-[11px] font-medium text-muted-foreground">{f.label}</label>
+                      <input
+                        type={f.type ?? "text"}
+                        placeholder={f.placeholder}
+                        value={configs[intg.id]?.[f.label] ?? ""}
+                        onChange={e => setField(intg.id, f.label, e.target.value)}
+                        className="h-8 w-full rounded-lg border bg-background px-3 text-xs outline-none focus:ring-2 focus:ring-ring font-mono"
+                      />
+                      {f.hint && <p className="mt-0.5 text-[10px] text-muted-foreground">{f.hint}</p>}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 pt-1 border-t">
+                  {intg.docsUrl && (
+                    <a href={intg.docsUrl} className="text-[11px] text-indigo-600 hover:underline" target="_blank">
+                      View setup guide →
+                    </a>
+                  )}
+                  <div className="ml-auto flex items-center gap-2">
+                    <button
+                      onClick={() => test(intg.id)}
+                      className={`inline-flex h-7 items-center gap-1.5 rounded-lg border px-3 text-xs transition-colors ${
+                        testStatus === intg.id ? "border-green-400 bg-green-50 text-green-700" : "hover:bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {testStatus === intg.id ? "✓ Connection OK" : "Test Connection"}
+                    </button>
+                    <button className={`inline-flex h-7 items-center gap-1.5 rounded-lg px-3 text-xs font-medium transition-colors ${
+                      isConnected ? "bg-red-50 text-red-600 hover:bg-red-100 border border-red-200" : "bg-primary text-primary-foreground hover:bg-primary/90"
+                    }`}>
+                      {isConnected ? "Disconnect" : "Connect"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Coming Soon panel */}
+            {isComingSoon && isExpanded === false && (
+              <div className="border-t px-4 py-3 bg-muted/20">
+                <p className="text-[11px] text-muted-foreground">{intg.description}</p>
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function SettingsTab() {
+  const [view, setView] = React.useState<"notifications" | "alerts" | "integrations">("notifications")
+
+  // Notifications state
+  const [complianceMgr, setComplianceMgr] = React.useState("a1")
+  const [emailEnabled,  setEmailEnabled]  = React.useState(true)
+  const [mobileEnabled, setMobileEnabled] = React.useState(true)
+  const [digestEnabled, setDigestEnabled] = React.useState(true)
+  const [digestTime,    setDigestTime]    = React.useState("08:00")
+
+  // Alerts state
+  const [expiryCats, setExpiryCats] = React.useState<AlertCatItem[]>(expiryAlertCats)
+  const [eventCats,  setEventCats]  = React.useState<AlertCatItem[]>(eventAlertCats)
+
+  const [testStatus, setTestStatus] = React.useState<"email"|"mobile"|null>(null)
+  const [saved, setSaved] = React.useState(true)
+
+  const cm = adminUsers.find(u => u.id === complianceMgr)!
+
+  function patchExpiry(catId: string, ruleId: string, patch: Partial<AlertRule>) {
+    setExpiryCats(prev => prev.map(c => c.id !== catId ? c : { ...c, rules: c.rules.map(r => r.id !== ruleId ? r : { ...r, ...patch }) }))
+    setSaved(false)
+  }
+  function patchEvent(catId: string, ruleId: string, patch: Partial<AlertRule>) {
+    setEventCats(prev => prev.map(c => c.id !== catId ? c : { ...c, rules: c.rules.map(r => r.id !== ruleId ? r : { ...r, ...patch }) }))
+    setSaved(false)
+  }
+  function sendTest(ch: "email"|"mobile") { setTestStatus(ch); setTimeout(() => setTestStatus(null), 2500) }
+
+  const VIEWS = [
+    { id:"notifications" as const, label:"Settings", icon:Bell       },
     { id:"alerts"        as const, label:"Alerts",         icon:AlertCircle },
     { id:"integrations"  as const, label:"Integrations",   icon:Zap         },
   ]
