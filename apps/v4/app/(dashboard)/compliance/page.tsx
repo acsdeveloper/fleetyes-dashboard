@@ -7,7 +7,7 @@ import {
   MapPin, Users, FileText, Files, ShieldCheck, Activity, BadgeCheck,
   CalendarDays, Bell, Upload, Download, ChevronRight, Plus,
   Car, Truck, AlertCircle, RefreshCw, Lock, Zap, BookOpen,
-  BarChart3, Flag, Wrench, GraduationCap, ScrollText, Fingerprint,
+  BarChart3, Flag, Wrench, GraduationCap, ScrollText, Fingerprint, ClipboardList,
 } from "lucide-react"
 
 // ─── SHARED DATA ─────────────────────────────────────────────────────────────
@@ -2242,17 +2242,111 @@ function OverviewTab() {
   )
 }
 
+
+// ─── PMI COMPLIANCE TAB ───────────────────────────────────────────────────────
+
+const pmiVehicleData = [
+  { reg:"NUX9VAM", make:"Volvo",   model:"FH 500",     interval:6, lastPMI:"2026-01-29", status:"amber" as const },
+  { reg:"TB67KLM", make:"DAF",     model:"XF 480",     interval:6, lastPMI:"2026-01-15", status:"red"   as const },
+  { reg:"PN19RFX", make:"Mercedes",model:"Actros",     interval:8, lastPMI:"2026-02-10", status:"green" as const },
+  { reg:"LK21DVA", make:"Scania",  model:"R 450",      interval:6, lastPMI:"2026-02-20", status:"green" as const },
+  { reg:"OU70TBN", make:"Iveco",   model:"S-Way",      interval:4, lastPMI:"2025-12-10", status:"red"   as const },
+  { reg:"YJ19HKP", make:"MAN",     model:"TGX 18.510", interval:6, lastPMI:"2026-02-05", status:"amber" as const },
+]
+const pmiStatusCfg = {
+  green: { label:"Compliant", text:"text-green-700 dark:text-green-400", bg:"bg-green-500/15", border:"border-l-green-500", dot:"bg-green-500" },
+  amber: { label:"Due Soon",  text:"text-amber-700 dark:text-amber-400", bg:"bg-amber-500/15", border:"border-l-amber-500", dot:"bg-amber-500" },
+  red:   { label:"Overdue",   text:"text-red-700 dark:text-red-400",     bg:"bg-red-500/15",   border:"border-l-red-500",   dot:"bg-red-500"   },
+} as const
+function nextPMI(last: string, weeks: number) {
+  const d = new Date(last); d.setDate(d.getDate() + weeks * 7); return d
+}
+function daysTo(d: Date) { return Math.round((d.getTime() - Date.now()) / 86400000) }
+function fmtD(d: Date) { return d.toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }) }
+
+function PMIComplianceTab() {
+  const sorted = [...pmiVehicleData].sort((a, b) =>
+    ({ red:0, amber:1, green:2 }[a.status]) - ({ red:0, amber:1, green:2 }[b.status])
+  )
+  const overdue   = pmiVehicleData.filter(v => v.status === "red").length
+  const dueSoon   = pmiVehicleData.filter(v => v.status === "amber").length
+  const compliant = pmiVehicleData.filter(v => v.status === "green").length
+  const onTimeRate = Math.round((compliant / pmiVehicleData.length) * 100)
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid gap-4 sm:grid-cols-4">
+        <KPI label="Overdue / VOR"     value={overdue}          icon={AlertTriangle} color="bg-red-500"    sub="immediate action" />
+        <KPI label="Due Within 7 Days" value={dueSoon}          icon={Clock}         color="bg-amber-500"  sub="book now" />
+        <KPI label="Compliant"         value={compliant}        icon={CheckCircle2}  color="bg-green-500"  sub="on schedule" />
+        <KPI label="PMI On-Time Rate"  value={`${onTimeRate}%`} icon={BarChart3}     color="bg-indigo-500" sub="DVSA target: 100%" />
+      </div>
+
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div className="flex items-center gap-2 border-b bg-muted/40 px-4 py-3">
+          <ClipboardList className="h-4 w-4 text-muted-foreground" />
+          <span className="font-semibold text-sm">PMI Status — All Vehicles</span>
+          <span className="ml-auto text-xs text-muted-foreground">Sorted by urgency · DVSA recommended intervals</span>
+        </div>
+        <div className="divide-y">
+          {sorted.map((v, idx, arr) => {
+            const next = nextPMI(v.lastPMI, v.interval)
+            const days = daysTo(next)
+            const s = pmiStatusCfg[v.status]
+            const showDivider = idx > 0 && v.status === "green" && arr[idx-1]?.status !== "green"
+            return (
+              <React.Fragment key={v.reg}>
+                {showDivider && (
+                  <div className="flex items-center gap-2 px-4 py-1 bg-muted/20">
+                    <div className="flex-1 border-t border-dashed" />
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Compliant</span>
+                    <div className="flex-1 border-t border-dashed" />
+                  </div>
+                )}
+                <div className={`flex items-center gap-4 px-4 py-3 border-l-4 ${s.border} ${s.bg}`}>
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${s.dot}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold font-mono text-sm">{v.reg}</span>
+                      <span className="text-xs text-muted-foreground">{v.make} {v.model}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Last PMI: {v.lastPMI} · Interval: {v.interval}w · Next: {fmtD(next)}
+                    </p>
+                  </div>
+                  <p className={`text-xs font-semibold shrink-0 ${s.text}`}>
+                    {days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? "Due today" : `${days}d`}
+                  </p>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold shrink-0 ${s.text} ${s.bg}`}>{s.label}</span>
+                  <Link href="/maintenance?tab=pmi" className="shrink-0 inline-flex h-7 items-center gap-1 rounded-lg border px-2 text-xs hover:bg-muted whitespace-nowrap">
+                    View Sheet →
+                  </Link>
+                </div>
+              </React.Fragment>
+            )
+          })}
+        </div>
+      </div>
+
+      <p className="text-xs text-muted-foreground px-1">
+        PMI intervals set per O-Licence undertakings. DVSA guidance: 6w standard · 4w intensive · 8w light use · 13w low-mileage.
+        Records retained for <strong>15 months</strong> and available on request.
+      </p>
+    </div>
+  )
+}
+
 // ─── VEHICLES TAB (PMI documents + Walkaround checks) ──────────────────────────
 
 function VehiclesTab() {
-  const [vehicleView, setVehicleView] = React.useState<"pmi" | "walkaround">("pmi")
+  const [vehicleView, setVehicleView] = React.useState<"planner" | "pmi" | "walkaround">("planner")
   // walkaround sub-state lifted here so VehiclesTab can render contextual controls in the tab bar
   const [waView, setWaView] = React.useState<"list" | "form" | "detail">("list")
   const [waCheckId, setWaCheckId] = React.useState<string | null>(null)
   const waCheck = waCheckId ? recentChecks.find(c => c.id === waCheckId) : null
 
   // When switching away from walkaround sub-tab, reset to list
-  function handleVehicleView(v: "pmi" | "walkaround") {
+  function handleVehicleView(v: "planner" | "pmi" | "walkaround") {
     setVehicleView(v)
     if (v !== "walkaround") { setWaView("list"); setWaCheckId(null) }
   }
@@ -2265,8 +2359,9 @@ function VehiclesTab() {
       <div className="flex items-center gap-2">
         <div className="flex gap-1 rounded-xl border bg-muted/30 p-1">
           {([
-            { id: "pmi"        as const, label: "Preventive Maintenance", icon: ShieldCheck },
-            { id: "walkaround" as const, label: "Walkaround Checks",      icon: CheckCircle2 },
+            { id: "planner"    as const, label: "Planner Board",     icon: CalendarDays  },
+            { id: "pmi"        as const, label: "PMI",               icon: ClipboardList },
+            { id: "walkaround" as const, label: "Walkaround Checks", icon: CheckCircle2  },
           ]).map(t => (
             <button key={t.id} onClick={() => handleVehicleView(t.id)}
               className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${vehicleView === t.id ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
@@ -2296,7 +2391,8 @@ function VehiclesTab() {
           </div>
         )}
       </div>
-      {vehicleView === "pmi" && <VehicleComplianceTab />}
+      {vehicleView === "planner" && <VehicleComplianceTab />}
+      {vehicleView === "pmi"     && <PMIComplianceTab />}
       {vehicleView === "walkaround" && (
         <WalkaroundTab
           view={waView} setView={setWaView}
