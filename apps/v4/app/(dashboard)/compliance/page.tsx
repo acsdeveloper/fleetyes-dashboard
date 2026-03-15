@@ -823,41 +823,35 @@ function LicenceSection({ driver }: { driver: Driver }) {
           </div>
           <p className="text-[10px] text-muted-foreground mt-1">Consent signed: {ukDate(driver.consentDate)}</p>
         </div>
+        {/* Entitlements — compact pill-cards */}
         <div className="mb-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Entitlements</p>
-          <div className="rounded-lg border overflow-hidden">
-            <table className="w-full text-xs">
-              <thead className="bg-muted/40"><tr><th className="text-left px-3 py-2 font-semibold">Category</th><th className="text-left px-3 py-2 font-semibold">Expiry</th><th className="text-left px-3 py-2 font-semibold">Restrictions</th></tr></thead>
-              <tbody className="divide-y">
-                {driver.entitlements.map(e => (
-                  <tr key={e.category}>
-                    <td className="px-3 py-2 font-semibold">{e.category}</td>
-                    <td className="px-3 py-2"><span className={`rounded-full px-2 py-0.5 text-[10px] ${expiryBadge(e.expiryDate)}`}>{ukDate(e.expiryDate)}</span></td>
-                    <td className="px-3 py-2 text-muted-foreground text-[10px]">{e.restrictions||"—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="flex flex-wrap gap-2">
+            {driver.entitlements.map(e => (
+              <div key={e.category} className="rounded-lg border bg-muted/30 px-3 py-2 flex flex-col min-w-[90px]">
+                <span className="text-base font-bold leading-tight">{e.category}</span>
+                <span className={`text-[10px] rounded-full px-1.5 py-0.5 mt-1 self-start ${expiryBadge(e.expiryDate)}`}>{ukDate(e.expiryDate)}</span>
+                {e.restrictions && <span className="text-[9px] text-muted-foreground mt-1 leading-tight">{e.restrictions}</span>}
+              </div>
+            ))}
           </div>
         </div>
+        {/* Endorsements — compact chips */}
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Endorsements {driver.endorsements.length===0&&<span className="text-green-600 normal-case font-normal ml-1">— clean licence</span>}</p>
           {driver.endorsements.length>0 ? (
-            <div className="rounded-lg border overflow-hidden">
-              <table className="w-full text-xs">
-                <thead className="bg-muted/40"><tr><th className="text-left px-3 py-2 font-semibold">Code</th><th className="text-left px-3 py-2 font-semibold">Offence</th><th className="text-center px-3 py-2 font-semibold">Pts</th><th className="text-left px-3 py-2 font-semibold">Convicted</th><th className="text-left px-3 py-2 font-semibold">Expires</th></tr></thead>
-                <tbody className="divide-y">
-                  {driver.endorsements.map((e,i)=>(
-                    <tr key={i}>
-                      <td className="px-3 py-2 font-mono font-bold text-amber-700 dark:text-amber-400">{e.code}</td>
-                      <td className="px-3 py-2 text-muted-foreground max-w-[160px] truncate">{e.offence}</td>
-                      <td className="px-3 py-2 text-center font-bold">{e.points}</td>
-                      <td className="px-3 py-2">{ukDate(e.convictionDate)}</td>
-                      <td className="px-3 py-2"><span className={`rounded-full px-2 py-0.5 text-[10px] ${expiryBadge(e.expiryDate)}`}>{ukDate(e.expiryDate)}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="flex flex-col gap-2">
+              {driver.endorsements.map((e,i)=>(
+                <div key={i} className="flex items-center gap-3 rounded-lg border bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 px-3 py-2">
+                  <span className="shrink-0 font-mono font-bold text-sm text-amber-700 dark:text-amber-400 w-10">{e.code}</span>
+                  <span className="flex-1 text-xs text-muted-foreground truncate">{e.offence}</span>
+                  <span className="shrink-0 text-xs font-bold text-amber-700 dark:text-amber-400">{e.points}pts</span>
+                  <div className="shrink-0 text-right">
+                    <p className="text-[10px] text-muted-foreground">Conv. {ukDate(e.convictionDate)}</p>
+                    <span className={`text-[10px] rounded-full px-1.5 py-0.5 ${expiryBadge(e.expiryDate)}`}>Exp {ukDate(e.expiryDate)}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           ):(
             <div className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 px-3 py-2">
@@ -1084,23 +1078,25 @@ function DriversTab() {
         <KPI label="RTW Expiring"    value={rtwExp}    icon={Flag}          color="bg-red-500"                              sub="<90d to expiry"/>
         <KPI label="Disqualified"    value={disq}      icon={AlertCircle}   color={disq>0?"bg-red-700":"bg-muted"}          sub="must not drive"/>
       </div>
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="flex flex-col gap-2">
+      <div className="flex gap-4 items-start">
+        {/* Narrow driver list — fixed width */}
+        <div className="flex flex-col gap-2 w-44 shrink-0">
           {drivers.map(d=>{
             const sc = d.licenceStatus==="valid"?"text-green-600 bg-green-50 dark:bg-green-950/20":"text-red-600 bg-red-50 dark:bg-red-950/20"
             return (
-              <button key={d.id} onClick={()=>setSel(d.id)} className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-colors ${sel===d.id?"border-primary bg-primary/5":"bg-card hover:bg-muted"}`}>
-                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${d.risk==="high"?"bg-red-500":d.risk==="medium"?"bg-amber-500":"bg-green-500"}`}>{d.name.split(" ").map(n=>n[0]).join("")}</div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold">{d.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{d.licence} · {d.points} pts · <span className={d.risk==="high"?"text-red-600 font-semibold":d.risk==="medium"?"text-amber-600":"text-green-600"}>{d.risk} risk</span></p>
+              <button key={d.id} onClick={()=>setSel(d.id)} className={`flex items-center gap-2 rounded-xl border p-2.5 text-left transition-colors ${sel===d.id?"border-primary bg-primary/5":"bg-card hover:bg-muted"}`}>
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${d.risk==="high"?"bg-red-500":d.risk==="medium"?"bg-amber-500":"bg-green-500"}`}>{d.name.split(" ").map(n=>n[0]).join("")}</div>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-semibold leading-tight">{d.name.split(" ")[0]}</p>
+                  <p className="truncate text-[10px] text-muted-foreground">{d.name.split(" ").slice(1).join(" ")}</p>
+                  <span className={`text-[8px] font-bold px-1 py-0.5 rounded-full uppercase ${sc}`}>{d.licenceStatus}</span>
                 </div>
-                <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase ${sc}`}>{d.licenceStatus}</span>
               </button>
             )
           })}
         </div>
-        <div className="lg:col-span-2">
+        {/* Detail panel fills remaining space */}
+        <div className="flex-1 min-w-0">
           <DriverDetail driver={driver} key={driver.id}/>
         </div>
       </div>
