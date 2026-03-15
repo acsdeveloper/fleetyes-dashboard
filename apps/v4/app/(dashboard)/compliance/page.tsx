@@ -2404,7 +2404,8 @@ function VehiclesTab() {
 }
 
 
-// ─── NOTIFICATION SETTINGS TAB ────────────────────────────────────────────────
+
+// ─── SETTINGS TAB ─────────────────────────────────────────────────────────────
 
 const adminUsers = [
   { id:"a1", name:"Michael Patel",  email:"m.patel@fleetco.com",   mobile:"+44 7911 123456", initials:"MP", color:"bg-indigo-500" },
@@ -2413,64 +2414,64 @@ const adminUsers = [
 
 interface AlertRule {
   id: string; name: string
-  type: "expiry" | "operational" | "daily"
+  type: "expiry" | "event"
   who: "cm_first" | "all"
   early?: "90d" | "60d" | "off"
   reminder?: "30d" | "21d" | "14d"
   email: boolean; mobile: boolean
 }
-interface AlertCat { id: string; label: string; icon: React.ElementType; color: string; rules: AlertRule[] }
+interface AlertCatItem { id: string; label: string; icon: React.ElementType; color: string; rules: AlertRule[] }
 
-const defaultAlertCats: AlertCat[] = [
+const expiryAlertCats: AlertCatItem[] = [
   { id:"vehicle_docs", label:"Vehicle Documents", icon:Truck, color:"bg-blue-500", rules:[
-    { id:"mot",   name:"MOT Expiry",              type:"expiry",      who:"cm_first", early:"90d", reminder:"30d", email:true,  mobile:false },
-    { id:"tacho", name:"Tachograph Calibration",  type:"expiry",      who:"cm_first", early:"90d", reminder:"30d", email:true,  mobile:false },
-    { id:"loler", name:"LOLER Certificate",       type:"expiry",      who:"cm_first", early:"60d", reminder:"14d", email:true,  mobile:false },
+    { id:"mot",   name:"MOT Expiry",               type:"expiry", who:"cm_first", early:"90d", reminder:"30d", email:true,  mobile:false },
+    { id:"tacho", name:"Tachograph Calibration",   type:"expiry", who:"cm_first", early:"90d", reminder:"30d", email:true,  mobile:false },
+    { id:"loler", name:"LOLER Certificate",        type:"expiry", who:"cm_first", early:"60d", reminder:"14d", email:true,  mobile:false },
   ]},
   { id:"driver_docs", label:"Driver Documents", icon:Users, color:"bg-violet-500", rules:[
-    { id:"lic",   name:"Driving Licence Expiry",  type:"expiry",      who:"cm_first", early:"90d", reminder:"30d", email:true,  mobile:false },
-    { id:"tcard", name:"Tachograph Card Expiry",  type:"expiry",      who:"cm_first", early:"60d", reminder:"30d", email:true,  mobile:true  },
-    { id:"dqc",   name:"DQC / CPC Cycle Deadline",type:"expiry",      who:"cm_first", early:"90d", reminder:"30d", email:true,  mobile:true  },
-    { id:"adr",   name:"ADR Certificate",         type:"expiry",      who:"cm_first", early:"90d", reminder:"30d", email:true,  mobile:false },
-    { id:"d4",    name:"D4 Medical Certificate",  type:"expiry",      who:"cm_first", early:"90d", reminder:"30d", email:true,  mobile:false },
-    { id:"rtw",   name:"Right to Work (Visa)",    type:"expiry",      who:"all",      early:"60d", reminder:"21d", email:true,  mobile:false },
+    { id:"lic",   name:"Driving Licence",           type:"expiry", who:"cm_first", early:"90d", reminder:"30d", email:true,  mobile:false },
+    { id:"tcard", name:"Tachograph Card",           type:"expiry", who:"cm_first", early:"60d", reminder:"30d", email:true,  mobile:true  },
+    { id:"dqc",   name:"DQC / CPC Deadline",        type:"expiry", who:"cm_first", early:"90d", reminder:"30d", email:true,  mobile:true  },
+    { id:"adr",   name:"ADR Certificate",           type:"expiry", who:"cm_first", early:"90d", reminder:"30d", email:true,  mobile:false },
+    { id:"d4",    name:"D4 Medical",                type:"expiry", who:"cm_first", early:"90d", reminder:"30d", email:true,  mobile:false },
+    { id:"rtw",   name:"Right to Work (Visa)",      type:"expiry", who:"all",      early:"60d", reminder:"21d", email:true,  mobile:false },
   ]},
-  { id:"pmi", label:"PMI & Maintenance", icon:ClipboardList, color:"bg-amber-500", rules:[
-    { id:"pmi_due",     name:"PMI Due Within 7 Days",  type:"daily",       who:"cm_first", email:true,  mobile:false },
-    { id:"pmi_overdue", name:"PMI Overdue",             type:"operational", who:"all",      email:true,  mobile:true  },
+  { id:"pmi_sched", label:"PMI Schedule", icon:ClipboardList, color:"bg-amber-500", rules:[
+    { id:"pmi_due", name:"PMI Due (7 days advance)", type:"expiry", who:"cm_first", early:"off", reminder:"14d", email:true, mobile:false },
+  ]},
+]
+
+const eventAlertCats: AlertCatItem[] = [
+  { id:"pmi_ops", label:"PMI & Maintenance", icon:ClipboardList, color:"bg-amber-500", rules:[
+    { id:"pmi_overdue", name:"PMI Overdue", who:"all", type:"event", email:true, mobile:true },
   ]},
   { id:"walkaround", label:"Walkaround Checks", icon:CheckCircle2, color:"bg-emerald-500", rules:[
-    { id:"wa_miss",   name:"Missing Daily Check (by CoB)", type:"daily",       who:"all", email:true, mobile:true  },
-    { id:"wa_defect", name:"Defect Reported",               type:"operational", who:"all", email:true, mobile:true  },
-    { id:"wa_vor",    name:"VOR Raised",                    type:"operational", who:"all", email:true, mobile:true  },
+    { id:"wa_miss",   name:"Missing Daily Check (CoB)", who:"all", type:"event", email:true, mobile:true  },
+    { id:"wa_defect", name:"Defect Reported",           who:"all", type:"event", email:true, mobile:true  },
+    { id:"wa_vor",    name:"VOR Raised",                who:"all", type:"event", email:true, mobile:true  },
   ]},
   { id:"olicence", label:"O-Licence", icon:ShieldCheck, color:"bg-red-500", rules:[
-    { id:"olim_warn",   name:"Approaching Vehicle Limit (90%)", type:"operational", who:"all", email:true, mobile:true  },
-    { id:"olim_breach", name:"Vehicle Limit Breached",          type:"operational", who:"all", email:true, mobile:true  },
+    { id:"olim_warn",   name:"Approaching Limit (90%)", who:"all", type:"event", email:true, mobile:true  },
+    { id:"olim_breach", name:"Vehicle Limit Breached",  who:"all", type:"event", email:true, mobile:true  },
   ]},
   { id:"tacho_wtd", label:"Tachograph & WTD", icon:Activity, color:"bg-orange-500", rules:[
-    { id:"infringement", name:"Infringement Logged",       type:"operational", who:"all",      email:true, mobile:true  },
-    { id:"dl_overdue",   name:"Download Overdue (3 days)", type:"operational", who:"cm_first", email:true, mobile:false },
+    { id:"infringement", name:"Infringement Logged",        who:"all",      type:"event", email:true, mobile:true  },
+    { id:"dl_overdue",   name:"Download Overdue (3 days)",  who:"cm_first", type:"event", email:true, mobile:false },
   ]},
 ]
 
 function Toggle({ on, onToggle, disabled = false }: { on: boolean; onToggle: () => void; disabled?: boolean }) {
   return (
-    <button
-      onClick={onToggle}
-      disabled={disabled}
+    <button onClick={onToggle} disabled={disabled}
       className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${on && !disabled ? "bg-indigo-500" : "bg-muted"} ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
     >
       <span className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${on && !disabled ? "translate-x-4" : ""}`} />
     </button>
   )
 }
-
 function SmToggle({ on, onToggle, disabled = false }: { on: boolean; onToggle: () => void; disabled?: boolean }) {
   return (
-    <button
-      onClick={onToggle}
-      disabled={disabled}
+    <button onClick={onToggle} disabled={disabled}
       className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${on && !disabled ? "bg-indigo-500" : "bg-muted"} ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
     >
       <span className={`absolute top-0.5 left-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform ${on && !disabled ? "translate-x-3" : ""}`} />
@@ -2484,253 +2485,272 @@ function SettingsTab() {
   const [mobileEnabled, setMobileEnabled] = React.useState(true)
   const [digestEnabled, setDigestEnabled] = React.useState(true)
   const [digestTime,    setDigestTime]    = React.useState("08:00")
-  const [cats, setCats] = React.useState<AlertCat[]>(defaultAlertCats)
+  const [expiryCats, setExpiryCats] = React.useState<AlertCatItem[]>(expiryAlertCats)
+  const [eventCats,  setEventCats]  = React.useState<AlertCatItem[]>(eventAlertCats)
   const [testStatus, setTestStatus] = React.useState<"email"|"mobile"|null>(null)
   const [saved, setSaved] = React.useState(true)
 
+  // Integrations
+  const [intTruTac,      setIntTruTac]      = React.useState(true)
+  const [intMaintenance, setIntMaintenance] = React.useState(true)
+  const [intDvla,        setIntDvla]        = React.useState(false)
+  const [intFors,        setIntFors]        = React.useState(false)
+
   const cm = adminUsers.find(u => u.id === complianceMgr)!
 
-  function patchRule(catId: string, ruleId: string, patch: Partial<AlertRule>) {
-    setCats(prev => prev.map(c => c.id !== catId ? c : {
-      ...c, rules: c.rules.map(r => r.id !== ruleId ? r : { ...r, ...patch })
-    }))
+  function patchExpiry(catId: string, ruleId: string, patch: Partial<AlertRule>) {
+    setExpiryCats(prev => prev.map(c => c.id !== catId ? c : { ...c, rules: c.rules.map(r => r.id !== ruleId ? r : { ...r, ...patch }) }))
     setSaved(false)
   }
-
-  function sendTest(ch: "email"|"mobile") {
-    setTestStatus(ch)
-    setTimeout(() => setTestStatus(null), 2500)
+  function patchEvent(catId: string, ruleId: string, patch: Partial<AlertRule>) {
+    setEventCats(prev => prev.map(c => c.id !== catId ? c : { ...c, rules: c.rules.map(r => r.id !== ruleId ? r : { ...r, ...patch }) }))
+    setSaved(false)
   }
-
-  const totalActive = cats.flatMap(c => c.rules).filter(r => r.email || r.mobile).length
-  const totalRules  = cats.flatMap(c => c.rules).length
+  function sendTest(ch: "email"|"mobile") { setTestStatus(ch); setTimeout(() => setTestStatus(null), 2500) }
 
   return (
     <div className="flex flex-col gap-6">
 
-      {/* ── Header stats ── */}
+      {/* ── Section 1: Channel + CM + Digest ── */}
       <div className="grid gap-4 sm:grid-cols-3">
-        {/* Compliance Manager card */}
+        {/* Compliance Manager */}
         <div className="rounded-xl border bg-card p-4 shadow-sm flex flex-col gap-3">
           <div className="flex items-center gap-2">
             <div className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-500 text-[9px] font-bold text-white shrink-0">CM</div>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Compliance Manager</p>
           </div>
           <p className="text-[11px] text-muted-foreground leading-relaxed">
-            Receives non-urgent alerts first. Urgent (7d) and all operational events automatically escalate to <strong>all admins</strong>.
+            First to receive non-urgent alerts. Urgent (7d) and all operational events automatically escalate to <strong>all admins</strong>.
           </p>
-          <select
-            value={complianceMgr}
-            onChange={e => { setComplianceMgr(e.target.value); setSaved(false) }}
+          <select value={complianceMgr} onChange={e => { setComplianceMgr(e.target.value); setSaved(false) }}
             className="h-9 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
           >
             {adminUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
-          <div className={`flex items-center gap-2 rounded-lg p-2 text-[11px] ${cm.color.replace("bg-","bg-").replace("500","100")} text-foreground border`}>
+          <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2 text-[11px]">
             <div className={`h-6 w-6 shrink-0 flex items-center justify-center rounded-full ${cm.color} text-[9px] font-bold text-white`}>{cm.initials}</div>
             <div className="min-w-0">
-              <p className="font-semibold text-xs">{cm.name}</p>
+              <p className="font-semibold text-xs truncate">{cm.name}</p>
               <p className="text-muted-foreground truncate">{cm.email}</p>
             </div>
           </div>
         </div>
 
-        {/* Channels card */}
+        {/* Channels */}
         <div className="rounded-xl border bg-card p-4 shadow-sm flex flex-col gap-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notification Channels</p>
-          {/* Email */}
           <div className="flex items-center gap-3">
             <Toggle on={emailEnabled} onToggle={() => { setEmailEnabled(v => !v); setSaved(false) }} />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium">Email</p>
               <p className="text-[10px] text-muted-foreground truncate">{adminUsers.map(u => u.email).join(" · ")}</p>
             </div>
-            <button
-              onClick={() => sendTest("email")}
+            <button onClick={() => sendTest("email")}
               className={`shrink-0 inline-flex h-6 items-center rounded-lg border px-2 text-[10px] transition-colors ${testStatus==="email" ? "border-green-400 bg-green-50 text-green-700" : "hover:bg-muted text-muted-foreground"}`}
             >{testStatus==="email" ? "✓ Sent!" : "Test"}</button>
           </div>
-          {/* Mobile */}
           <div className="flex items-center gap-3">
             <Toggle on={mobileEnabled} onToggle={() => { setMobileEnabled(v => !v); setSaved(false) }} />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium">Mobile Notification</p>
               <p className="text-[10px] text-muted-foreground">{adminUsers.map(u => u.mobile).join(" · ")}</p>
             </div>
-            <button
-              onClick={() => sendTest("mobile")}
+            <button onClick={() => sendTest("mobile")}
               className={`shrink-0 inline-flex h-6 items-center rounded-lg border px-2 text-[10px] transition-colors ${testStatus==="mobile" ? "border-green-400 bg-green-50 text-green-700" : "hover:bg-muted text-muted-foreground"}`}
             >{testStatus==="mobile" ? "✓ Sent!" : "Test"}</button>
           </div>
-          <p className="text-[10px] text-muted-foreground border-t pt-2">{totalActive} of {totalRules} rules active</p>
         </div>
 
-        {/* Digest card */}
+        {/* Daily Digest */}
         <div className="rounded-xl border bg-card p-4 shadow-sm flex flex-col gap-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Daily Digest</p>
           <p className="text-[11px] text-muted-foreground leading-relaxed">
-            Bundles expiry reminders into one morning email. <strong>Operational alerts</strong> (defects, VOR, infringements, O-Licence breach) are always sent immediately — regardless of this setting.
+            Batches expiry reminders into one morning email. <strong>Operational events</strong> (defects, VOR, infringements) always send immediately.
           </p>
           <div className="flex items-center gap-3">
             <Toggle on={digestEnabled} onToggle={() => { setDigestEnabled(v => !v); setSaved(false) }} />
-            <span className="text-xs font-medium">{digestEnabled ? "Daily digest on" : "Send individually"}</span>
+            <span className="text-xs font-medium">{digestEnabled ? "Digest on" : "Send individually"}</span>
           </div>
           {digestEnabled && (
             <div className="flex items-center gap-2 text-xs">
               <span className="text-muted-foreground">Deliver at</span>
-              <input
-                type="time" value={digestTime}
-                onChange={e => { setDigestTime(e.target.value); setSaved(false) }}
-                className="h-7 rounded-lg border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring"
-              />
+              <input type="time" value={digestTime} onChange={e => { setDigestTime(e.target.value); setSaved(false) }}
+                className="h-7 rounded-lg border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring" />
               <span className="text-muted-foreground">each morning</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* ── Alert Rules Table ── */}
-      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-        {/* Table header */}
-        <div className="border-b bg-muted/40 px-4 py-3 flex items-center gap-2">
-          <Bell className="h-4 w-4 text-muted-foreground" />
-          <span className="font-semibold text-sm">Alert Rules</span>
-          <span className="ml-auto text-[11px] text-muted-foreground">Urgent (7d) is always active · Operational events always go to all admins</span>
-        </div>
-        {/* Column headers */}
-        <div
-          className="hidden sm:grid border-b bg-muted/20 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
-          style={{ gridTemplateColumns: "1fr 100px 90px 52px 44px 52px" }}
-        >
-          <span>Alert</span>
-          <span className="text-center">Early Warning</span>
-          <span className="text-center">Reminder</span>
-          <span className="text-center">Urgent</span>
-          <span className="text-center">Email</span>
-          <span className="text-center">Mobile</span>
-        </div>
+      {/* ── Section 2: Two-column alert rules ── */}
+      <div className="grid gap-4 sm:grid-cols-2">
 
-        {cats.map(cat => (
-          <div key={cat.id}>
-            {/* Category divider */}
-            <div className="flex items-center gap-2 px-4 py-2 border-y bg-muted/10">
-              <div className={`flex h-5 w-5 items-center justify-center rounded ${cat.color}`}>
-                <cat.icon className="h-3 w-3 text-white" />
-              </div>
-              <span className="text-xs font-semibold">{cat.label}</span>
-            </div>
-
-            {/* Rule rows */}
-            {cat.rules.map(rule => (
-              <div
-                key={rule.id}
-                className="grid items-center px-4 py-2.5 border-b last:border-0 hover:bg-muted/10 transition-colors"
-                style={{ gridTemplateColumns: "1fr 100px 90px 52px 44px 52px" }}
-              >
-                {/* Name + tags */}
-                <div className="flex items-center gap-1.5 min-w-0 pr-2">
-                  <span className="text-xs truncate" title={rule.name}>{rule.name}</span>
-                  {rule.type === "operational" && (
-                    <span className="shrink-0 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 px-1.5 py-0.5 text-[9px] font-bold">Real-time</span>
-                  )}
-                  {rule.type === "daily" && (
-                    <span className="shrink-0 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5 text-[9px] font-bold">Daily</span>
-                  )}
-                  <span className={`shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${
-                    rule.who === "cm_first"
-                      ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400"
-                      : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-                  }`}>{rule.who === "cm_first" ? "CM → All" : "All admins"}</span>
-                </div>
-
-                {/* Early Warning */}
-                {rule.type === "expiry" ? (
-                  <div className="flex justify-center">
-                    <select
-                      value={rule.early}
-                      onChange={e => patchRule(cat.id, rule.id, { early: e.target.value as AlertRule["early"] })}
-                      className="h-6 rounded border bg-background text-[10px] px-1 w-[88px]"
-                    >
-                      <option value="90d">90 days</option>
-                      <option value="60d">60 days</option>
-                      <option value="off">Off</option>
-                    </select>
+        {/* LEFT — Expiry Alerts (multi-phase) */}
+        <div className="rounded-xl border bg-card shadow-sm overflow-hidden flex flex-col">
+          <div className="border-b bg-muted/40 px-4 py-3 flex items-center gap-2">
+            <CalendarDays className="h-4 w-4 text-indigo-500" />
+            <span className="font-semibold text-sm">Expiry Alerts</span>
+            <span className="ml-auto text-[11px] text-muted-foreground">Multi-phase · 7d always active</span>
+          </div>
+          {/* Column headers */}
+          <div className="grid border-b bg-muted/20 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+            style={{ gridTemplateColumns: "1fr 76px 70px 36px 28px 28px" }}>
+            <span>Alert</span>
+            <span className="text-center">Early</span>
+            <span className="text-center">Remind</span>
+            <span className="text-center">7d</span>
+            <span className="text-center">✉</span>
+            <span className="text-center">📱</span>
+          </div>
+          <div className="flex-1">
+            {expiryCats.map(cat => (
+              <div key={cat.id}>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 border-y bg-muted/10">
+                  <div className={`flex h-4 w-4 items-center justify-center rounded ${cat.color}`}>
+                    <cat.icon className="h-2.5 w-2.5 text-white" />
                   </div>
-                ) : <span className="text-center text-muted-foreground/30 text-xs">—</span>}
-
-                {/* Reminder */}
-                {rule.type === "expiry" ? (
-                  <div className="flex justify-center">
-                    <select
-                      value={rule.reminder}
-                      onChange={e => patchRule(cat.id, rule.id, { reminder: e.target.value as AlertRule["reminder"] })}
-                      className="h-6 rounded border bg-background text-[10px] px-1 w-[78px]"
-                    >
-                      <option value="30d">30 days</option>
-                      <option value="21d">21 days</option>
-                      <option value="14d">14 days</option>
-                    </select>
+                  <span className="text-[11px] font-semibold">{cat.label}</span>
+                </div>
+                {cat.rules.map(rule => (
+                  <div key={rule.id}
+                    className="grid items-center px-3 py-2 border-b last:border-0 hover:bg-muted/10 transition-colors"
+                    style={{ gridTemplateColumns: "1fr 76px 70px 36px 28px 28px" }}
+                  >
+                    <div className="flex items-center gap-1 min-w-0 pr-1">
+                      <span className="text-[11px] truncate" title={rule.name}>{rule.name}</span>
+                      <span className={`shrink-0 text-[8px] font-medium px-1 py-0.5 rounded-full ${
+                        rule.who === "cm_first" ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400"
+                        : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                      }`}>{rule.who === "cm_first" ? "CM" : "All"}</span>
+                    </div>
+                    <div className="flex justify-center">
+                      <select value={rule.early} onChange={e => patchExpiry(cat.id, rule.id, { early: e.target.value as AlertRule["early"] })}
+                        className="h-5 rounded border bg-background text-[9px] px-0.5 w-[70px]">
+                        <option value="90d">90 days</option>
+                        <option value="60d">60 days</option>
+                        <option value="off">Off</option>
+                      </select>
+                    </div>
+                    <div className="flex justify-center">
+                      <select value={rule.reminder} onChange={e => patchExpiry(cat.id, rule.id, { reminder: e.target.value as AlertRule["reminder"] })}
+                        className="h-5 rounded border bg-background text-[9px] px-0.5 w-[64px]">
+                        <option value="30d">30 days</option>
+                        <option value="21d">21 days</option>
+                        <option value="14d">14 days</option>
+                      </select>
+                    </div>
+                    <div className="flex justify-center">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 text-[9px] font-bold">7d</span>
+                    </div>
+                    <div className="flex justify-center"><SmToggle on={rule.email} onToggle={() => patchExpiry(cat.id, rule.id, { email: !rule.email })} disabled={!emailEnabled} /></div>
+                    <div className="flex justify-center"><SmToggle on={rule.mobile} onToggle={() => patchExpiry(cat.id, rule.id, { mobile: !rule.mobile })} disabled={!mobileEnabled} /></div>
                   </div>
-                ) : <span className="text-center text-muted-foreground/30 text-xs">—</span>}
-
-                {/* Urgent badge */}
-                <div className="flex justify-center">
-                  <span className="inline-flex h-5 w-8 items-center justify-center rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 text-[9px] font-bold">7d</span>
-                </div>
-
-                {/* Email toggle */}
-                <div className="flex justify-center">
-                  <SmToggle
-                    on={rule.email}
-                    onToggle={() => patchRule(cat.id, rule.id, { email: !rule.email })}
-                    disabled={!emailEnabled}
-                  />
-                </div>
-
-                {/* Mobile toggle */}
-                <div className="flex justify-center">
-                  <SmToggle
-                    on={rule.mobile}
-                    onToggle={() => patchRule(cat.id, rule.id, { mobile: !rule.mobile })}
-                    disabled={!mobileEnabled}
-                  />
-                </div>
+                ))}
               </div>
             ))}
           </div>
-        ))}
+        </div>
+
+        {/* RIGHT — Event Alerts (one-shot / real-time) */}
+        <div className="rounded-xl border bg-card shadow-sm overflow-hidden flex flex-col">
+          <div className="border-b bg-muted/40 px-4 py-3 flex items-center gap-2">
+            <Bell className="h-4 w-4 text-red-500" />
+            <span className="font-semibold text-sm">Event Alerts</span>
+            <span className="ml-auto text-[11px] text-muted-foreground">Real-time · Always all admins</span>
+          </div>
+          {/* Column headers */}
+          <div className="grid border-b bg-muted/20 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+            style={{ gridTemplateColumns: "1fr 60px 28px 28px" }}>
+            <span>Alert</span>
+            <span className="text-center">When</span>
+            <span className="text-center">✉</span>
+            <span className="text-center">📱</span>
+          </div>
+          <div className="flex-1">
+            {eventCats.map(cat => (
+              <div key={cat.id}>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 border-y bg-muted/10">
+                  <div className={`flex h-4 w-4 items-center justify-center rounded ${cat.color}`}>
+                    <cat.icon className="h-2.5 w-2.5 text-white" />
+                  </div>
+                  <span className="text-[11px] font-semibold">{cat.label}</span>
+                </div>
+                {cat.rules.map(rule => (
+                  <div key={rule.id}
+                    className="grid items-center px-3 py-2 border-b last:border-0 hover:bg-muted/10 transition-colors"
+                    style={{ gridTemplateColumns: "1fr 60px 28px 28px" }}
+                  >
+                    <span className="text-[11px] truncate pr-1" title={rule.name}>{rule.name}</span>
+                    <div className="flex justify-center">
+                      <span className="rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 px-1.5 py-0.5 text-[8px] font-bold">Instant</span>
+                    </div>
+                    <div className="flex justify-center"><SmToggle on={rule.email} onToggle={() => patchEvent(cat.id, rule.id, { email: !rule.email })} disabled={!emailEnabled} /></div>
+                    <div className="flex justify-center"><SmToggle on={rule.mobile} onToggle={() => patchEvent(cat.id, rule.id, { mobile: !rule.mobile })} disabled={!mobileEnabled} /></div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Section 3: Integrations ── */}
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div className="border-b bg-muted/40 px-4 py-3 flex items-center gap-2">
+          <Zap className="h-4 w-4 text-amber-500" />
+          <span className="font-semibold text-sm">Integrations</span>
+          <span className="ml-auto text-[11px] text-muted-foreground">Connect external systems to enrich compliance data</span>
+        </div>
+        <div className="grid gap-px bg-border sm:grid-cols-2">
+          {[
+            { icon:Activity,     color:"bg-orange-500", title:"TruTac / Tachograph Analysis",    desc:"Pull infringement data and WTD reports automatically.",           on:intTruTac,      set:setIntTruTac,      badge:"Connected"  },
+            { icon:Wrench,       color:"bg-indigo-500", title:"Maintenance Module",               desc:"Link PMI records and defect reports between Compliance and Maintenance.", on:intMaintenance, set:setIntMaintenance, badge:"Connected"  },
+            { icon:Car,          color:"bg-blue-500",   title:"DVLA DAVIS API",                  desc:"Live driving licence checks via consent-based DAVIS gateway.",   on:intDvla,        set:setIntDvla,        badge:"Configure"  },
+            { icon:BadgeCheck,   color:"bg-green-500",  title:"FORS Connect",                    desc:"Auto-export compliance KPIs to the FORS portal monthly.",         on:intFors,        set:setIntFors,        badge:"Coming Soon" },
+          ].map(({ icon: Icon, color, title, desc, on, set, badge }) => (
+            <div key={title} className="flex items-start gap-3 bg-card p-4 hover:bg-muted/10 transition-colors">
+              <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${color}`}>
+                <Icon className="h-4 w-4 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <p className="text-xs font-semibold">{title}</p>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${on ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-muted text-muted-foreground"}`}>
+                    {on ? badge : "Off"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">{desc}</p>
+              </div>
+              <Toggle on={on} onToggle={() => { set((v: boolean) => !v); setSaved(false) }} disabled={badge === "Coming Soon"} />
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* ── Save bar ── */}
       <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${
-        saved
-          ? "border-green-300 bg-green-50 dark:border-green-900 dark:bg-green-950/20"
-          : "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20"
+        saved ? "border-green-300 bg-green-50 dark:border-green-900 dark:bg-green-950/20"
+              : "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20"
       }`}>
         {saved
-          ? <><CheckCircle2 className="h-4 w-4 text-green-600" /><span className="text-xs font-medium text-green-700 dark:text-green-400">All notification settings saved</span></>
-          : <><AlertCircle className="h-4 w-4 text-amber-600" /><span className="text-xs font-medium text-amber-700 dark:text-amber-400">You have unsaved changes</span></>
+          ? <><CheckCircle2 className="h-4 w-4 text-green-600" /><span className="text-xs font-medium text-green-700 dark:text-green-400">All settings saved</span></>
+          : <><AlertCircle  className="h-4 w-4 text-amber-600" /><span className="text-xs font-medium text-amber-700 dark:text-amber-400">Unsaved changes</span></>
         }
         <div className="ml-auto flex items-center gap-2">
           {!saved && (
-            <button onClick={() => { setCats(defaultAlertCats); setSaved(true) }}
-              className="inline-flex h-8 items-center rounded-lg border px-3 text-xs text-muted-foreground hover:bg-muted">
-              Reset defaults
-            </button>
+            <button onClick={() => { setExpiryCats(expiryAlertCats); setEventCats(eventAlertCats); setSaved(true) }}
+              className="inline-flex h-8 items-center rounded-lg border px-3 text-xs text-muted-foreground hover:bg-muted">Reset defaults</button>
           )}
-          <button
-            onClick={() => setSaved(true)}
+          <button onClick={() => setSaved(true)}
             className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-4 text-xs font-medium transition-colors ${
               saved ? "border hover:bg-muted text-muted-foreground" : "bg-primary text-primary-foreground hover:bg-primary/90"
-            }`}
-          >
-            {saved ? "Saved ✓" : "Save Changes"}
-          </button>
+            }`}>{saved ? "Saved ✓" : "Save Changes"}</button>
         </div>
       </div>
     </div>
   )
 }
+
 
 // ─── PAGE SHELL ───────────────────────────────────────────────────────────────
 
@@ -2739,7 +2759,7 @@ const TABS = [
   { id:"documents", label:"Documents",  icon:FileText           },
   { id:"drivers",   label:"Drivers",    icon:Users              },
   { id:"vehicles",  label:"Vehicles",   icon:Truck              },
-  { id:"settings",  label:"Notifications", icon:SlidersHorizontal },
+  { id:"settings",  label:"Settings", icon:SlidersHorizontal },
 ] as const
 
 export default function CompliancePage() {
