@@ -6,18 +6,230 @@ import {
   MapPin, Users, FileText, Files, ShieldCheck, Activity, BadgeCheck,
   CalendarDays, Bell, Upload, Download, ChevronRight, Plus,
   Car, Truck, AlertCircle, RefreshCw, Lock, Zap, BookOpen,
-  BarChart3, Flag, Wrench,
+  BarChart3, Flag, Wrench, GraduationCap, ScrollText, Fingerprint,
 } from "lucide-react"
 
 // ─── SHARED DATA ─────────────────────────────────────────────────────────────
 
-const drivers = [
-  { id:"d1", name:"James O'Connor",  licence:"C+E", points:2,  expiry:"2029-04-30", cpcHours:28, cpcDeadline:"2027-09-15", rtw:"2027-06-01", visaExp:"2027-06-01", adr:true,  adrExp:"2026-11-01", risk:"low"    },
-  { id:"d2", name:"Maria Santos",    licence:"C+E", points:9,  expiry:"2026-11-15", cpcHours:14, cpcDeadline:"2026-06-01", rtw:"2026-08-20", visaExp:"2026-08-20", adr:false, adrExp:"",           risk:"high"   },
-  { id:"d3", name:"Piotr Kowalski",  licence:"C",   points:0,  expiry:"2031-02-28", cpcHours:35, cpcDeadline:"2028-03-10", rtw:null,         visaExp:null,        adr:true,  adrExp:"2027-03-22", risk:"low"    },
-  { id:"d4", name:"Lena Fischer",    licence:"C+E", points:6,  expiry:"2028-07-12", cpcHours:21, cpcDeadline:"2027-01-20", rtw:"2028-01-15", visaExp:"2028-01-15", adr:false, adrExp:"",           risk:"medium" },
-  { id:"d5", name:"Ahmed Hassan",    licence:"C",   points:3,  expiry:"2027-09-01", cpcHours:8,  cpcDeadline:"2026-09-01", rtw:"2026-12-01", visaExp:"2026-12-01", adr:false, adrExp:"",           risk:"medium" },
-  { id:"d6", name:"Sophie Turner",   licence:"C+E", points:0,  expiry:"2032-01-05", cpcHours:35, cpcDeadline:"2029-05-15", rtw:null,         visaExp:null,        adr:true,  adrExp:"2026-07-01", risk:"low"    },
+// ── Driver data model ─────────────────────────────────────────────────────────
+interface DriverEndorsement { code: string; offence: string; points: number; convictionDate: string; expiryDate: string }
+interface LicenceEntitlement { category: string; expiryDate: string; restrictions: string }
+interface CpcModule { id: string; date: string; subject: string; provider: string; atpRef: string; hours: number }
+interface TrainingRecord { type: string; heldSince: string; expiry: string | null; certNumber: string; issuer: string; detail: string }
+interface LicenceCheck { date: string; result: "clear" | "points_added" | "disqualified"; approvedBy: string; notes: string }
+interface Driver {
+  id: string; name: string; licence: string; points: number; expiry: string
+  licenceNumber: string; licenceStatus: "valid" | "expired" | "revoked" | "disqualified"
+  photoCardExpiry: string; entitlements: LicenceEntitlement[]; endorsements: DriverEndorsement[]
+  tachoCardRef: string; tachoCardExpiry: string
+  davisRiskScore: number; risk: "low" | "medium" | "high"
+  recheckFrequency: string; lastChecked: string; nextCheckDue: string; consentDate: string
+  checkHistory: LicenceCheck[]
+  dqcNumber: string; dqcExpiry: string; cpcCycleStart: string; cpcCycleEnd: string
+  cpcHours: number; cpcDeadline: string; cpcModules: CpcModule[]
+  rtwRequires: boolean; rtw: string | null; visaType: string | null; visaExp: string | null; shareCodeVerified: string | null
+  adr: boolean; adrExp: string; training: TrainingRecord[]
+}
+
+const drivers: Driver[] = [
+  { id:"d1", name:"James O'Connor", licence:"C+E", points:2, expiry:"2029-04-30",
+    licenceNumber:"OCONN701234AB9JW", licenceStatus:"valid", photoCardExpiry:"2032-04-30",
+    entitlements:[
+      { category:"C+E", expiryDate:"2029-04-30", restrictions:"" },
+      { category:"C",   expiryDate:"2029-04-30", restrictions:"" },
+      { category:"B",   expiryDate:"2029-04-30", restrictions:"01 – corrective lenses" },
+    ],
+    endorsements:[
+      { code:"SP30", offence:"Exceeding statutory speed limit on a public road", points:2, convictionDate:"2024-01-12", expiryDate:"2027-01-12" },
+    ],
+    tachoCardRef:"EU-JAM-001234", tachoCardExpiry:"2026-08-01",
+    davisRiskScore:25, risk:"low", recheckFrequency:"Every 6 months",
+    lastChecked:"2026-03-01", nextCheckDue:"2026-09-01", consentDate:"2024-01-14",
+    checkHistory:[
+      { date:"2026-03-01", result:"clear",       approvedBy:"G. Williams", notes:"2 pts SP30 noted. No further action." },
+      { date:"2025-09-01", result:"clear",       approvedBy:"G. Williams", notes:"" },
+      { date:"2025-03-01", result:"points_added",approvedBy:"M. Patel",    notes:"SP30 endorsement recorded. Monitoring." },
+      { date:"2024-09-01", result:"clear",       approvedBy:"G. Williams", notes:"" },
+    ],
+    dqcNumber:"UK-1234-5678", dqcExpiry:"2027-09-15", cpcCycleStart:"2022-10-01", cpcCycleEnd:"2027-09-30",
+    cpcHours:28, cpcDeadline:"2027-09-15",
+    cpcModules:[
+      { id:"m1", date:"2025-01-12", subject:"Manual Handling & Load Security",       provider:"ABC Training Ltd",    atpRef:"ATP-001234", hours:7 },
+      { id:"m2", date:"2024-03-08", subject:"Tachograph Rules & Drivers' Hours",     provider:"National CPC Ltd",   atpRef:"ATP-002345", hours:7 },
+      { id:"m3", date:"2023-11-15", subject:"Eco-Driving & Fuel Efficiency",         provider:"FleetTraining UK",   atpRef:"ATP-003456", hours:7 },
+      { id:"m4", date:"2023-09-22", subject:"Road Safety & Vulnerable Road Users",   provider:"ABC Training Ltd",   atpRef:"ATP-001234", hours:7 },
+    ],
+    rtwRequires:false, rtw:null, visaType:null, visaExp:null, shareCodeVerified:null,
+    adr:true, adrExp:"2026-11-01",
+    training:[
+      { type:"ADR",                heldSince:"2024-11-01", expiry:"2026-11-01", certNumber:"ADR-2024-0891", issuer:"JAUPT / DVSA",          detail:"Classes 2 & 3" },
+      { type:"Counterbalance FLT", heldSince:"2022-03-14", expiry:"2027-03-14", certNumber:"FLT-2022-0456", issuer:"RTITB: Switch Logistics",detail:"Cat B — up to 3.5t" },
+      { type:"Manual Handling",    heldSince:"2024-09-01", expiry:"2027-09-01", certNumber:"MH-2024-0023",  issuer:"Safe Hands Training",    detail:"" },
+    ],
+  },
+  { id:"d2", name:"Maria Santos", licence:"C+E", points:9, expiry:"2026-11-15",
+    licenceNumber:"SANTO601234MS9QP", licenceStatus:"valid", photoCardExpiry:"2029-11-15",
+    entitlements:[
+      { category:"C+E", expiryDate:"2026-11-15", restrictions:"" },
+      { category:"C",   expiryDate:"2026-11-15", restrictions:"" },
+      { category:"B",   expiryDate:"2026-11-15", restrictions:"" },
+    ],
+    endorsements:[
+      { code:"SP30", offence:"Exceeding statutory speed limit on a public road", points:3, convictionDate:"2023-08-05", expiryDate:"2026-08-05" },
+      { code:"SP30", offence:"Exceeding statutory speed limit on a public road", points:3, convictionDate:"2024-06-12", expiryDate:"2027-06-12" },
+      { code:"IN10", offence:"Using a vehicle uninsured against third-party risks", points:3, convictionDate:"2025-01-20", expiryDate:"2028-01-20" },
+    ],
+    tachoCardRef:"EU-MAR-002345", tachoCardExpiry:"2027-01-15",
+    davisRiskScore:88, risk:"high", recheckFrequency:"Monthly (9+ points)",
+    lastChecked:"2026-03-01", nextCheckDue:"2026-04-01", consentDate:"2023-05-10",
+    checkHistory:[
+      { date:"2026-03-01", result:"clear",       approvedBy:"G. Williams", notes:"9 pts confirmed. Monthly schedule maintained." },
+      { date:"2026-02-01", result:"clear",       approvedBy:"G. Williams", notes:"Monitoring IN10 (Jan 2025)." },
+      { date:"2026-01-01", result:"points_added",approvedBy:"G. Williams", notes:"IN10 recorded. HR notified. Manager interview scheduled." },
+      { date:"2025-12-01", result:"clear",       approvedBy:"M. Patel",    notes:"" },
+    ],
+    dqcNumber:"UK-2345-6789", dqcExpiry:"2026-06-01", cpcCycleStart:"2021-06-01", cpcCycleEnd:"2026-05-31",
+    cpcHours:14, cpcDeadline:"2026-06-01",
+    cpcModules:[
+      { id:"m1", date:"2024-09-10", subject:"Road Safety & Vulnerable Road Users", provider:"City CPC Training", atpRef:"ATP-007890", hours:7 },
+      { id:"m2", date:"2023-11-22", subject:"Manual Handling & Load Security",     provider:"City CPC Training", atpRef:"ATP-007890", hours:7 },
+    ],
+    rtwRequires:true, rtw:"2026-08-20", visaType:"Skilled Worker (Tier 2)", visaExp:"2026-08-20", shareCodeVerified:"2026-01-10",
+    adr:false, adrExp:"",
+    training:[
+      { type:"Manual Handling", heldSince:"2023-11-22", expiry:"2026-11-22", certNumber:"MH-2023-0891", issuer:"City CPC Training", detail:"" },
+      { type:"Drug & Alcohol",  heldSince:"2026-01-01", expiry:null,         certNumber:"DA-2026-001",  issuer:"Fleet Health Ltd",  detail:"Negative — urine test" },
+    ],
+  },
+  { id:"d3", name:"Piotr Kowalski", licence:"C", points:0, expiry:"2031-02-28",
+    licenceNumber:"KOWAL801234PK9ZT", licenceStatus:"valid", photoCardExpiry:"2033-02-28",
+    entitlements:[
+      { category:"C",  expiryDate:"2031-02-28", restrictions:"" },
+      { category:"CE", expiryDate:"2031-02-28", restrictions:"" },
+      { category:"B",  expiryDate:"2031-02-28", restrictions:"" },
+    ],
+    endorsements:[],
+    tachoCardRef:"EU-PIK-003456", tachoCardExpiry:"2027-03-22",
+    davisRiskScore:8, risk:"low", recheckFrequency:"Every 6 months",
+    lastChecked:"2026-03-01", nextCheckDue:"2026-09-01", consentDate:"2022-04-01",
+    checkHistory:[
+      { date:"2026-03-01", result:"clear", approvedBy:"G. Williams", notes:"Clean licence confirmed." },
+      { date:"2025-09-01", result:"clear", approvedBy:"G. Williams", notes:"" },
+      { date:"2025-03-01", result:"clear", approvedBy:"M. Patel",    notes:"" },
+    ],
+    dqcNumber:"UK-3456-7890", dqcExpiry:"2028-03-10", cpcCycleStart:"2023-03-10", cpcCycleEnd:"2028-03-09",
+    cpcHours:35, cpcDeadline:"2028-03-10",
+    cpcModules:[
+      { id:"m1", date:"2025-03-10", subject:"Night & Long Distance Driving",       provider:"Euro Drive Training", atpRef:"ATP-009012", hours:7 },
+      { id:"m2", date:"2024-07-15", subject:"Tachograph Rules & Drivers' Hours",   provider:"Euro Drive Training", atpRef:"ATP-009012", hours:7 },
+      { id:"m3", date:"2024-01-20", subject:"ADR Awareness & Dangerous Goods",     provider:"National CPC Ltd",   atpRef:"ATP-002345", hours:7 },
+      { id:"m4", date:"2023-10-05", subject:"Eco-Driving & Fuel Efficiency",       provider:"FleetTraining UK",   atpRef:"ATP-003456", hours:7 },
+      { id:"m5", date:"2023-04-12", subject:"Road Safety & Vulnerable Road Users", provider:"Euro Drive Training", atpRef:"ATP-009012", hours:7 },
+    ],
+    rtwRequires:false, rtw:null, visaType:null, visaExp:null, shareCodeVerified:null,
+    adr:true, adrExp:"2027-03-22",
+    training:[
+      { type:"ADR",              heldSince:"2022-03-22", expiry:"2027-03-22", certNumber:"ADR-2022-0012", issuer:"JAUPT / DVSA",           detail:"All Classes (1–9)" },
+      { type:"HIAB / Crane",    heldSince:"2023-06-01", expiry:"2028-06-01", certNumber:"HIAB-2023-088", issuer:"LEEA: Koorts Lifting",    detail:"Cormach 80000E — 8t/m" },
+      { type:"Manual Handling", heldSince:"2023-06-01", expiry:"2026-06-01", certNumber:"MH-2023-0456",  issuer:"Safe Hands Training",     detail:"" },
+      { type:"Tachograph Awareness", heldSince:"2022-04-01", expiry:null,    certNumber:"TACHO-2022-001",issuer:"National CPC Ltd",        detail:"" },
+    ],
+  },
+  { id:"d4", name:"Lena Fischer", licence:"C+E", points:6, expiry:"2028-07-12",
+    licenceNumber:"FISCH901234LF9MK", licenceStatus:"valid", photoCardExpiry:"2031-07-12",
+    entitlements:[
+      { category:"C+E", expiryDate:"2028-07-12", restrictions:"" },
+      { category:"C",   expiryDate:"2028-07-12", restrictions:"" },
+      { category:"B",   expiryDate:"2028-07-12", restrictions:"" },
+    ],
+    endorsements:[
+      { code:"SP30", offence:"Exceeding statutory speed limit on a public road", points:3, convictionDate:"2023-03-14", expiryDate:"2026-03-14" },
+      { code:"SP30", offence:"Exceeding statutory speed limit on a public road", points:3, convictionDate:"2024-11-08", expiryDate:"2027-11-08" },
+    ],
+    tachoCardRef:"EU-LEF-004567", tachoCardExpiry:"2026-12-01",
+    davisRiskScore:62, risk:"medium", recheckFrequency:"Every 3 months",
+    lastChecked:"2026-03-01", nextCheckDue:"2026-06-01", consentDate:"2022-09-15",
+    checkHistory:[
+      { date:"2026-03-01", result:"clear",       approvedBy:"G. Williams", notes:"6 pts noted." },
+      { date:"2025-12-01", result:"points_added",approvedBy:"G. Williams", notes:"Second SP30 added. Increased monitoring." },
+      { date:"2025-09-01", result:"clear",       approvedBy:"M. Patel",    notes:"" },
+    ],
+    dqcNumber:"UK-4567-8901", dqcExpiry:"2027-01-20", cpcCycleStart:"2022-01-20", cpcCycleEnd:"2027-01-19",
+    cpcHours:21, cpcDeadline:"2027-01-20",
+    cpcModules:[
+      { id:"m1", date:"2025-06-14", subject:"Manual Handling & Load Security",     provider:"ABC Training Ltd",  atpRef:"ATP-001234", hours:7 },
+      { id:"m2", date:"2024-02-28", subject:"Eco-Driving & Fuel Efficiency",       provider:"FleetTraining UK",  atpRef:"ATP-003456", hours:7 },
+      { id:"m3", date:"2023-04-10", subject:"Road Safety & Vulnerable Road Users", provider:"ABC Training Ltd",  atpRef:"ATP-001234", hours:7 },
+    ],
+    rtwRequires:true, rtw:"2028-01-15", visaType:"EU Settled Status", visaExp:"2028-01-15", shareCodeVerified:"2022-09-15",
+    adr:false, adrExp:"",
+    training:[
+      { type:"Manual Handling",      heldSince:"2023-09-01", expiry:"2026-09-01", certNumber:"MH-2023-0789",  issuer:"Safe Hands Training",  detail:"" },
+      { type:"Driver Medical (D4)",  heldSince:"2024-06-01", expiry:null,         certNumber:"D4-2024-0034",  issuer:"Dr. A. Patel MRCGP",   detail:"No conditions declared" },
+    ],
+  },
+  { id:"d5", name:"Ahmed Hassan", licence:"C", points:3, expiry:"2027-09-01",
+    licenceNumber:"HASSA901234AH9WB", licenceStatus:"valid", photoCardExpiry:"2030-09-01",
+    entitlements:[
+      { category:"C", expiryDate:"2027-09-01", restrictions:"" },
+      { category:"B", expiryDate:"2027-09-01", restrictions:"" },
+    ],
+    endorsements:[
+      { code:"SP30", offence:"Exceeding statutory speed limit on a public road", points:3, convictionDate:"2024-04-22", expiryDate:"2027-04-22" },
+    ],
+    tachoCardRef:"EU-AHM-005678", tachoCardExpiry:"2026-06-10",
+    davisRiskScore:54, risk:"medium", recheckFrequency:"Every 3 months",
+    lastChecked:"2026-03-01", nextCheckDue:"2026-06-01", consentDate:"2023-09-01",
+    checkHistory:[
+      { date:"2026-03-01", result:"clear",       approvedBy:"G. Williams", notes:"3 pts SP30 noted." },
+      { date:"2025-12-01", result:"points_added",approvedBy:"M. Patel",    notes:"SP30 endorsement recorded." },
+      { date:"2025-09-01", result:"clear",       approvedBy:"G. Williams", notes:"" },
+    ],
+    dqcNumber:"UK-5678-9012", dqcExpiry:"2026-09-01", cpcCycleStart:"2021-09-01", cpcCycleEnd:"2026-08-31",
+    cpcHours:8, cpcDeadline:"2026-09-01",
+    cpcModules:[
+      { id:"m1", date:"2024-08-20", subject:"Road Safety & Vulnerable Road Users", provider:"City CPC Training", atpRef:"ATP-007890", hours:7 },
+    ],
+    rtwRequires:true, rtw:"2026-12-01", visaType:"Skilled Worker (Tier 2)", visaExp:"2026-12-01", shareCodeVerified:"2023-09-01",
+    adr:false, adrExp:"",
+    training:[
+      { type:"Manual Handling",  heldSince:"2023-09-15", expiry:"2026-09-15", certNumber:"MH-2023-1234",   issuer:"Safe Hands Training", detail:"" },
+      { type:"Agency Induction", heldSince:"2021-09-01", expiry:null,         certNumber:"IND-2021-0056",  issuer:"FleetYes Ltd",         detail:"Inducted by M. Patel" },
+    ],
+  },
+  { id:"d6", name:"Sophie Turner", licence:"C+E", points:0, expiry:"2032-01-05",
+    licenceNumber:"TURNE901234ST9LP", licenceStatus:"valid", photoCardExpiry:"2034-01-05",
+    entitlements:[
+      { category:"C+E", expiryDate:"2032-01-05", restrictions:"" },
+      { category:"C",   expiryDate:"2032-01-05", restrictions:"" },
+      { category:"B",   expiryDate:"2032-01-05", restrictions:"" },
+    ],
+    endorsements:[],
+    tachoCardRef:"EU-SOT-006789", tachoCardExpiry:"2026-10-30",
+    davisRiskScore:8, risk:"low", recheckFrequency:"Every 6 months",
+    lastChecked:"2026-03-01", nextCheckDue:"2026-09-01", consentDate:"2023-01-15",
+    checkHistory:[
+      { date:"2026-03-01", result:"clear", approvedBy:"G. Williams", notes:"Clean licence." },
+      { date:"2025-09-01", result:"clear", approvedBy:"G. Williams", notes:"" },
+      { date:"2025-03-01", result:"clear", approvedBy:"M. Patel",    notes:"" },
+    ],
+    dqcNumber:"UK-6789-0123", dqcExpiry:"2029-05-15", cpcCycleStart:"2024-05-15", cpcCycleEnd:"2029-05-14",
+    cpcHours:35, cpcDeadline:"2029-05-15",
+    cpcModules:[
+      { id:"m1", date:"2025-11-08", subject:"Night & Long Distance Driving",       provider:"ABC Training Ltd",  atpRef:"ATP-001234", hours:7 },
+      { id:"m2", date:"2025-05-20", subject:"Manual Handling & Load Security",     provider:"ABC Training Ltd",  atpRef:"ATP-001234", hours:7 },
+      { id:"m3", date:"2025-01-15", subject:"Tachograph Rules & Drivers' Hours",   provider:"National CPC Ltd",  atpRef:"ATP-002345", hours:7 },
+      { id:"m4", date:"2024-09-10", subject:"Road Safety & Vulnerable Road Users", provider:"FleetTraining UK",  atpRef:"ATP-003456", hours:7 },
+      { id:"m5", date:"2024-06-01", subject:"Eco-Driving & Fuel Efficiency",       provider:"ABC Training Ltd",  atpRef:"ATP-001234", hours:7 },
+    ],
+    rtwRequires:false, rtw:null, visaType:null, visaExp:null, shareCodeVerified:null,
+    adr:true, adrExp:"2026-07-01",
+    training:[
+      { type:"ADR",             heldSince:"2024-07-01", expiry:"2026-07-01", certNumber:"ADR-2024-0456", issuer:"JAUPT / DVSA",      detail:"Classes 3 & 6" },
+      { type:"Manual Handling",heldSince:"2024-01-15", expiry:"2027-01-15", certNumber:"MH-2024-0567",  issuer:"Safe Hands Training",detail:"" },
+      { type:"Driver Medical (D4)", heldSince:"2025-06-01", expiry:null,    certNumber:"D4-2025-0089",  issuer:"Dr. S. Kumar MRCGP", detail:"No conditions declared" },
+    ],
+  },
 ]
 
 const vehicles = [
@@ -574,115 +786,322 @@ function WalkaroundTab() {
 
 // ─── TAB 2 · DRIVERS ─────────────────────────────────────────────────────────
 
+function LicenceSection({ driver }: { driver: Driver }) {
+  const statusStyle = { valid:"bg-green-500 text-white", expired:"bg-amber-500 text-white", revoked:"bg-red-600 text-white", disqualified:"bg-red-800 text-white" }[driver.licenceStatus]
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-xl border bg-card p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold flex items-center gap-2"><Car className="h-4 w-4 text-indigo-500" /> DVLA Licence <span className="text-xs font-normal text-muted-foreground">via DAVIS API</span></h3>
+          <div className="flex items-center gap-2">
+            <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide ${statusStyle}`}>{driver.licenceStatus}</span>
+            <button className="inline-flex h-7 items-center gap-1 rounded-lg border px-2 text-xs hover:bg-muted"><RefreshCw className="h-3 w-3" /> Refresh</button>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs mb-5">
+          {[
+            { l:"Licence No",        v:"••••••" + driver.licenceNumber.slice(-4) },
+            { l:"Photo Card Expiry", v:ukDate(driver.photoCardExpiry) },
+            { l:"Tacho Card",        v:driver.tachoCardRef },
+            { l:"Tacho Expiry",      v:ukDate(driver.tachoCardExpiry) },
+            { l:"Last Checked",      v:ukDate(driver.lastChecked) },
+            { l:"Next Check Due",    v:ukDate(driver.nextCheckDue) },
+          ].map(r => (
+            <div key={r.l} className="flex flex-col">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{r.l}</span>
+              <span className="font-semibold text-sm mt-0.5">{r.v}</span>
+            </div>
+          ))}
+        </div>
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">DAVIS Risk Score</span>
+            <span className={`text-xs font-bold ${driver.davisRiskScore>=70?"text-red-600":driver.davisRiskScore>=40?"text-amber-600":"text-green-600"}`}>{driver.davisRiskScore}/100 — {driver.risk} risk · {driver.recheckFrequency}</span>
+          </div>
+          <div className="h-2 rounded-full bg-muted overflow-hidden">
+            <div className={`h-full rounded-full transition-all ${driver.davisRiskScore>=70?"bg-red-500":driver.davisRiskScore>=40?"bg-amber-500":"bg-green-500"}`} style={{ width:`${driver.davisRiskScore}%` }} />
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1">Consent signed: {ukDate(driver.consentDate)}</p>
+        </div>
+        <div className="mb-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Entitlements</p>
+          <div className="rounded-lg border overflow-hidden">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/40"><tr><th className="text-left px-3 py-2 font-semibold">Category</th><th className="text-left px-3 py-2 font-semibold">Expiry</th><th className="text-left px-3 py-2 font-semibold">Restrictions</th></tr></thead>
+              <tbody className="divide-y">
+                {driver.entitlements.map(e => (
+                  <tr key={e.category}>
+                    <td className="px-3 py-2 font-semibold">{e.category}</td>
+                    <td className="px-3 py-2"><span className={`rounded-full px-2 py-0.5 text-[10px] ${expiryBadge(e.expiryDate)}`}>{ukDate(e.expiryDate)}</span></td>
+                    <td className="px-3 py-2 text-muted-foreground text-[10px]">{e.restrictions||"—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Endorsements {driver.endorsements.length===0&&<span className="text-green-600 normal-case font-normal ml-1">— clean licence</span>}</p>
+          {driver.endorsements.length>0 ? (
+            <div className="rounded-lg border overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/40"><tr><th className="text-left px-3 py-2 font-semibold">Code</th><th className="text-left px-3 py-2 font-semibold">Offence</th><th className="text-center px-3 py-2 font-semibold">Pts</th><th className="text-left px-3 py-2 font-semibold">Convicted</th><th className="text-left px-3 py-2 font-semibold">Expires</th></tr></thead>
+                <tbody className="divide-y">
+                  {driver.endorsements.map((e,i)=>(
+                    <tr key={i}>
+                      <td className="px-3 py-2 font-mono font-bold text-amber-700 dark:text-amber-400">{e.code}</td>
+                      <td className="px-3 py-2 text-muted-foreground max-w-[160px] truncate">{e.offence}</td>
+                      <td className="px-3 py-2 text-center font-bold">{e.points}</td>
+                      <td className="px-3 py-2">{ukDate(e.convictionDate)}</td>
+                      <td className="px-3 py-2"><span className={`rounded-full px-2 py-0.5 text-[10px] ${expiryBadge(e.expiryDate)}`}>{ukDate(e.expiryDate)}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ):(
+            <div className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 px-3 py-2">
+              <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0"/>
+              <p className="text-xs text-green-700 dark:text-green-400">No endorsements recorded. Clean licence confirmed by DVLA.</p>
+            </div>
+          )}
+        </div>
+        {driver.risk==="high"&&(
+          <div className="mt-4 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 px-3 py-2 flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5"/>
+            <p className="text-xs text-red-700 dark:text-red-400">High-risk flag: {driver.points} pts. Automatic monthly DVLA check active. Transport manager notified.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function CpcSection({ driver }: { driver: Driver }) {
+  const [showPrev, setShowPrev] = React.useState(false)
+  const done = driver.cpcModules.reduce((s,m)=>s+m.hours,0)
+  const remaining = 35-done
+  return (
+    <div className="rounded-xl border bg-card p-5 shadow-sm flex flex-col gap-5">
+      <div className="flex items-start justify-between">
+        <div>
+          <h3 className="font-semibold flex items-center gap-2"><GraduationCap className="h-4 w-4 text-indigo-500"/>Driver CPC<span className="text-xs font-normal text-muted-foreground ml-1">— 35h / 5 years</span></h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Cycle: {ukDate(driver.cpcCycleStart)} → {ukDate(driver.cpcCycleEnd)}</p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-[10px] text-muted-foreground">DQC</p>
+          <p className="text-sm font-mono font-bold">{driver.dqcNumber}</p>
+          <span className={`text-[10px] rounded-full px-2 py-0.5 ${expiryBadge(driver.dqcExpiry)}`}>Exp {ukDate(driver.dqcExpiry)}</span>
+        </div>
+      </div>
+      <div>
+        <div className="flex items-end justify-between mb-1.5">
+          <span className="text-2xl font-bold">{done}<span className="text-sm font-normal text-muted-foreground"> / 35h</span></span>
+          <span className="text-xs text-muted-foreground">{remaining>0?`${remaining}h remaining`:"Complete ✓"}</span>
+        </div>
+        <div className="h-3 rounded-full bg-muted overflow-hidden">
+          <div className={`h-full rounded-full transition-all ${done>=35?"bg-green-500":done>=20?"bg-amber-500":"bg-red-500"}`} style={{width:`${Math.min(100,(done/35)*100)}%`}}/>
+        </div>
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Completed Modules</p>
+        <div className="flex flex-col gap-2">
+          {driver.cpcModules.map(m=>(
+            <div key={m.id} className="flex items-start gap-3 rounded-lg border bg-muted/20 px-3 py-2.5">
+              <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5"/>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">{m.subject}</p>
+                <p className="text-[10px] text-muted-foreground">{m.provider} · ATP: {m.atpRef}</p>
+              </div>
+              <div className="text-right shrink-0">
+                <span className="text-xs font-bold text-green-700 dark:text-green-400">{m.hours}h</span>
+                <p className="text-[10px] text-muted-foreground">{ukDate(m.date)}</p>
+              </div>
+            </div>
+          ))}
+          {remaining>0&&Array.from({length:Math.ceil(remaining/7)}).map((_,i)=>(
+            <div key={`p${i}`} className="flex items-start gap-3 rounded-lg border border-dashed px-3 py-2.5 opacity-60">
+              <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5"/>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-muted-foreground">Module outstanding</p>
+                <p className="text-[10px] text-muted-foreground">Complete by {ukDate(driver.cpcDeadline)}</p>
+              </div>
+              <span className="text-xs text-muted-foreground shrink-0">7h</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <button className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-indigo-600 px-3 text-xs font-medium text-white hover:bg-indigo-700"><Plus className="h-3.5 w-3.5"/>Log completed course</button>
+        <button onClick={()=>setShowPrev(p=>!p)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs hover:bg-muted">{showPrev?"▴":"▾"} Previous cycle</button>
+      </div>
+      {showPrev&&<div className="rounded-lg border bg-muted/20 p-3"><p className="text-xs font-semibold mb-1 text-muted-foreground">Previous cycle (5 years prior)</p><p className="text-xs text-green-700 dark:text-green-400 flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5"/>35h completed — DQC renewed on time</p></div>}
+    </div>
+  )
+}
+
+function TrainingSection({ driver }: { driver: Driver }) {
+  const typeIcon: Record<string,React.ReactNode> = {
+    "ADR":<BadgeCheck className="h-4 w-4 text-orange-500"/>,
+    "Counterbalance FLT":<Truck className="h-4 w-4 text-blue-500"/>,
+    "HIAB / Crane":<Wrench className="h-4 w-4 text-purple-500"/>,
+    "Manual Handling":<Activity className="h-4 w-4 text-teal-500"/>,
+    "Driver Medical (D4)":<ShieldCheck className="h-4 w-4 text-pink-500"/>,
+    "Drug & Alcohol":<Fingerprint className="h-4 w-4 text-indigo-500"/>,
+    "Tachograph Awareness":<Clock className="h-4 w-4 text-amber-500"/>,
+    "Agency Induction":<Users className="h-4 w-4 text-gray-500"/>,
+  }
+  return (
+    <div className="rounded-xl border bg-card p-5 shadow-sm flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold flex items-center gap-2"><BadgeCheck className="h-4 w-4 text-indigo-500"/>Training &amp; Qualifications</h3>
+        <button className="inline-flex h-7 items-center gap-1 rounded-lg border px-2 text-xs hover:bg-muted"><Plus className="h-3 w-3"/>Add record</button>
+      </div>
+      {driver.training.length===0&&<p className="text-sm text-muted-foreground">No training records.</p>}
+      {driver.training.map((t,i)=>(
+        <div key={i} className="flex items-start gap-3 rounded-xl border bg-muted/20 p-4">
+          <div className="shrink-0 h-9 w-9 rounded-lg bg-background border flex items-center justify-center">{typeIcon[t.type]||<BookOpen className="h-4 w-4 text-muted-foreground"/>}</div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+              <p className="text-sm font-semibold">{t.type}</p>
+              {t.detail&&<span className="text-[10px] bg-muted rounded px-1.5 py-0.5">{t.detail}</span>}
+            </div>
+            <p className="text-xs text-muted-foreground">Cert: <span className="font-mono">{t.certNumber}</span> · {t.issuer}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Held since {ukDate(t.heldSince)}</p>
+          </div>
+          <div className="shrink-0 text-right">
+            {t.expiry
+              ? <span className={`text-[10px] font-semibold rounded-full px-2 py-0.5 ${expiryBadge(t.expiry)}`}>Exp {ukDate(t.expiry)}</span>
+              : <span className="text-[10px] rounded-full px-2 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">No expiry</span>
+            }
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function RtwSection({ driver }: { driver: Driver }) {
+  return (
+    <div className="rounded-xl border bg-card p-5 shadow-sm flex flex-col gap-4">
+      <h3 className="font-semibold flex items-center gap-2"><Flag className="h-4 w-4 text-indigo-500"/>Right to Work &amp; Immigration</h3>
+      {!driver.rtwRequires ? (
+        <div className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 px-3 py-3">
+          <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0"/>
+          <p className="text-sm text-green-700 dark:text-green-400">UK/EU citizen — Right to Work check not required.</p>
+        </div>
+      ):(
+        <div className="flex flex-col gap-3 text-sm">
+          {[
+            { l:"RTW Status",          v:"Confirmed — visa required" },
+            { l:"Visa Type",           v:driver.visaType||"—" },
+            { l:"Share Code Verified", v:driver.shareCodeVerified ? `${ukDate(driver.shareCodeVerified)} by Fleet Manager` : "Not verified" },
+            { l:"Home Office Ref",     v:"••••-••••-••••" },
+          ].map(r=>(
+            <div key={r.l} className="flex justify-between items-center border-b pb-2 last:border-0">
+              <span className="text-muted-foreground">{r.l}</span>
+              <span className="font-medium text-right">{r.v}</span>
+            </div>
+          ))}
+          <div className="flex justify-between items-center">
+            <span className="text-muted-foreground">Visa Expiry</span>
+            <span className={`font-medium rounded-full px-2 py-0.5 text-xs ${expiryBadge(driver.visaExp)}`}>{ukDate(driver.visaExp||"")} ({expiryLabel(driver.visaExp)})</span>
+          </div>
+          <button className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs hover:bg-muted mt-1"><Upload className="h-3.5 w-3.5"/>Upload passport / BRP scan</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AuditSection({ driver }: { driver: Driver }) {
+  function exportCSV() {
+    const header = "Date,Result,Approved By,Notes\n"
+    const rows = driver.checkHistory.map(c=>`${c.date},${c.result},"${c.approvedBy}","${c.notes}"`).join("\n")
+    const blob = new Blob([header+rows],{type:"text/csv"})
+    const a = document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`${driver.name.replace(" ","_")}_audit.csv`; a.click()
+  }
+  const resultStyle: Record<string,string> = { clear:"bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400", points_added:"bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400", disqualified:"bg-red-100 text-red-700" }
+  return (
+    <div className="rounded-xl border bg-card p-5 shadow-sm flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold flex items-center gap-2"><ScrollText className="h-4 w-4 text-indigo-500"/>DVSA Audit Trail</h3>
+        <button onClick={exportCSV} className="inline-flex h-7 items-center gap-1 rounded-lg border px-2 text-xs hover:bg-muted"><Download className="h-3 w-3"/>Export CSV</button>
+      </div>
+      <p className="text-xs text-muted-foreground">GDPR consent signed: {ukDate(driver.consentDate)} — driver authorised DVLA access via self-service portal.</p>
+      <div className="rounded-lg border overflow-hidden">
+        <table className="w-full text-xs">
+          <thead className="bg-muted/40"><tr><th className="text-left px-3 py-2 font-semibold">Date</th><th className="text-left px-3 py-2 font-semibold">Result</th><th className="text-left px-3 py-2 font-semibold">Approved By</th><th className="text-left px-3 py-2 font-semibold">Notes</th></tr></thead>
+          <tbody className="divide-y">
+            {driver.checkHistory.map((c,i)=>(
+              <tr key={i}>
+                <td className="px-3 py-2 font-medium">{ukDate(c.date)}</td>
+                <td className="px-3 py-2"><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${resultStyle[c.result]}`}>{c.result==="points_added"?"Points added":c.result}</span></td>
+                <td className="px-3 py-2">{c.approvedBy}</td>
+                <td className="px-3 py-2 text-muted-foreground">{c.notes||"—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function DriverDetail({ driver }: { driver: Driver }) {
+  const [tab, setTab] = React.useState<"licence"|"cpc"|"training"|"rtw"|"audit">("licence")
+  const tabs = [{ id:"licence" as const, label:"Licence" },{ id:"cpc" as const, label:"CPC" },{ id:"training" as const, label:"Training" },{ id:"rtw" as const, label:"Right to Work" },{ id:"audit" as const, label:"Audit Trail" }]
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex gap-1 overflow-x-auto rounded-xl border bg-card p-1">
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${tab===t.id?"bg-primary text-primary-foreground shadow-sm":"text-muted-foreground hover:bg-muted hover:text-foreground"}`}>{t.label}</button>
+        ))}
+      </div>
+      {tab==="licence"  && <LicenceSection  driver={driver}/>}
+      {tab==="cpc"      && <CpcSection      driver={driver}/>}
+      {tab==="training" && <TrainingSection driver={driver}/>}
+      {tab==="rtw"      && <RtwSection      driver={driver}/>}
+      {tab==="audit"    && <AuditSection    driver={driver}/>}
+    </div>
+  )
+}
+
 function DriversTab() {
   const [sel, setSel] = React.useState(drivers[0].id)
   const driver = drivers.find(d => d.id === sel)!
-
+  const highRisk  = drivers.filter(d=>d.risk==="high").length
+  const cpcCrit   = drivers.filter(d=>{ const x=daysUntil(d.cpcDeadline); return x!==null&&x<90}).length
+  const checksDue = drivers.filter(d=>{ const x=daysUntil(d.nextCheckDue); return x!==null&&x<30}).length
+  const rtwExp    = drivers.filter(d=>{ const x=daysUntil(d.visaExp); return x!==null&&x<90}).length
+  const disq      = drivers.filter(d=>d.licenceStatus==="disqualified").length
   return (
     <div className="flex flex-col gap-6">
-      {/* Summary KPIs */}
-      <div className="grid gap-4 sm:grid-cols-4">
-        <KPI label="High Risk Drivers"   value={drivers.filter(d=>d.risk==="high").length}            icon={AlertTriangle} color="bg-red-500"    sub="9+ points" />
-        <KPI label="CPC Expiring <90d"   value={drivers.filter(d=>{ const x=daysUntil(d.cpcDeadline); return x!==null&&x<90}).length} icon={BookOpen} color="bg-amber-500" sub="action needed" />
-        <KPI label="RTW Expiring <90d"   value={drivers.filter(d=>{ const x=daysUntil(d.rtw); return x!==null&&x<90}).length} icon={Flag} color="bg-red-500" sub="Home Office check" />
-        <KPI label="Licence Checks Due"  value={2} icon={RefreshCw} color="bg-indigo-500" sub="this month" />
+      <div className="grid gap-4 sm:grid-cols-5">
+        <KPI label="High Risk"       value={highRisk}  icon={AlertTriangle} color="bg-red-500"                              sub="9+ pts — monthly checks"/>
+        <KPI label="CPC Critical"    value={cpcCrit}   icon={GraduationCap} color="bg-amber-500"                            sub="<90d to deadline"/>
+        <KPI label="Checks Due"      value={checksDue} icon={RefreshCw}     color="bg-indigo-500"                           sub="within 30 days"/>
+        <KPI label="RTW Expiring"    value={rtwExp}    icon={Flag}          color="bg-red-500"                              sub="<90d to expiry"/>
+        <KPI label="Disqualified"    value={disq}      icon={AlertCircle}   color={disq>0?"bg-red-700":"bg-muted"}          sub="must not drive"/>
       </div>
-
-      {/* Driver selector + detail */}
       <div className="grid gap-4 lg:grid-cols-3">
-        {/* List */}
         <div className="flex flex-col gap-2">
-          {drivers.map(d => (
-            <button key={d.id} onClick={() => setSel(d.id)}
-              className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-colors ${sel===d.id ? "border-primary bg-primary/5" : "bg-card hover:bg-muted"}`}
-            >
-              <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${d.risk==="high" ? "bg-red-500" : d.risk==="medium" ? "bg-amber-500" : "bg-green-500"}`}>
-                {d.name.split(" ").map(n=>n[0]).join("")}
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{d.name}</p>
-                <p className="text-[10px] text-muted-foreground">{d.licence} · {d.points} pts · <span className={d.risk==="high"?"text-red-600":d.risk==="medium"?"text-amber-600":"text-green-600"}>{d.risk} risk</span></p>
-              </div>
-            </button>
-          ))}
+          {drivers.map(d=>{
+            const sc = d.licenceStatus==="valid"?"text-green-600 bg-green-50 dark:bg-green-950/20":"text-red-600 bg-red-50 dark:bg-red-950/20"
+            return (
+              <button key={d.id} onClick={()=>setSel(d.id)} className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-colors ${sel===d.id?"border-primary bg-primary/5":"bg-card hover:bg-muted"}`}>
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${d.risk==="high"?"bg-red-500":d.risk==="medium"?"bg-amber-500":"bg-green-500"}`}>{d.name.split(" ").map(n=>n[0]).join("")}</div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold">{d.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{d.licence} · {d.points} pts · <span className={d.risk==="high"?"text-red-600 font-semibold":d.risk==="medium"?"text-amber-600":"text-green-600"}>{d.risk} risk</span></p>
+                </div>
+                <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase ${sc}`}>{d.licenceStatus}</span>
+              </button>
+            )
+          })}
         </div>
-
-        {/* Detail */}
-        <div className="lg:col-span-2 flex flex-col gap-4">
-          {/* DVLA Licence */}
-          <div className="rounded-xl border bg-card p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold flex items-center gap-2"><Car className="h-4 w-4 text-indigo-500" /> DVLA Licence (ADD API)</h3>
-              <button className="inline-flex h-7 items-center gap-1 rounded-lg border px-2 text-xs hover:bg-muted"><RefreshCw className="h-3 w-3" /> Refresh</button>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2 text-sm">
-              {[
-                { l:"Name",       v:driver.name      },
-                { l:"Category",   v:driver.licence   },
-                { l:"Penalty Pts",v:`${driver.points} pts` },
-                { l:"Expiry",     v:driver.expiry    },
-                { l:"Check Freq", v:driver.risk==="high" ? "Monthly (9+ pts)" : "Bi-annual" },
-                { l:"Last Checked", v:"2026-03-01"  },
-              ].map(r => (
-                <div key={r.l} className="flex justify-between border-b pb-1">
-                  <span className="text-muted-foreground">{r.l}</span>
-                  <span className={`font-medium ${r.l==="Penalty Pts" && driver.points>=9 ? "text-red-600" : ""}`}>{r.v}</span>
-                </div>
-              ))}
-            </div>
-            {driver.risk === "high" && (
-              <p className="mt-3 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 px-3 py-2 text-xs text-red-700 dark:text-red-400">
-                ⚠ High-risk flag: 9 penalty points. Automatic monthly DVLA check scheduled. Manager notified.
-              </p>
-            )}
-          </div>
-
-          {/* RTW & Visa */}
-          <div className="rounded-xl border bg-card p-5 shadow-sm">
-            <h3 className="mb-4 font-semibold flex items-center gap-2"><Flag className="h-4 w-4 text-indigo-500" /> Right to Work & Visa</h3>
-            {driver.rtw ? (
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">RTW Status</span><span className="font-medium">Confirmed</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Visa Expiry</span>
-                  <span className={`font-medium rounded-full px-2 text-xs ${expiryBadge(driver.visaExp)}`}>{driver.visaExp} ({expiryLabel(driver.visaExp)})</span>
-                </div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Home Office Code</span><span className="font-mono text-xs text-muted-foreground">••••-••••-••••</span></div>
-                <button className="inline-flex h-7 items-center gap-1 rounded-lg border px-2 text-xs hover:bg-muted"><Upload className="h-3 w-3" /> Upload Passport Scan</button>
-              </div>
-            ) : <p className="text-sm text-muted-foreground">UK/EU citizen — RTW not required.</p>}
-          </div>
-
-          {/* CPC */}
-          <div className="rounded-xl border bg-card p-5 shadow-sm">
-            <h3 className="mb-4 font-semibold flex items-center gap-2"><BookOpen className="h-4 w-4 text-indigo-500" /> Driver CPC (35h / 5 years)</h3>
-            <div className="flex items-end justify-between mb-2">
-              <span className="text-2xl font-bold">{driver.cpcHours}<span className="text-sm font-normal text-muted-foreground"> / 35h</span></span>
-              <span className={`text-xs rounded-full px-2 py-0.5 ${expiryBadge(driver.cpcDeadline)}`}>Deadline {driver.cpcDeadline} ({expiryLabel(driver.cpcDeadline)})</span>
-            </div>
-            <div className="h-3 rounded-full bg-muted overflow-hidden mb-1">
-              <div className={`h-full rounded-full transition-all ${driver.cpcHours>=35?"bg-green-500":driver.cpcHours>=20?"bg-amber-500":"bg-red-500"}`} style={{ width:`${Math.min(100,(driver.cpcHours/35)*100)}%` }} />
-            </div>
-            <p className="text-xs text-muted-foreground">{35-driver.cpcHours}h remaining</p>
-            <button className="mt-3 inline-flex h-7 items-center gap-1 rounded-lg border px-2 text-xs hover:bg-muted"><Plus className="h-3 w-3" /> Log Course</button>
-          </div>
-
-          {/* Additional Training */}
-          <div className="rounded-xl border bg-card p-5 shadow-sm">
-            <h3 className="mb-4 font-semibold flex items-center gap-2"><BadgeCheck className="h-4 w-4 text-indigo-500" /> Additional Training</h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between items-center">
-                <span>ADR (Dangerous Goods)</span>
-                {driver.adr
-                  ? <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${expiryBadge(driver.adrExp)}`}>Expires {driver.adrExp} ({expiryLabel(driver.adrExp)})</span>
-                  : <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">Not held</span>}
-              </div>
-              {["Manual Handling","Moffett / Forklift","HIAB Operating"].map(t => (
-                <div key={t} className="flex justify-between items-center">
-                  <span>{t}</span><span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">Not held</span>
-                </div>
-              ))}
-            </div>
-          </div>
+        <div className="lg:col-span-2">
+          <DriverDetail driver={driver} key={driver.id}/>
         </div>
       </div>
     </div>
