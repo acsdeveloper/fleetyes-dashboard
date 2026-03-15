@@ -590,12 +590,20 @@ function WalkaroundDetail({ checkId, onBack }: { checkId: string; onBack: () => 
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Top nav — slim: just back + status */}
-      <div className="flex items-center gap-3">
+      {/* Top nav */}
+      <div className="flex items-center gap-2">
         <button onClick={onBack} className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs hover:bg-muted">
           ← Checks List
         </button>
         <p className="font-bold font-mono flex-1">Walkaround Check</p>
+        <button className="inline-flex h-8 items-center gap-1.5 rounded-lg border bg-background px-3 text-xs text-muted-foreground hover:bg-muted">
+          <Download className="h-3.5 w-3.5" /> PDF
+        </button>
+        {failCount > 0 && (
+          <button className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-red-500 px-3 text-xs font-medium text-white hover:bg-red-600">
+            <Wrench className="h-3.5 w-3.5" /> Workshop
+          </button>
+        )}
         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${check.status === "clear" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"}`}>
           {check.status === "clear" ? "✓ Nil Defect" : `⚠ ${check.defects} Defect${check.defects > 1 ? "s" : ""}`}
         </span>
@@ -630,19 +638,14 @@ function WalkaroundDetail({ checkId, onBack }: { checkId: string; onBack: () => 
           </div>
         </div>
 
-        {/* Right: driver declaration with vehicle metadata baked in */}
+        {/* Right: driver declaration — reg woven into sentence */}
         <div className="rounded-xl border bg-card p-4 shadow-sm flex flex-col gap-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Driver Declaration</p>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-            <div><span className="text-muted-foreground">Vehicle</span> <span className="font-mono font-semibold ml-1">{check.reg}</span></div>
-            <div><span className="text-muted-foreground">Date</span> <span className="font-medium ml-1">{check.date}</span></div>
-            <div><span className="text-muted-foreground">Driver</span> <span className="font-medium ml-1">{check.driver}</span></div>
-            <div><span className="text-muted-foreground">Time</span> <span className="font-medium ml-1">{check.time}</span></div>
-          </div>
-          <p className="text-[11px] text-muted-foreground border-t pt-2">
-            I declare that I carried out the required daily walkaround check and the vehicle is, to the best of my knowledge, safe to drive on the road.
+          <p className="text-[11px] text-muted-foreground">
+            I declare that I carried out the required daily walkaround check on{" "}
+            <span className="font-mono font-semibold text-foreground">{check.reg}</span> and the vehicle is, to the best of my knowledge, safe to drive on the road.
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 border-t pt-3">
             <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
             <div>
               <p className="text-sm font-semibold">{detail.signature}</p>
@@ -710,17 +713,7 @@ function WalkaroundDetail({ checkId, onBack }: { checkId: string; onBack: () => 
 
 
 
-      {/* Actions */}
-      <div className="flex flex-wrap gap-2">
-        <button className="inline-flex h-9 items-center gap-1.5 rounded-lg border bg-background px-3 text-sm text-muted-foreground hover:bg-muted">
-          <Download className="h-3.5 w-3.5" /> Download PDF
-        </button>
-        {failCount > 0 && (
-          <button className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-red-500 px-3 text-sm font-medium text-white hover:bg-red-600">
-            <Wrench className="h-3.5 w-3.5" /> View Workshop Defect
-          </button>
-        )}
-      </div>
+
     </div>
   )
 }
