@@ -2406,6 +2406,215 @@ function VehiclesTab() {
 
 
 
+
+// ─── AUDIT LOG TAB ────────────────────────────────────────────────────────────
+
+type AuditSeverity = "create" | "edit" | "upload" | "delete" | "sign" | "alert" | "approve"
+type AuditCategory = "vehicle" | "driver" | "document" | "walkaround" | "pmi" | "settings" | "system"
+
+interface AuditEvent {
+  id: string; ts: string
+  user: string; initials: string; userColor: string
+  action: string; sentence: string; category: AuditCategory
+  entityBadge: string; severity: AuditSeverity
+  before?: string; after?: string
+  link?: string
+}
+
+const auditData: AuditEvent[] = [
+  { id:"a01", ts:"2026-03-15T09:14:00Z", user:"Michael Patel",   initials:"MP", userColor:"bg-indigo-500", action:"Updated",   sentence:"Updated MOT expiry for NUX9VAM",             category:"vehicle",    entityBadge:"Vehicle",    severity:"edit",    before:"28 Mar 2026", after:"28 Mar 2027" },
+  { id:"a02", ts:"2026-03-15T09:12:00Z", user:"James O'Connor",  initials:"JO", userColor:"bg-emerald-500",action:"Submitted",  sentence:"Submitted walkaround check WA-2026-0124 · NUX9VAM", category:"walkaround", entityBadge:"Walkaround", severity:"create",               after:"Clear – 0 defects" },
+  { id:"a03", ts:"2026-03-15T08:47:00Z", user:"Sarah Johnson",   initials:"SJ", userColor:"bg-rose-500",   action:"Uploaded",   sentence:"Uploaded MOT certificate for TB67KLM",       category:"document",   entityBadge:"Document",   severity:"upload",               after:"MOT_TB67KLM_2026.pdf" },
+  { id:"a04", ts:"2026-03-15T08:31:00Z", user:"System",          initials:"SY", userColor:"bg-slate-500",  action:"Alert sent", sentence:"Tachograph calibration alert sent — YJ19HKP due in 30 days", category:"system", entityBadge:"System", severity:"alert" },
+  { id:"a05", ts:"2026-03-15T08:00:00Z", user:"System",          initials:"SY", userColor:"bg-slate-500",  action:"Alert sent", sentence:"Daily digest delivered to M. Patel + S. Johnson — 3 items", category:"system", entityBadge:"System", severity:"alert" },
+  { id:"a06", ts:"2026-03-14T16:52:00Z", user:"Michael Patel",   initials:"MP", userColor:"bg-indigo-500", action:"Approved",   sentence:"Approved DVLA licence check for Maria Santos", category:"driver",     entityBadge:"Driver",     severity:"approve",              after:"Risk score 74 → monitoring" },
+  { id:"a07", ts:"2026-03-14T15:30:00Z", user:"Sarah Johnson",   initials:"SJ", userColor:"bg-rose-500",   action:"Signed",     sentence:"Signed PMI inspection WA-PMI-0041 · OU70TBN", category:"pmi",        entityBadge:"PMI",        severity:"sign",    before:"Draft", after:"Submitted" },
+  { id:"a08", ts:"2026-03-14T14:20:00Z", user:"Michael Patel",   initials:"MP", userColor:"bg-indigo-500", action:"Updated",    sentence:"Updated CPC module record for James O'Connor", category:"driver",     entityBadge:"Driver",     severity:"edit",    before:"28h completed", after:"35h completed" },
+  { id:"a09", ts:"2026-03-14T13:05:00Z", user:"Sarah Johnson",   initials:"SJ", userColor:"bg-rose-500",   action:"Uploaded",   sentence:"Uploaded ADR certificate for James O'Connor",  category:"document",   entityBadge:"Document",   severity:"upload",               after:"ADR_JOC_2026.pdf" },
+  { id:"a10", ts:"2026-03-14T12:00:00Z", user:"Michael Patel",   initials:"MP", userColor:"bg-indigo-500", action:"Created",    sentence:"Added vehicle LK21DVA to fleet",               category:"vehicle",    entityBadge:"Vehicle",    severity:"create",               after:"Scania R 450 · Driver: unassigned" },
+  { id:"a11", ts:"2026-03-14T11:45:00Z", user:"Maria Santos",    initials:"MS", userColor:"bg-amber-500",  action:"Submitted",  sentence:"Submitted walkaround check WA-2026-0123 · TB67KLM", category:"walkaround", entityBadge:"Walkaround", severity:"create",          after:"1 Advisory – Wiper blade worn" },
+  { id:"a12", ts:"2026-03-14T10:30:00Z", user:"System",          initials:"SY", userColor:"bg-slate-500",  action:"Alert sent", sentence:"VOR alert — TB67KLM defect reported, workshop notified", category:"system", entityBadge:"System", severity:"alert" },
+  { id:"a13", ts:"2026-03-14T09:55:00Z", user:"Michael Patel",   initials:"MP", userColor:"bg-indigo-500", action:"Updated",    sentence:"Updated notification settings — daily digest time", category:"settings",entityBadge:"Settings",   severity:"edit",    before:"07:00", after:"08:00" },
+  { id:"a14", ts:"2026-03-13T17:10:00Z", user:"Sarah Johnson",   initials:"SJ", userColor:"bg-rose-500",   action:"Deleted",    sentence:"Removed expired insurance doc from PN19RFX",   category:"document",   entityBadge:"Document",   severity:"delete",  before:"Insurance_2025.pdf" },
+  { id:"a15", ts:"2026-03-13T16:00:00Z", user:"Michael Patel",   initials:"MP", userColor:"bg-indigo-500", action:"Approved",   sentence:"Verified right-to-work for Ahmed Khalid",      category:"driver",     entityBadge:"Driver",     severity:"approve",              after:"Share code verified · visa exp 2027-08-01" },
+  { id:"a16", ts:"2026-03-13T14:30:00Z", user:"System",          initials:"SY", userColor:"bg-slate-500",  action:"DVLA Check", sentence:"DAVIS licence check completed — James O'Connor", category:"driver",     entityBadge:"System",     severity:"approve",              after:"Clear · 2pts · No change" },
+  { id:"a17", ts:"2026-03-13T11:00:00Z", user:"Michael Patel",   initials:"MP", userColor:"bg-indigo-500", action:"Updated",    sentence:"Changed PMI interval for OU70TBN from 6w to 4w", category:"pmi",       entityBadge:"PMI",        severity:"edit",    before:"6 weeks", after:"4 weeks (intensive use)" },
+  { id:"a18", ts:"2026-03-12T16:45:00Z", user:"Sarah Johnson",   initials:"SJ", userColor:"bg-rose-500",   action:"Uploaded",   sentence:"Uploaded LOLER certificate for NUX9VAM",       category:"document",   entityBadge:"Document",   severity:"upload",               after:"LOLER_NUX9VAM_2026.pdf" },
+  { id:"a19", ts:"2026-03-12T09:00:00Z", user:"Michael Patel",   initials:"MP", userColor:"bg-indigo-500", action:"Created",    sentence:"Designated S. Johnson as Compliance Manager",   category:"settings",   entityBadge:"Settings",   severity:"edit",    before:"M. Patel (CM)", after:"S. Johnson (CM)" },
+  { id:"a20", ts:"2026-03-11T15:30:00Z", user:"System",          initials:"SY", userColor:"bg-slate-500",  action:"Alert sent", sentence:"MOT 90-day alert — PN19RFX · due 2026-06-10",  category:"system",     entityBadge:"System",     severity:"alert" },
+]
+
+const severityCfg: Record<AuditSeverity, { dot: string; badge: string; label: string }> = {
+  create:  { dot:"bg-green-500",   badge:"bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",    label:"Created"  },
+  edit:    { dot:"bg-indigo-500",  badge:"bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400", label:"Edited"   },
+  upload:  { dot:"bg-blue-500",    badge:"bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",         label:"Uploaded" },
+  delete:  { dot:"bg-red-500",     badge:"bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",             label:"Deleted"  },
+  sign:    { dot:"bg-violet-500",  badge:"bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400", label:"Signed"   },
+  alert:   { dot:"bg-amber-500",   badge:"bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",     label:"Alert"    },
+  approve: { dot:"bg-emerald-500", badge:"bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400", label:"Approved" },
+}
+
+const categoryLabels: Record<AuditCategory, string> = {
+  vehicle:"Vehicle", driver:"Driver", document:"Document",
+  walkaround:"Walkaround", pmi:"PMI", settings:"Settings", system:"System",
+}
+
+function relativeTime(ts: string) {
+  const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000)
+  if (diff < 60)    return `${diff}s ago`
+  if (diff < 3600)  return `${Math.floor(diff/60)}m ago`
+  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`
+  return new Date(ts).toLocaleDateString("en-GB", { day:"2-digit", month:"short" })
+}
+function absTime(ts: string) {
+  return new Date(ts).toLocaleString("en-GB", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" })
+}
+
+function AuditTab() {
+  const [catFilter,      setCatFilter]      = React.useState<AuditCategory | "all">("all")
+  const [severityFilter, setSeverityFilter] = React.useState<AuditSeverity | "all">("all")
+  const [userFilter,     setUserFilter]     = React.useState("all")
+  const [search,         setSearch]         = React.useState("")
+  const [expanded,       setExpanded]       = React.useState<string | null>(null)
+
+  const uniqueUsers = [...new Set(auditData.map(e => e.user))]
+
+  const filtered = auditData.filter(e => {
+    if (catFilter !== "all"      && e.category !== catFilter)     return false
+    if (severityFilter !== "all" && e.severity !== severityFilter) return false
+    if (userFilter !== "all"     && e.user !== userFilter)         return false
+    if (search && !e.sentence.toLowerCase().includes(search.toLowerCase())) return false
+    return true
+  })
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Header + export */}
+      <div className="flex items-center gap-3">
+        <div>
+          <p className="text-sm font-semibold">Audit Log</p>
+          <p className="text-xs text-muted-foreground">Immutable record of all compliance data changes — available for Traffic Commissioner inspection</p>
+        </div>
+        <button className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg border bg-background px-3 text-xs hover:bg-muted text-muted-foreground">
+          <Download className="h-3.5 w-3.5" /> Export CSV
+        </button>
+        <button className="inline-flex h-8 items-center gap-1.5 rounded-lg border bg-background px-3 text-xs hover:bg-muted text-muted-foreground">
+          <Download className="h-3.5 w-3.5" /> Export PDF
+        </button>
+      </div>
+
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Search audit events…"
+          className="h-8 flex-1 min-w-[160px] max-w-xs rounded-lg border bg-background px-3 text-xs outline-none focus:ring-2 focus:ring-ring"
+        />
+        <select value={catFilter} onChange={e => setCatFilter(e.target.value as AuditCategory | "all")}
+          className="h-8 rounded-lg border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring">
+          <option value="all">All categories</option>
+          {(Object.keys(categoryLabels) as AuditCategory[]).map(c =>
+            <option key={c} value={c}>{categoryLabels[c]}</option>
+          )}
+        </select>
+        <select value={severityFilter} onChange={e => setSeverityFilter(e.target.value as AuditSeverity | "all")}
+          className="h-8 rounded-lg border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring">
+          <option value="all">All actions</option>
+          {(Object.keys(severityCfg) as AuditSeverity[]).map(s =>
+            <option key={s} value={s}>{severityCfg[s].label}</option>
+          )}
+        </select>
+        <select value={userFilter} onChange={e => setUserFilter(e.target.value)}
+          className="h-8 rounded-lg border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring">
+          <option value="all">All users</option>
+          {uniqueUsers.map(u => <option key={u} value={u}>{u}</option>)}
+        </select>
+        {(catFilter !== "all" || severityFilter !== "all" || userFilter !== "all" || search) && (
+          <button onClick={() => { setCatFilter("all"); setSeverityFilter("all"); setUserFilter("all"); setSearch("") }}
+            className="h-8 rounded-lg border px-3 text-xs text-muted-foreground hover:bg-muted">
+            Clear filters
+          </button>
+        )}
+        <span className="ml-auto text-xs text-muted-foreground">{filtered.length} of {auditData.length} events</span>
+      </div>
+
+      {/* Feed */}
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        {filtered.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-16 text-center">
+            <ScrollText className="h-8 w-8 text-muted-foreground/40" />
+            <p className="text-sm font-medium text-muted-foreground">No events match your filters</p>
+          </div>
+        ) : (
+          <div className="divide-y">
+            {filtered.map(evt => {
+              const s = severityCfg[evt.severity]
+              const isExpanded = expanded === evt.id
+              const hasDetail = !!(evt.before || evt.after)
+              return (
+                <div key={evt.id}
+                  className={`px-4 py-3 transition-colors ${hasDetail ? "cursor-pointer hover:bg-muted/20" : ""}`}
+                  onClick={() => hasDetail ? setExpanded(isExpanded ? null : evt.id) : undefined}
+                >
+                  <div className="flex items-center gap-3">
+                    {/* Timeline dot */}
+                    <div className="relative flex flex-col items-center shrink-0">
+                      <div className={`h-2.5 w-2.5 rounded-full ${s.dot} shrink-0`} />
+                    </div>
+                    {/* User avatar */}
+                    <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${evt.userColor} text-[9px] font-bold text-white`}>
+                      {evt.initials}
+                    </div>
+                    {/* Main content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs font-semibold">{evt.user}</span>
+                        <span className="text-xs text-muted-foreground">{evt.action.toLowerCase()}</span>
+                        <span className="text-xs font-medium truncate">{evt.sentence.replace(evt.user + " " + evt.action + " ", "").replace(evt.action + " ", "")}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className={`inline-flex text-[9px] font-bold px-1.5 py-0.5 rounded-full ${s.badge}`}>{s.label}</span>
+                        <span className="text-[10px] rounded-full bg-muted/60 px-1.5 py-0.5 text-muted-foreground">{evt.entityBadge}</span>
+                        {hasDetail && (
+                          <span className="text-[10px] text-muted-foreground/60">{isExpanded ? "▲" : "▼"} details</span>
+                        )}
+                      </div>
+                    </div>
+                    {/* Timestamp */}
+                    <div className="text-right shrink-0">
+                      <p className="text-[11px] font-medium">{relativeTime(evt.ts)}</p>
+                      <p className="text-[10px] text-muted-foreground">{absTime(evt.ts)}</p>
+                    </div>
+                  </div>
+
+                  {/* Expanded before/after */}
+                  {isExpanded && hasDetail && (
+                    <div className="mt-2 ml-[52px] flex items-center gap-2 rounded-lg bg-muted/30 px-3 py-2 text-xs font-mono">
+                      {evt.before && (
+                        <span className="text-red-600 dark:text-red-400 line-through opacity-70">{evt.before}</span>
+                      )}
+                      {evt.before && evt.after && <span className="text-muted-foreground">→</span>}
+                      {evt.after && (
+                        <span className="text-green-700 dark:text-green-400 font-semibold">{evt.after}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      <p className="text-[11px] text-muted-foreground px-1">
+        Audit records are retained for a minimum of <strong>15 months</strong> in compliance with DVSA guidance on maintenance record keeping. 
+        Records are immutable and cannot be edited or deleted by any user.
+      </p>
+    </div>
+  )
+}
+
+
 // ─── SETTINGS TAB ─────────────────────────────────────────────────────────────
 
 const adminUsers = [
@@ -2898,6 +3107,7 @@ const TABS = [
   { id:"documents", label:"Documents",  icon:FileText           },
   { id:"drivers",   label:"Drivers",    icon:Users              },
   { id:"vehicles",  label:"Vehicles",   icon:Truck              },
+  { id:"audit",     label:"Audit",    icon:ScrollText         },
   { id:"settings",  label:"Settings", icon:SlidersHorizontal },
 ] as const
 
@@ -2935,6 +3145,7 @@ export default function CompliancePage() {
       {tab === "documents" && <DocumentsTab />}
       {tab === "drivers"   && <DriversTab />}
       {tab === "vehicles"  && <VehiclesTab />}
+      {tab === "audit"     && <AuditTab />}
       {tab === "settings"  && <SettingsTab />}
     </div>
   )
