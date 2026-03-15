@@ -1,4 +1,5 @@
 "use client"
+import { useSearchParams } from "next/navigation"
 import { PageHeader } from "@/components/page-header"
 import * as React from "react"
 import {
@@ -630,7 +631,11 @@ const TABS = [
 ] as const
 
 export default function MaintenancePage() {
-  const [tab, setTab] = React.useState<typeof TABS[number]["id"]>("dashboard")
+  const searchParams = useSearchParams()
+  const initialTab = (searchParams.get("tab") ?? "dashboard") as typeof TABS[number]["id"]
+  const [tab, setTab] = React.useState<typeof TABS[number]["id"]>(
+    TABS.some(t => t.id === initialTab) ? initialTab : "dashboard"
+  )
   const vor = vehicles.filter(v => v.status === "red").length
 
   return (
