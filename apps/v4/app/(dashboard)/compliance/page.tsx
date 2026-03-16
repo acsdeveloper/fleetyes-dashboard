@@ -3,11 +3,12 @@ import Link from "next/link"
 import { PageHeader } from "@/components/page-header"
 import * as React from "react"
 import { TrainingTab } from "./training-tab"
+import { BusinessDocsTab } from "./business-docs-tab"
 import {
   CheckCircle2, XCircle, AlertTriangle, Camera, PenLine, Clock,
   MapPin, Users, FileText, Files, ShieldCheck, Activity, BadgeCheck,
   CalendarDays, Bell, Upload, Download, ChevronRight, Plus,
-  Car, Truck, AlertCircle, RefreshCw, Lock, Zap, BookOpen,
+  Car, Truck, AlertCircle, RefreshCw, Lock, Zap, BookOpen, Building2,
   BarChart3, Flag, Wrench, GraduationCap, ScrollText, Fingerprint, ClipboardList, SlidersHorizontal,
 } from "lucide-react"
 
@@ -3165,6 +3166,7 @@ const TABS = [
   { id:"drivers",   label:"Drivers",    icon:Users              },
   { id:"vehicles",  label:"Vehicles",   icon:Truck              },
   { id:"training",  label:"Training",   icon:GraduationCap      },
+  { id:"business",  label:"Business",   icon:Building2          },
   { id:"audit",     label:"Audit",    icon:ScrollText         },
   { id:"settings",  label:"Settings", icon:SlidersHorizontal },
 ] as const
@@ -3204,6 +3206,7 @@ export default function CompliancePage() {
       {tab === "drivers"   && <DriversTab />}
       {tab === "vehicles"  && <VehiclesTab />}
       {tab === "training"  && <TrainingTab />}
+      {tab === "business"  && <BusinessDocsTab />}
       {tab === "audit"     && <AuditTab />}
       {tab === "settings"  && <SettingsTab />}
     </div>
