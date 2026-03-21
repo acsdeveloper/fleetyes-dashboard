@@ -1,16 +1,19 @@
 /**
  * OnTrack API — Base Client
  *
- * Base URL: https://ontrack-api.agilecyber.acom/int/v1
- * Auth: POST /auth/login → Bearer token
+ * All requests go through the Next.js proxy at /api/ontrack/[...path]
+ * to avoid CORS issues. The proxy forwards to:
+ * https://ontrack-api.agilecyber.acom/int/v1
  *
+ * Auth: POST /auth/login → Bearer token
  * Token is stored on `window.__fleetyes_token` to reuse the
  * same pattern as the existing compliance-api.ts client.
  */
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-const ONTRACK_BASE = "https://ontrack-api.agilecyber.acom/int/v1"
+// Routes through the Next.js API proxy to avoid CORS
+const ONTRACK_BASE = "/api/ontrack"
 
 // ─── Token helper ────────────────────────────────────────────────────────────
 
