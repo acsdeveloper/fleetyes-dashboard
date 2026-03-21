@@ -1,404 +1,282 @@
 "use client"
 import * as React from "react"
 import {
-  FileText, Plus, Search, X, ChevronRight, CheckCircle2,
+  FileText, Plus, Search, X, ChevronDown, CheckCircle2,
   AlertTriangle, Clock, Upload, Download, Trash2, Calendar,
   Shield, Building2, Pencil, Eye, Fingerprint, AlertCircle, Files,
+  Loader2, RefreshCw,
 } from "lucide-react"
+import {
+  listComplianceDocs,
+  listBusinessCategories,
+  createComplianceDoc,
+  updateComplianceDoc,
+  deleteComplianceDoc,
+  type ApiComplianceDocument,
+  type ApiBusinessCategory,
+  type ApiCategoryDocumentRow,
+} from "@/lib/compliance-docs-api"
+import { getCompanyUuid } from "@/lib/ontrack-api"
 
-// ─── TYPES ──────────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-interface BusinessDocument {
-  id: string
-  name: string
-  category: string
-  description: string
-  fileName: string | null
-  fileUrl: string | null
-  uploadDate: string
-  expiryDate: string | null
-  status: "valid" | "expiring_soon" | "expired" | "no_expiry"
-  uploadedBy: string
-  signedBy: string | null
-  signedAt: string | null
-  notes: string
-  version: number
-  tags: string[]
-}
-
-// ─── CONSTANTS ──────────────────────────────────────────────────────────────────
-
-const DOC_CATEGORIES = [
-  "Operator's Licence",
-  "Public Liability Insurance",
-  "Employers' Liability Insurance",
-  "Motor Fleet Insurance",
-  "Goods in Transit Insurance",
-  "Health & Safety Policy",
-  "Risk Assessment",
-  "Environmental Permit",
-  "FORS Certificate",
-  "ISO Certificate",
-  "DVSA Earned Recognition",
-  "Amazon Audit Certificate",
-  "Client Audit Certificate",
-  "Company Handbook",
-  "Drug & Alcohol Policy",
-  "Modern Slavery Statement",
-  "GDPR Privacy Policy",
-  "Training Certificate",
-  "Other",
-] as const
-
-const catIcons: Record<string, typeof Shield> = {
-  "Operator's Licence": Shield,
-  "Public Liability Insurance": Shield,
-  "Employers' Liability Insurance": Shield,
-  "Motor Fleet Insurance": Shield,
-  "Goods in Transit Insurance": Shield,
-  "Health & Safety Policy": FileText,
-  "Risk Assessment": AlertTriangle,
-  "Environmental Permit": FileText,
-  "FORS Certificate": CheckCircle2,
-  "ISO Certificate": CheckCircle2,
-  "DVSA Earned Recognition": CheckCircle2,
-  "Amazon Audit Certificate": CheckCircle2,
-  "Client Audit Certificate": CheckCircle2,
-  "Company Handbook": FileText,
-  "Drug & Alcohol Policy": FileText,
-  "Modern Slavery Statement": FileText,
-  "GDPR Privacy Policy": FileText,
-  "Training Certificate": CheckCircle2,
-  "Other": Files,
-}
-
-const statusColors: Record<BusinessDocument["status"], string> = {
-  valid: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-  expiring_soon: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-  expired: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-  no_expiry: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-}
-
-const statusLabels: Record<BusinessDocument["status"], string> = {
-  valid: "Valid",
-  expiring_soon: "Expiring Soon",
-  expired: "Expired",
-  no_expiry: "No Expiry",
-}
-
-// ─── HELPERS ────────────────────────────────────────────────────────────────────
-
-function fmtDate(d: string) {
+function fmtDate(d: string | null | undefined) {
+  if (!d) return "—"
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
 }
 
-function daysUntil(d: string) {
-  return Math.ceil((new Date(d).getTime() - Date.now()) / 86400000)
+const statusColors: Record<string, string> = {
+  valid:         "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+  expiring_soon: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+  expired:       "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+  no_expiry:     "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
+}
+const statusLabels: Record<string, string> = {
+  valid:         "Valid",
+  expiring_soon: "Expiring Soon",
+  expired:       "Expired",
+  no_expiry:     "No Expiry",
 }
 
-function computeStatus(doc: { expiryDate: string | null }): BusinessDocument["status"] {
-  if (!doc.expiryDate) return "no_expiry"
-  const days = daysUntil(doc.expiryDate)
-  if (days < 0) return "expired"
-  if (days <= 30) return "expiring_soon"
-  return "valid"
-}
-
-// ─── DEMO DATA ──────────────────────────────────────────────────────────────────
-
-const demoDocs: BusinessDocument[] = [
-  {
-    id: "bd1", name: "Operator's Licence — Standard National", category: "Operator's Licence",
-    description: "Standard national operator's licence for goods vehicles over 3.5 tonnes. Covers 3 operating centres.",
-    fileName: "OLN-2024-0891.pdf", fileUrl: "#", uploadDate: "2024-06-15", expiryDate: "2029-06-15",
-    status: "valid", uploadedBy: "G. Williams", signedBy: "G. Williams", signedAt: "2024-06-15",
-    notes: "Renewed 2024. Covers up to 15 vehicles across 3 centres.", version: 3, tags: ["regulatory", "dvsa"],
-  },
-  {
-    id: "bd2", name: "Employers' Liability Insurance Certificate", category: "Employers' Liability Insurance",
-    description: "Mandatory employers' liability insurance. Minimum £5 million cover as required by UK law.",
-    fileName: "EL-Insurance-2026.pdf", fileUrl: "#", uploadDate: "2026-01-10", expiryDate: "2026-12-31",
-    status: "valid", uploadedBy: "G. Williams", signedBy: "G. Williams", signedAt: "2026-01-10",
-    notes: "Provider: Allianz. Policy ref: EL-2026-GBR-0891", version: 1, tags: ["insurance", "mandatory"],
-  },
-  {
-    id: "bd3", name: "Public Liability Insurance", category: "Public Liability Insurance",
-    description: "Public liability insurance covering third-party claims. £10 million limit of indemnity.",
-    fileName: "PL-Insurance-2026.pdf", fileUrl: "#", uploadDate: "2026-01-10", expiryDate: "2026-12-31",
-    status: "valid", uploadedBy: "G. Williams", signedBy: "G. Williams", signedAt: "2026-01-10",
-    notes: "Provider: Allianz. Policy ref: PL-2026-GBR-0892", version: 1, tags: ["insurance", "mandatory"],
-  },
-  {
-    id: "bd4", name: "Motor Fleet Insurance Policy", category: "Motor Fleet Insurance",
-    description: "Comprehensive motor fleet insurance covering all registered vehicles. Includes goods in transit.",
-    fileName: "Fleet-Insurance-2026.pdf", fileUrl: "#", uploadDate: "2025-12-20", expiryDate: "2026-04-01",
-    status: "expiring_soon", uploadedBy: "M. Patel", signedBy: "M. Patel", signedAt: "2025-12-20",
-    notes: "Renewal due 1 Apr 2026. Broker: Willis Towers Watson.", version: 2, tags: ["insurance", "fleet"],
-  },
-  {
-    id: "bd5", name: "Health & Safety Policy", category: "Health & Safety Policy",
-    description: "Company health and safety policy document as required by Health and Safety at Work Act 1974.",
-    fileName: "H-and-S-Policy-v4.pdf", fileUrl: "#", uploadDate: "2025-09-01", expiryDate: null,
-    status: "no_expiry", uploadedBy: "G. Williams", signedBy: "G. Williams", signedAt: "2025-09-01",
-    notes: "Version 4 — updated for new warehouse operations.", version: 4, tags: ["policy", "mandatory"],
-  },
-  {
-    id: "bd6", name: "FORS Gold Accreditation", category: "FORS Certificate",
-    description: "Fleet Operator Recognition Scheme Gold accreditation certificate.",
-    fileName: "FORS-Gold-2026.pdf", fileUrl: "#", uploadDate: "2025-11-15", expiryDate: "2026-11-15",
-    status: "valid", uploadedBy: "G. Williams", signedBy: "G. Williams", signedAt: "2025-11-15",
-    notes: "Accreditation number: FORS-G-12345. Annual renewal.", version: 1, tags: ["accreditation", "fors"],
-  },
-  {
-    id: "bd7", name: "Amazon DSP Audit Certificate — Q4 2025", category: "Amazon Audit Certificate",
-    description: "Amazon Delivery Service Partner audit compliance certificate for Q4 2025.",
-    fileName: "Amazon-Audit-Q4-2025.pdf", fileUrl: "#", uploadDate: "2025-12-22", expiryDate: "2026-03-31",
-    status: "expiring_soon", uploadedBy: "M. Patel", signedBy: "M. Patel", signedAt: "2025-12-22",
-    notes: "Score: 98%. Next audit scheduled Q1 2026.", version: 1, tags: ["amazon", "audit"],
-  },
-  {
-    id: "bd8", name: "Drug & Alcohol Testing Policy", category: "Drug & Alcohol Policy",
-    description: "Company drug and alcohol testing policy covering all drivers and warehouse staff.",
-    fileName: "Drug-Alcohol-Policy-v2.pdf", fileUrl: "#", uploadDate: "2024-03-01", expiryDate: null,
-    status: "no_expiry", uploadedBy: "G. Williams", signedBy: "G. Williams", signedAt: "2024-03-01",
-    notes: "Version 2 — aligned with Amazon requirements.", version: 2, tags: ["policy", "audit"],
-  },
-  {
-    id: "bd9", name: "ISO 45001 Certificate", category: "ISO Certificate",
-    description: "Occupational Health and Safety Management System certification.",
-    fileName: "ISO-45001-cert.pdf", fileUrl: "#", uploadDate: "2024-08-20", expiryDate: "2025-08-20",
-    status: "expired", uploadedBy: "G. Williams", signedBy: "G. Williams", signedAt: "2024-08-20",
-    notes: "EXPIRED — Renewal audit pending. Auditor: BSI Group.", version: 1, tags: ["iso", "certification"],
-  },
-  {
-    id: "bd10", name: "GDPR Privacy Policy", category: "GDPR Privacy Policy",
-    description: "Data protection and privacy policy in compliance with UK GDPR and the Data Protection Act 2018.",
-    fileName: "GDPR-Policy-v3.pdf", fileUrl: "#", uploadDate: "2025-05-25", expiryDate: null,
-    status: "no_expiry", uploadedBy: "G. Williams", signedBy: null, signedAt: null,
-    notes: "Version 3 — updated for new driver tracking systems.", version: 3, tags: ["policy", "gdpr"],
-  },
-]
-
-// ─── SIDE PANEL ─────────────────────────────────────────────────────────────────
+// ─── Document Detail Panel ────────────────────────────────────────────────────
 
 function DocumentPanel({
-  doc, onClose, onSign, onUpdate,
+  doc, category, onClose, onSign, onDelete, onRefresh,
 }: {
-  doc: BusinessDocument
+  doc: ApiComplianceDocument
+  category: string
   onClose: () => void
-  onSign: () => void
-  onUpdate: (d: BusinessDocument) => void
+  onSign: (doc: ApiComplianceDocument) => Promise<void>
+  onDelete: (doc: ApiComplianceDocument) => Promise<void>
+  onRefresh: () => void
 }) {
   const [editing, setEditing] = React.useState(false)
-  const [editName, setEditName] = React.useState(doc.name)
-  const [editDesc, setEditDesc] = React.useState(doc.description)
-  const [editExpiry, setEditExpiry] = React.useState(doc.expiryDate || "")
-  const [editNotes, setEditNotes] = React.useState(doc.notes)
-  const [editTags, setEditTags] = React.useState(doc.tags.join(", "))
-  const CatIcon = catIcons[doc.category] || Files
-  const status = computeStatus(doc)
+  const [editTitle, setEditTitle] = React.useState(doc.title || "")
+  const [editDesc, setEditDesc] = React.useState(doc.description || "")
+  const [editExpiry, setEditExpiry] = React.useState(doc.expires_at || "")
+  const [editNotes, setEditNotes] = React.useState(doc.notes || "")
+  const [saving, setSaving] = React.useState(false)
+  const [deleting, setDeleting] = React.useState(false)
+  const [signing, setSigning] = React.useState(false)
 
-  function save() {
-    onUpdate({
-      ...doc,
-      name: editName,
-      description: editDesc,
-      expiryDate: editExpiry || null,
-      notes: editNotes,
-      tags: editTags.split(",").map(t => t.trim()).filter(Boolean),
-      status: computeStatus({ expiryDate: editExpiry || null }),
-    })
-    setEditing(false)
+  async function save() {
+    setSaving(true)
+    try {
+      await updateComplianceDoc(doc.uuid, {
+        title: editTitle || undefined,
+        description: editDesc || undefined,
+        expires_at: editExpiry || null,
+        notes: editNotes || undefined,
+      })
+      setEditing(false)
+      onRefresh()
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setSaving(false)
+    }
   }
+
+  async function handleDelete() {
+    if (!confirm("Delete this document? This cannot be undone.")) return
+    setDeleting(true)
+    try {
+      await onDelete(doc)
+      onClose()
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  async function handleSign() {
+    setSigning(true)
+    try {
+      await onSign(doc)
+      onRefresh()
+    } finally {
+      setSigning(false)
+    }
+  }
+
+  const status = doc.document_status
 
   return (
     <>
-      {/* Overlay */}
       <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
-
-      {/* Panel */}
       <div className="fixed inset-y-0 right-0 z-50 w-full max-w-lg bg-background border-l shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
         {/* Header */}
         <div className="flex items-center gap-3 border-b px-5 py-4">
           <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
             status === "expired" ? "bg-red-500" : status === "expiring_soon" ? "bg-amber-500" : "bg-indigo-500"
           }`}>
-            <CatIcon className="h-5 w-5 text-white" />
+            <FileText className="h-5 w-5 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-bold truncate">{doc.name}</h3>
-            <p className="text-[10px] text-muted-foreground uppercase">{doc.category}</p>
+            <h3 className="text-sm font-bold truncate">{doc.title || "Untitled Document"}</h3>
+            <p className="text-[10px] text-muted-foreground uppercase">{category}</p>
           </div>
           <button onClick={onClose} className="h-8 w-8 flex items-center justify-center rounded-lg border hover:bg-muted">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Content — scrollable */}
-        <div className="flex-1 overflow-y-auto px-5 py-4">
-          <div className="flex flex-col gap-5">
-            {/* Status + Signature bar */}
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className={`rounded-md px-2.5 py-1 text-[10px] font-bold uppercase ${statusColors[status]}`}>{statusLabels[status]}</span>
-              {doc.expiryDate && (
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Calendar className="h-3 w-3" />
-                  {status === "expired"
-                    ? `Expired ${fmtDate(doc.expiryDate)}`
-                    : `Expires ${fmtDate(doc.expiryDate)} (${daysUntil(doc.expiryDate)} days)`
-                  }
-                </span>
-              )}
-              {doc.signedBy ? (
-                <span className="ml-auto rounded-lg bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 px-2.5 py-1 text-[10px] font-medium text-green-700 dark:text-green-400 flex items-center gap-1">
-                  <Fingerprint className="h-3 w-3" /> Signed by {doc.signedBy} · {doc.signedAt ? fmtDate(doc.signedAt) : ""}
-                </span>
-              ) : (
-                <button onClick={onSign} className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-indigo-700">
-                  <Fingerprint className="h-3.5 w-3.5" /> Sign Document
-                </button>
-              )}
-            </div>
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-5">
+          {/* Status bar */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className={`rounded-md px-2.5 py-1 text-[10px] font-bold uppercase ${statusColors[status] ?? ""}`}>
+              {statusLabels[status] ?? status}
+            </span>
+            {doc.expires_at && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                {status === "expired"
+                  ? `Expired ${fmtDate(doc.expires_at)}`
+                  : `Expires ${fmtDate(doc.expires_at)}${doc.days_remaining != null ? ` (${doc.days_remaining}d)` : ""}`
+                }
+              </span>
+            )}
+            {doc.signer1_signature ? (
+              <span className="ml-auto rounded-lg bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 px-2.5 py-1 text-[10px] font-medium text-green-700 dark:text-green-400 flex items-center gap-1">
+                <Fingerprint className="h-3 w-3" /> Signed by {doc.signer1_signature.name}
+              </span>
+            ) : (
+              <button
+                onClick={handleSign}
+                disabled={signing}
+                className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+              >
+                {signing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Fingerprint className="h-3.5 w-3.5" />}
+                Sign Document
+              </button>
+            )}
+          </div>
 
-            {/* Details (read or edit) */}
-            {!editing ? (
-              <div className="rounded-xl border bg-card p-4 shadow-sm">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-bold">Document Details</h4>
-                  <button onClick={() => setEditing(true)} className="inline-flex h-7 items-center gap-1 rounded-lg border px-2 text-xs hover:bg-muted">
-                    <Pencil className="h-3 w-3" /> Edit
-                  </button>
+          {/* Details */}
+          {!editing ? (
+            <div className="rounded-xl border bg-card p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-bold">Document Details</h4>
+                <button onClick={() => setEditing(true)} className="inline-flex h-7 items-center gap-1 rounded-lg border px-2 text-xs hover:bg-muted">
+                  <Pencil className="h-3 w-3" /> Edit
+                </button>
+              </div>
+              <div className="space-y-3">
+                {[
+                  { label: "Description", value: doc.description || "—" },
+                  { label: "File", value: doc.file_name || "No file uploaded" },
+                  { label: "Uploaded", value: doc.uploaded_at ? `${fmtDate(doc.uploaded_at)} by ${doc.uploaded_by ?? "—"}` : "—" },
+                  { label: "Expiry", value: doc.expires_at ? fmtDate(doc.expires_at) : "No expiry date" },
+                  { label: "Notes", value: doc.notes || "—" },
+                ].map(r => (
+                  <div key={r.label}>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase">{r.label}</p>
+                    <p className="text-sm">{r.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border bg-card p-4 shadow-sm">
+              <h4 className="text-sm font-bold mb-3">Edit Document</h4>
+              <div className="grid gap-3">
+                <div>
+                  <label className="mb-1 block text-[10px] font-medium text-muted-foreground uppercase">Title</label>
+                  <input value={editTitle} onChange={e => setEditTitle(e.target.value)} className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
                 </div>
-                <div className="space-y-3">
-                  {[
-                    { label: "Description", value: doc.description || "—" },
-                    { label: "File", value: doc.fileName || "No file uploaded" },
-                    { label: "Uploaded", value: `${fmtDate(doc.uploadDate)} by ${doc.uploadedBy}` },
-                    { label: "Expiry", value: doc.expiryDate ? fmtDate(doc.expiryDate) : "No expiry date" },
-                    { label: "Version", value: `v${doc.version}` },
-                    { label: "Notes", value: doc.notes || "—" },
-                  ].map(r => (
-                    <div key={r.label}>
-                      <p className="text-[10px] font-medium text-muted-foreground uppercase">{r.label}</p>
-                      <p className="text-sm">{r.value}</p>
-                    </div>
-                  ))}
-                  {doc.tags.length > 0 && (
-                    <div>
-                      <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">Tags</p>
-                      <div className="flex flex-wrap gap-1">
-                        {doc.tags.map(t => (
-                          <span key={t} className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium">{t}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                <div>
+                  <label className="mb-1 block text-[10px] font-medium text-muted-foreground uppercase">Description</label>
+                  <textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} rows={3} className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring resize-none" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[10px] font-medium text-muted-foreground uppercase">Expiry Date</label>
+                  <input type="date" value={editExpiry} onChange={e => setEditExpiry(e.target.value)} className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Leave blank if this document doesn&apos;t expire</p>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[10px] font-medium text-muted-foreground uppercase">Notes</label>
+                  <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={2} className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring resize-none" />
+                </div>
+              </div>
+              <div className="flex items-center gap-2 mt-4 pt-3 border-t">
+                <button onClick={save} disabled={saving} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-4 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60">
+                  {saving && <Loader2 className="h-3 w-3 animate-spin" />} Save
+                </button>
+                <button onClick={() => setEditing(false)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs hover:bg-muted">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {/* File section */}
+          <div className="rounded-xl border bg-card p-4 shadow-sm">
+            <h4 className="text-sm font-bold mb-3">File</h4>
+            {doc.file_url ? (
+              <div className="flex items-center gap-3 rounded-lg bg-muted/30 p-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/20">
+                  <FileText className="h-5 w-5 text-blue-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{doc.file_name || "Document"}</p>
+                  <p className="text-[10px] text-muted-foreground">Uploaded {fmtDate(doc.uploaded_at)}</p>
+                </div>
+                <div className="flex gap-1">
+                  <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs hover:bg-muted">
+                    <Eye className="h-3 w-3" /> View
+                  </a>
+                  <a href={doc.file_url} download className="inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs hover:bg-muted">
+                    <Download className="h-3 w-3" /> Download
+                  </a>
                 </div>
               </div>
             ) : (
-              <div className="rounded-xl border bg-card p-4 shadow-sm">
-                <h4 className="text-sm font-bold mb-3">Edit Document</h4>
-                <div className="grid gap-3">
-                  <div>
-                    <label className="mb-1 block text-[10px] font-medium text-muted-foreground uppercase">Name</label>
-                    <input value={editName} onChange={e => setEditName(e.target.value)} className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[10px] font-medium text-muted-foreground uppercase">Description</label>
-                    <textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} rows={3} className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring resize-none" />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[10px] font-medium text-muted-foreground uppercase">Expiry Date</label>
-                    <input type="date" value={editExpiry} onChange={e => setEditExpiry(e.target.value)} className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Leave blank if this document doesn&apos;t expire</p>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[10px] font-medium text-muted-foreground uppercase">Notes</label>
-                    <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={2} className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring resize-none" />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[10px] font-medium text-muted-foreground uppercase">Tags (comma separated)</label>
-                    <input value={editTags} onChange={e => setEditTags(e.target.value)} placeholder="e.g. insurance, mandatory" className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 mt-4 pt-3 border-t">
-                  <button onClick={save} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-4 text-xs font-medium text-primary-foreground hover:bg-primary/90">Save</button>
-                  <button onClick={() => setEditing(false)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs hover:bg-muted">Cancel</button>
-                </div>
+              <div className="flex flex-col items-center gap-2 py-6 text-center rounded-lg border-2 border-dashed">
+                <Upload className="h-8 w-8 text-muted-foreground/30" />
+                <p className="text-xs text-muted-foreground">No file attached yet</p>
               </div>
             )}
+          </div>
 
-            {/* File actions */}
-            <div className="rounded-xl border bg-card p-4 shadow-sm">
-              <h4 className="text-sm font-bold mb-3">File</h4>
-              {doc.fileName ? (
-                <div className="flex items-center gap-3 rounded-lg bg-muted/30 p-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/20">
-                    <FileText className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{doc.fileName}</p>
-                    <p className="text-[10px] text-muted-foreground">Uploaded {fmtDate(doc.uploadDate)}</p>
-                  </div>
-                  <div className="flex gap-1">
-                    <button className="inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs hover:bg-muted">
-                      <Eye className="h-3 w-3" /> View
-                    </button>
-                    <button className="inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs hover:bg-muted">
-                      <Download className="h-3 w-3" /> Download
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-2 py-6 text-center rounded-lg border-2 border-dashed">
-                  <Upload className="h-8 w-8 text-muted-foreground/30" />
-                  <p className="text-xs text-muted-foreground">No file attached</p>
-                  <button className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90">
-                    <Upload className="h-3.5 w-3.5" /> Upload File
-                  </button>
+          {/* Audit trail */}
+          <div className="rounded-xl border bg-card p-4 shadow-sm">
+            <h4 className="text-sm font-bold mb-3">Audit Trail</h4>
+            <div className="space-y-2">
+              {doc.signer2_signature && (
+                <div className="flex items-start gap-2 text-xs">
+                  <Fingerprint className="h-3.5 w-3.5 text-green-600 mt-0.5 shrink-0" />
+                  <div><span className="font-medium">Counter-signed</span><span className="text-muted-foreground"> by {doc.signer2_signature.name} on {fmtDate(doc.signer2_signature.signed_at)}</span></div>
                 </div>
               )}
-              <p className="text-[10px] text-muted-foreground mt-2">File upload will be available when connected to backend</p>
-            </div>
-
-            {/* Audit trail */}
-            <div className="rounded-xl border bg-card p-4 shadow-sm">
-              <h4 className="text-sm font-bold mb-3">Audit Trail</h4>
-              <div className="space-y-2">
-                {doc.signedAt && (
-                  <div className="flex items-start gap-2 text-xs">
-                    <Fingerprint className="h-3.5 w-3.5 text-green-600 mt-0.5 shrink-0" />
-                    <div>
-                      <span className="font-medium">Signed</span>
-                      <span className="text-muted-foreground"> by {doc.signedBy} on {fmtDate(doc.signedAt)}</span>
-                    </div>
-                  </div>
-                )}
+              {doc.signer1_signature && (
+                <div className="flex items-start gap-2 text-xs">
+                  <Fingerprint className="h-3.5 w-3.5 text-green-600 mt-0.5 shrink-0" />
+                  <div><span className="font-medium">Signed</span><span className="text-muted-foreground"> by {doc.signer1_signature.name} on {fmtDate(doc.signer1_signature.signed_at)}</span></div>
+                </div>
+              )}
+              {doc.uploaded_at && (
                 <div className="flex items-start gap-2 text-xs">
                   <Upload className="h-3.5 w-3.5 text-blue-600 mt-0.5 shrink-0" />
-                  <div>
-                    <span className="font-medium">Uploaded</span>
-                    <span className="text-muted-foreground"> by {doc.uploadedBy} on {fmtDate(doc.uploadDate)} (v{doc.version})</span>
-                  </div>
+                  <div><span className="font-medium">Uploaded</span><span className="text-muted-foreground"> by {doc.uploaded_by ?? "—"} on {fmtDate(doc.uploaded_at)}</span></div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Footer actions */}
+        {/* Footer */}
         <div className="border-t px-5 py-3 flex items-center gap-2">
-          {!doc.signedBy && (
-            <button onClick={onSign} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-indigo-600 px-4 text-xs font-medium text-white hover:bg-indigo-700">
-              <Fingerprint className="h-3.5 w-3.5" /> Sign Document
+          {!doc.signer1_signature && (
+            <button onClick={handleSign} disabled={signing} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-indigo-600 px-4 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-60">
+              <Fingerprint className="h-3.5 w-3.5" /> Sign
             </button>
           )}
-          <button className="inline-flex h-9 items-center gap-1.5 rounded-lg border px-4 text-xs hover:bg-muted">
-            <Upload className="h-3.5 w-3.5" /> Replace File
-          </button>
           <div className="flex-1" />
-          <button className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-red-200 px-4 text-xs text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/20">
-            <Trash2 className="h-3.5 w-3.5" /> Delete
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-red-200 px-4 text-xs text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/20 disabled:opacity-60"
+          >
+            {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+            Delete
           </button>
         </div>
       </div>
@@ -406,28 +284,49 @@ function DocumentPanel({
   )
 }
 
-// ─── ADD DOCUMENT FORM ──────────────────────────────────────────────────────────
+// ─── Add Document Form ────────────────────────────────────────────────────────
 
-function AddDocumentForm({ onAdd, onCancel }: {
-  onAdd: (doc: BusinessDocument) => void
+function AddDocumentForm({
+  categories, companyUuid, onAdded, onCancel,
+}: {
+  categories: ApiBusinessCategory[]
+  companyUuid: string
+  onAdded: () => void
   onCancel: () => void
 }) {
-  const [name, setName] = React.useState("")
-  const [category, setCategory] = React.useState<string>(DOC_CATEGORIES[0])
+  const [title, setTitle] = React.useState("")
+  const [categoryId, setCategoryId] = React.useState(categories[0]?.uuid ?? "other")
+  const [customCatName, setCustomCatName] = React.useState("")
   const [description, setDescription] = React.useState("")
   const [expiryDate, setExpiryDate] = React.useState("")
   const [notes, setNotes] = React.useState("")
+  const [saving, setSaving] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
 
-  function submit() {
-    if (!name.trim()) return
-    const doc: BusinessDocument = {
-      id: `bd${Date.now()}`, name: name.trim(), category, description: description.trim(),
-      fileName: null, fileUrl: null, uploadDate: new Date().toISOString().slice(0, 10),
-      expiryDate: expiryDate || null, status: computeStatus({ expiryDate: expiryDate || null }),
-      uploadedBy: "Current User", signedBy: null, signedAt: null,
-      notes: notes.trim(), version: 1, tags: [],
+  const isOther = categoryId === "other"
+
+  async function submit() {
+    if (!title.trim()) return
+    if (isOther && !customCatName.trim()) return
+    setSaving(true)
+    setError(null)
+    try {
+      await createComplianceDoc({
+        company_uuid: companyUuid,
+        entity_type: "business",
+        category_id: categoryId,
+        ...(isOther ? { custom_category_name: customCatName.trim() } : {}),
+        title: title.trim(),
+        description: description.trim() || undefined,
+        expires_at: expiryDate || null,
+        notes: notes.trim() || undefined,
+      })
+      onAdded()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to create document")
+    } finally {
+      setSaving(false)
     }
-    onAdd(doc)
   }
 
   return (
@@ -440,24 +339,33 @@ function AddDocumentForm({ onAdd, onCancel }: {
           <X className="h-4 w-4" />
         </button>
       </div>
+      {error && (
+        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">{error}</p>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="sm:col-span-2">
-          <label className="mb-1 block text-[10px] font-medium text-muted-foreground uppercase">Document Name</label>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Employers' Liability Insurance 2026" className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
+          <label className="mb-1 block text-[10px] font-medium text-muted-foreground uppercase">Document Title</label>
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Employers' Liability Insurance 2026" className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
         </div>
         <div>
           <label className="mb-1 block text-[10px] font-medium text-muted-foreground uppercase">Category</label>
-          <select value={category} onChange={e => setCategory(e.target.value)} className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring">
-            {DOC_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          <select value={categoryId} onChange={e => setCategoryId(e.target.value)} className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring">
+            {categories.map(c => <option key={c.uuid} value={c.uuid}>{c.name}</option>)}
           </select>
         </div>
+        {isOther && (
+          <div>
+            <label className="mb-1 block text-[10px] font-medium text-muted-foreground uppercase">New Category Name</label>
+            <input value={customCatName} onChange={e => setCustomCatName(e.target.value)} placeholder="e.g. Environmental Compliance" className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
+          </div>
+        )}
         <div>
           <label className="mb-1 block text-[10px] font-medium text-muted-foreground uppercase">Expiry Date <span className="normal-case">(optional)</span></label>
           <input type="date" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
         </div>
         <div className="sm:col-span-2">
           <label className="mb-1 block text-[10px] font-medium text-muted-foreground uppercase">Description</label>
-          <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} placeholder="Brief description of this document..." className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring resize-none" />
+          <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} placeholder="Brief description..." className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring resize-none" />
         </div>
         <div className="sm:col-span-2">
           <label className="mb-1 block text-[10px] font-medium text-muted-foreground uppercase">Notes</label>
@@ -465,110 +373,132 @@ function AddDocumentForm({ onAdd, onCancel }: {
         </div>
       </div>
       <div className="flex gap-2 mt-4 pt-3 border-t">
-        <button onClick={submit} disabled={!name.trim()} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-4 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+        <button onClick={submit} disabled={saving || !title.trim() || (isOther && !customCatName.trim())} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-4 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+          {saving && <Loader2 className="h-3 w-3 animate-spin" />}
           <Plus className="h-3 w-3" /> Add Document
         </button>
-        <p className="text-[10px] text-muted-foreground self-center ml-2">You can attach a file after creating the document</p>
+        <button onClick={onCancel} className="inline-flex h-8 items-center rounded-lg border px-3 text-xs hover:bg-muted">Cancel</button>
       </div>
     </div>
   )
 }
 
-// ─── MAIN EXPORT ────────────────────────────────────────────────────────────────
+// ─── Main Export ──────────────────────────────────────────────────────────────
 
 export function BusinessDocsTab() {
-  const [docs, setDocs] = React.useState<BusinessDocument[]>(demoDocs)
+  const [rows, setRows] = React.useState<ApiCategoryDocumentRow[]>([])
+  const [categories, setCategories] = React.useState<ApiBusinessCategory[]>([])
+  const [summary, setSummary] = React.useState<{ expired: number; expiring_soon: number; awaiting_signatures: number } | null>(null)
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<string | null>(null)
+
   const [search, setSearch] = React.useState("")
-  const [filterCat, setFilterCat] = React.useState("all")
-  const [filterStatus, setFilterStatus] = React.useState<"all" | BusinessDocument["status"]>("all")
-  const [sortBy, setSortBy] = React.useState<"name" | "expiry" | "upload" | "status">("expiry")
-  const [panelDoc, setPanelDoc] = React.useState<BusinessDocument | null>(null)
+  const [filterStatus, setFilterStatus] = React.useState<string>("all")
+  const [panelDoc, setPanelDoc] = React.useState<{ doc: ApiComplianceDocument; category: string } | null>(null)
   const [showAdd, setShowAdd] = React.useState(false)
 
-  // Update status on each render based on dates
-  const docsWithStatus = docs.map(d => ({ ...d, status: computeStatus(d) }))
+  const companyUuid = getCompanyUuid() ?? ""
 
-  // KPIs
-  const totalDocs = docsWithStatus.length
-  const expiredCount = docsWithStatus.filter(d => d.status === "expired").length
-  const expiringCount = docsWithStatus.filter(d => d.status === "expiring_soon").length
-  const unsignedCount = docsWithStatus.filter(d => !d.signedBy).length
-
-  // Filter + search
-  const filtered = docsWithStatus
-    .filter(d => filterCat === "all" || d.category === filterCat)
-    .filter(d => filterStatus === "all" || d.status === filterStatus)
-    .filter(d => !search || d.name.toLowerCase().includes(search.toLowerCase()) || d.category.toLowerCase().includes(search.toLowerCase()) || d.tags.some(t => t.toLowerCase().includes(search.toLowerCase())))
-
-  // Sort
-  const sorted = [...filtered].sort((a, b) => {
-    if (sortBy === "name") return a.name.localeCompare(b.name)
-    if (sortBy === "upload") return new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime()
-    if (sortBy === "status") {
-      const order = { expired: 0, expiring_soon: 1, valid: 2, no_expiry: 3 }
-      return order[a.status] - order[b.status]
+  async function load() {
+    setLoading(true)
+    setError(null)
+    try {
+      const [docsRes, catsRes] = await Promise.all([
+        listComplianceDocs({ entity_type: "business", company_uuid: companyUuid || undefined }),
+        listBusinessCategories({ company_uuid: companyUuid || undefined }),
+      ])
+      setRows(docsRes.data as ApiCategoryDocumentRow[])
+      setSummary(docsRes.summary)
+      // for_filter=false already gives us the "Other" option at the end
+      setCategories(catsRes.data)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load documents")
+    } finally {
+      setLoading(false)
     }
-    // expiry – nulls last
-    if (!a.expiryDate && !b.expiryDate) return 0
-    if (!a.expiryDate) return 1
-    if (!b.expiryDate) return -1
-    return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime()
+  }
+
+  React.useEffect(() => { load() }, [])
+
+  // Flatten all documents from the category rows
+  const allDocs: { doc: ApiComplianceDocument; category: string }[] = rows
+    .filter(r => r.compliance != null)
+    .map(r => ({ doc: r.compliance!, category: r.category.name }))
+
+  // Filtered view
+  const filtered = allDocs.filter(({ doc, category }) => {
+    if (filterStatus !== "all" && doc.document_status !== filterStatus) return false
+    if (search) {
+      const q = search.toLowerCase()
+      if (!(doc.title ?? "").toLowerCase().includes(q) && !category.toLowerCase().includes(q)) return false
+    }
+    return true
   })
 
-  function handleAdd(doc: BusinessDocument) {
-    setDocs(prev => [doc, ...prev])
-    setShowAdd(false)
+  async function handleSign(doc: ApiComplianceDocument) {
+    await updateComplianceDoc(doc.uuid, {
+      signer1_signature: { name: "Current User", signed_at: new Date().toISOString() },
+    })
+    await load()
   }
 
-  function handleUpdate(updated: BusinessDocument) {
-    setDocs(prev => prev.map(d => d.id === updated.id ? updated : d))
-    setPanelDoc(updated)
+  async function handleDelete(doc: ApiComplianceDocument) {
+    await deleteComplianceDoc(doc.uuid)
+    await load()
   }
 
-  function handleSign(doc: BusinessDocument) {
-    const signed = {
-      ...doc,
-      signedBy: "Current User",
-      signedAt: new Date().toISOString().slice(0, 10),
-    }
-    handleUpdate(signed)
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
   }
 
-  // Unique categories from data
-  const usedCategories = [...new Set(docsWithStatus.map(d => d.category))].sort()
+  if (error) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-20 text-center">
+        <AlertTriangle className="h-10 w-10 text-red-500/50" />
+        <p className="text-sm text-muted-foreground">{error}</p>
+        <button onClick={load} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs hover:bg-muted">
+          <RefreshCw className="h-3.5 w-3.5" /> Retry
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-5">
-      {/* KPIs — same pattern as Vehicle / Driver sub-tabs */}
+      {/* KPIs */}
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="flex items-start gap-3 rounded-xl border bg-card p-4 shadow-sm">
-          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${expiredCount > 0 ? "bg-red-500" : "bg-green-500"}`}>
+          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${(summary?.expired ?? 0) > 0 ? "bg-red-500" : "bg-green-500"}`}>
             <AlertTriangle className="h-5 w-5 text-white" />
           </div>
           <div>
-            <p className="text-2xl font-bold">{expiredCount}</p>
+            <p className="text-2xl font-bold">{summary?.expired ?? 0}</p>
             <p className="text-xs text-muted-foreground">Expired / Overdue</p>
-            <p className="text-[10px] text-muted-foreground">{expiredCount > 0 ? "requires immediate action" : "all current"}</p>
+            <p className="text-[10px] text-muted-foreground">{(summary?.expired ?? 0) > 0 ? "requires immediate action" : "all current"}</p>
           </div>
         </div>
         <div className="flex items-start gap-3 rounded-xl border bg-card p-4 shadow-sm">
-          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${expiringCount > 0 ? "bg-amber-500" : "bg-green-500"}`}>
+          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${(summary?.expiring_soon ?? 0) > 0 ? "bg-amber-500" : "bg-green-500"}`}>
             <Clock className="h-5 w-5 text-white" />
           </div>
           <div>
-            <p className="text-2xl font-bold">{expiringCount}</p>
-            <p className="text-xs text-muted-foreground">Expiring ≤ 30 Days</p>
-            <p className="text-[10px] text-muted-foreground">{expiringCount > 0 ? "plan renewal" : "no upcoming renewals"}</p>
+            <p className="text-2xl font-bold">{summary?.expiring_soon ?? 0}</p>
+            <p className="text-xs text-muted-foreground">Expiring Soon</p>
+            <p className="text-[10px] text-muted-foreground">{(summary?.expiring_soon ?? 0) > 0 ? "plan renewal" : "no upcoming renewals"}</p>
           </div>
         </div>
         <div className="flex items-start gap-3 rounded-xl border bg-card p-4 shadow-sm">
-          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${unsignedCount > 0 ? "bg-indigo-500" : "bg-green-500"}`}>
+          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${(summary?.awaiting_signatures ?? 0) > 0 ? "bg-indigo-500" : "bg-green-500"}`}>
             <Fingerprint className="h-5 w-5 text-white" />
           </div>
           <div>
-            <p className="text-2xl font-bold">{unsignedCount}</p>
+            <p className="text-2xl font-bold">{summary?.awaiting_signatures ?? 0}</p>
             <p className="text-xs text-muted-foreground">Awaiting Signatures</p>
-            <p className="text-[10px] text-muted-foreground">{unsignedCount > 0 ? "not fully signed" : "all signed"}</p>
+            <p className="text-[10px] text-muted-foreground">{(summary?.awaiting_signatures ?? 0) > 0 ? "not fully signed" : "all signed"}</p>
           </div>
         </div>
       </div>
@@ -579,10 +509,6 @@ export function BusinessDocsTab() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search documents..." className="h-9 w-full rounded-lg border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
         </div>
-        <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className="h-9 rounded-lg border bg-background px-3 text-xs outline-none focus:ring-2 focus:ring-ring">
-          <option value="all">All Categories</option>
-          {usedCategories.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
         <div className="flex gap-1 rounded-lg border bg-muted/30 p-0.5">
           {(["all", "expired", "expiring_soon", "valid", "no_expiry"] as const).map(s => (
             <button key={s} onClick={() => setFilterStatus(s)}
@@ -590,57 +516,59 @@ export function BusinessDocsTab() {
             >{s === "all" ? "All" : statusLabels[s]}</button>
           ))}
         </div>
-        <button onClick={() => setShowAdd(true)} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-4 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+        <button onClick={load} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border hover:bg-muted" title="Refresh">
+          <RefreshCw className="h-3.5 w-3.5" />
+        </button>
+        <button onClick={() => setShowAdd(true)} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-4 text-xs font-medium text-primary-foreground hover:bg-primary/90">
           <Plus className="h-3.5 w-3.5" /> Add Document
         </button>
       </div>
 
       {/* Add Form */}
-      {showAdd && <AddDocumentForm onAdd={handleAdd} onCancel={() => setShowAdd(false)} />}
+      {showAdd && (
+        <AddDocumentForm
+          categories={categories}
+          companyUuid={companyUuid}
+          onAdded={() => { setShowAdd(false); load() }}
+          onCancel={() => setShowAdd(false)}
+        />
+      )}
 
-      {/* Document List */}
+      {/* Document list by category */}
       <div className="rounded-xl border bg-card shadow-sm overflow-x-auto">
         <table className="w-full min-w-[700px] text-sm">
           <thead>
             <tr className="border-b bg-muted/40 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              <th className="px-3 py-2.5 text-left">
-                <button onClick={() => setSortBy("name")} className={`hover:text-foreground ${sortBy === "name" ? "text-foreground" : ""}`}>Document {sortBy === "name" && "↓"}</button>
-              </th>
+              <th className="px-3 py-2.5 text-left">Document</th>
               <th className="px-3 py-2.5 text-left">Category</th>
-              <th className="px-3 py-2.5 text-left">
-                <button onClick={() => setSortBy("status")} className={`hover:text-foreground ${sortBy === "status" ? "text-foreground" : ""}`}>Status {sortBy === "status" && "↓"}</button>
-              </th>
-              <th className="px-3 py-2.5 text-left">
-                <button onClick={() => setSortBy("expiry")} className={`hover:text-foreground ${sortBy === "expiry" ? "text-foreground" : ""}`}>Expiry {sortBy === "expiry" && "↓"}</button>
-              </th>
-              <th className="px-3 py-2.5 text-left">
-                <button onClick={() => setSortBy("upload")} className={`hover:text-foreground ${sortBy === "upload" ? "text-foreground" : ""}`}>Uploaded {sortBy === "upload" && "↓"}</button>
-              </th>
-              <th className="px-3 py-2.5 text-left">Uploaded By</th>
+              <th className="px-3 py-2.5 text-left">Status</th>
+              <th className="px-3 py-2.5 text-left">Expiry</th>
+              <th className="px-3 py-2.5 text-left">Uploaded</th>
               <th className="px-3 py-2.5 text-center w-20">Signed</th>
             </tr>
           </thead>
           <tbody className="divide-y">
-            {sorted.map(doc => (
-              <tr key={doc.id} className="hover:bg-muted/30 transition-colors cursor-pointer group" onClick={() => setPanelDoc(doc)}>
+            {filtered.map(({ doc, category }) => (
+              <tr key={doc.uuid} className="hover:bg-muted/30 transition-colors cursor-pointer group" onClick={() => setPanelDoc({ doc, category })}>
                 <td className="px-3 py-2.5">
-                  <span className="font-medium group-hover:text-primary transition-colors">{doc.name}</span>
+                  <span className="font-medium group-hover:text-primary transition-colors">{doc.title || "Untitled"}</span>
                 </td>
-                <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{doc.category}</td>
+                <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{category}</td>
                 <td className="px-3 py-2.5">
-                  <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase whitespace-nowrap ${statusColors[doc.status]}`}>{statusLabels[doc.status]}</span>
+                  <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase whitespace-nowrap ${statusColors[doc.document_status] ?? ""}`}>
+                    {statusLabels[doc.document_status] ?? doc.document_status}
+                  </span>
                 </td>
                 <td className="px-3 py-2.5 text-xs whitespace-nowrap">
-                  {doc.expiryDate ? (
-                    <span className={doc.status === "expired" ? "text-red-600 font-medium" : doc.status === "expiring_soon" ? "text-amber-600 font-medium" : "text-muted-foreground"}>
-                      {fmtDate(doc.expiryDate)}{doc.status === "expiring_soon" && ` (${daysUntil(doc.expiryDate)}d)`}
+                  {doc.expires_at ? (
+                    <span className={doc.document_status === "expired" ? "text-red-600 font-medium" : doc.document_status === "expiring_soon" ? "text-amber-600 font-medium" : "text-muted-foreground"}>
+                      {fmtDate(doc.expires_at)}{doc.days_remaining != null && doc.document_status === "expiring_soon" ? ` (${doc.days_remaining}d)` : ""}
                     </span>
                   ) : <span className="text-muted-foreground">—</span>}
                 </td>
-                <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{fmtDate(doc.uploadDate)}</td>
-                <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{doc.uploadedBy}</td>
+                <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{fmtDate(doc.uploaded_at)}</td>
                 <td className="px-3 py-2.5 text-center">
-                  {doc.signedBy
+                  {doc.signer1_signature
                     ? <CheckCircle2 className="h-4 w-4 text-green-500 mx-auto" />
                     : <span className="text-xs text-muted-foreground">—</span>
                   }
@@ -649,13 +577,17 @@ export function BusinessDocsTab() {
             ))}
           </tbody>
         </table>
-        {sorted.length === 0 && (
+        {filtered.length === 0 && (
           <div className="flex flex-col items-center gap-3 py-16 text-center">
             <Files className="h-12 w-12 text-muted-foreground/30" />
-            <p className="text-sm text-muted-foreground">{search ? "No documents match your search" : "No business documents yet"}</p>
-            <button onClick={() => setShowAdd(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90">
-              <Plus className="h-3.5 w-3.5" /> Add First Document
-            </button>
+            <p className="text-sm text-muted-foreground">
+              {search || filterStatus !== "all" ? "No documents match your filters" : "No business documents yet"}
+            </p>
+            {!search && filterStatus === "all" && (
+              <button onClick={() => setShowAdd(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90">
+                <Plus className="h-3.5 w-3.5" /> Add First Document
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -663,10 +595,12 @@ export function BusinessDocsTab() {
       {/* Side Panel */}
       {panelDoc && (
         <DocumentPanel
-          doc={panelDoc}
+          doc={panelDoc.doc}
+          category={panelDoc.category}
           onClose={() => setPanelDoc(null)}
-          onSign={() => handleSign(panelDoc)}
-          onUpdate={handleUpdate}
+          onSign={handleSign}
+          onDelete={handleDelete}
+          onRefresh={load}
         />
       )}
     </div>
