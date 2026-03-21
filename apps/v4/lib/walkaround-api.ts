@@ -448,26 +448,31 @@ export interface ApiFleetVehicleListResponse {
   meta?: PaginationMeta
 }
 
-/** Fetch company-scoped vehicles via the walkaround vehicle-map endpoint */
+/** Fetch company-scoped vehicles via the walkaround vehicle-map endpoint.
+ *  Response: { vehicleTemplateMap: [{ vehicle, template, ... }] } — NOT { vehicles: [] } */
 export function listVehicles(params?: { limit?: number; page?: number }) {
   const qs = buildQueryString(params ?? {})
-  return ontrackFetch<{ vehicles: ApiFleetVehicle[]; meta?: PaginationMeta }>(
+  return ontrackFetch<ApiVehicleMapResponse>(
     `/walkaround-templates/vehicle-map${qs}`
   ).then(res => ({
-    vehicles: (res.vehicles ?? []).map(v => ({
-      id: (v as { id?: number }).id ?? 0,
-      uuid: v.uuid,
-      name: v.name ?? v.plate_number ?? "",
-      plate_number: v.plate_number ?? v.name ?? "",
-      make: v.make ?? "",
-      model: v.model ?? "",
-      year: v.year ?? null,
-      status: v.status ?? "",
-      photo_url: v.photo_url ?? null,
-    } as ApiFleetVehicle)),
+    vehicles: (res.vehicleTemplateMap ?? []).map(entry => {
+      const v = entry.vehicle
+      return {
+        id: 0,
+        uuid: v.uuid,
+        name: v.plate_number ?? v.name ?? "",
+        plate_number: v.plate_number ?? v.name ?? "",
+        make: "",
+        model: "",
+        year: null,
+        status: "",
+        photo_url: null,
+      } as ApiFleetVehicle
+    }),
     meta: res.meta,
   }))
 }
+
 
 
 
