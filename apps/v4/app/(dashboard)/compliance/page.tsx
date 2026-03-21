@@ -23,6 +23,17 @@ import {
   BarChart3, Flag, Wrench, GraduationCap, ScrollText, Fingerprint, ClipboardList, SlidersHorizontal,
   Loader2, X,
 } from "lucide-react"
+import {
+  listComplianceManagerCandidates,
+  getComplianceSettings,
+  saveComplianceSettings,
+  getAlertConfigurations,
+  saveAlertConfigurations,
+  sendTestNotification,
+  type ApiComplianceUser,
+  type ApiExpiryAlert,
+  type ApiEventAlert,
+} from "@/lib/compliance-settings-api"
 
 // ─── SHARED DATA ─────────────────────────────────────────────────────────────
 
@@ -3287,21 +3298,141 @@ function IntegrationsSubTab() {
 function SettingsTab() {
   const [view, setView] = React.useState<"notifications" | "alerts" | "integrations">("notifications")
 
-  // Notifications state
-  const [complianceMgr, setComplianceMgr] = React.useState("a1")
+  // ── API loading / error ──
+  const [loading, setLoading]     = React.useState(true)
+  const [apiError, setApiError]   = React.useState<string | null>(null)
+  const [saving, setSaving]       = React.useState(false)
+
+  // ── Compliance manager candidates from API ──
+  const [managers, setManagers]     = React.useState<ApiComplianceUser[]>([])
+  const [complianceMgr, setComplianceMgr] = React.useState<string>("")
+  const [escalationDays, setEscalationDays] = React.useState(7)
+
+  // ── Notification channels ──
   const [emailEnabled,  setEmailEnabled]  = React.useState(true)
   const [mobileEnabled, setMobileEnabled] = React.useState(true)
+  const [emailRecipients, setEmailRecipients] = React.useState<string[]>([])
+
+  // ── Daily digest ──
   const [digestEnabled, setDigestEnabled] = React.useState(true)
   const [digestTime,    setDigestTime]    = React.useState("08:00")
+  const [digestOps,     setDigestOps]     = React.useState(true)
 
-  // Alerts state
+  // ── Alert configs from API ──
+  const [apiExpiryAlerts, setApiExpiryAlerts] = React.useState<ApiExpiryAlert[]>([])
+  const [apiEventAlerts,  setApiEventAlerts]  = React.useState<ApiEventAlert[]>([])
+
+  // ── Alerts mapped to UI state ──
   const [expiryCats, setExpiryCats] = React.useState<AlertCatItem[]>(expiryAlertCats)
   const [eventCats,  setEventCats]  = React.useState<AlertCatItem[]>(eventAlertCats)
 
   const [testStatus, setTestStatus] = React.useState<"email"|"mobile"|null>(null)
+  const [testError, setTestError]   = React.useState<string | null>(null)
   const [saved, setSaved] = React.useState(true)
 
-  const cm = adminUsers.find(u => u.id === complianceMgr)!
+  // ── Fetch everything from API on mount ──
+  React.useEffect(() => {
+    let cancelled = false
+    async function fetchAll() {
+      setLoading(true)
+      setApiError(null)
+      try {
+        const [usersRes, settingsRes, alertsRes] = await Promise.all([
+          listComplianceManagerCandidates().catch(() => null),
+          getComplianceSettings().catch(() => null),
+          getAlertConfigurations().catch(() => null),
+        ])
+        if (cancelled) return
+
+        // --- Manager candidates ---
+        if (usersRes) {
+          setManagers(usersRes.complianceManagers)
+        }
+
+        // --- Settings ---
+        if (settingsRes) {
+          if (settingsRes.complianceSetting) {
+            setComplianceMgr(settingsRes.complianceSetting.compliance_manager_id)
+            setEscalationDays(settingsRes.complianceSetting.escalation_days)
+          }
+          for (const ch of settingsRes.notificationChannels) {
+            if (ch.channel_type === "email") {
+              setEmailEnabled(ch.is_enabled)
+              setEmailRecipients(ch.recipient_uuids)
+            }
+            if (ch.channel_type === "push") {
+              setMobileEnabled(ch.is_enabled)
+            }
+          }
+          if (settingsRes.dailyDigest) {
+            setDigestEnabled(settingsRes.dailyDigest.is_active)
+            setDigestTime(settingsRes.dailyDigest.delivery_time.slice(0, 5))
+            setDigestOps(settingsRes.dailyDigest.include_operational_events)
+          }
+        }
+
+        // --- Alert configs ---
+        if (alertsRes) {
+          setApiExpiryAlerts(alertsRes.expiryAlerts)
+          setApiEventAlerts(alertsRes.eventAlerts)
+
+          // Map API expiry alerts → UI AlertCatItem structure
+          const apiExpByType = new Map(alertsRes.expiryAlerts.map(a => [a.document_type, a]))
+          setExpiryCats(prev => prev.map(cat => ({
+            ...cat,
+            rules: cat.rules.map(rule => {
+              const api = apiExpByType.get(rule.name)
+              if (!api) return rule
+              return {
+                ...rule,
+                early:    api.early_warning_days >= 90 ? "90d" as const : api.early_warning_days >= 60 ? "60d" as const : "off" as const,
+                reminder: api.reminder_days >= 30 ? "30d" as const : api.reminder_days >= 21 ? "21d" as const : "14d" as const,
+                email:    api.email_enabled,
+                mobile:   api.mobile_enabled,
+              }
+            }),
+          })))
+
+          // Map API event alerts → UI AlertCatItem structure
+          const apiEvtByType = new Map(alertsRes.eventAlerts.map(a => [a.event_type, a]))
+          setEventCats(prev => prev.map(cat => ({
+            ...cat,
+            rules: cat.rules.map(rule => {
+              const api = apiEvtByType.get(rule.name)
+              if (!api) return rule
+              return {
+                ...rule,
+                email:  api.email_enabled,
+                mobile: api.mobile_enabled,
+              }
+            }),
+          })))
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setApiError(err instanceof Error ? err.message : "Failed to load settings")
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    fetchAll()
+    return () => { cancelled = true }
+  }, [])
+
+  const cm = managers.find(u => u.uuid === complianceMgr)
+
+  // ── Helpers to convert UI days string → number ──
+  function earlyDays(v: string): number {
+    if (v === "90d") return 90
+    if (v === "60d") return 60
+    return 0
+  }
+  function reminderDays(v: string): number {
+    if (v === "30d") return 30
+    if (v === "21d") return 21
+    return 14
+  }
 
   function patchExpiry(catId: string, ruleId: string, patch: Partial<AlertRule>) {
     setExpiryCats(prev => prev.map(c => c.id !== catId ? c : { ...c, rules: c.rules.map(r => r.id !== ruleId ? r : { ...r, ...patch }) }))
@@ -3311,7 +3442,110 @@ function SettingsTab() {
     setEventCats(prev => prev.map(c => c.id !== catId ? c : { ...c, rules: c.rules.map(r => r.id !== ruleId ? r : { ...r, ...patch }) }))
     setSaved(false)
   }
-  function sendTest(ch: "email"|"mobile") { setTestStatus(ch); setTimeout(() => setTestStatus(null), 2500) }
+
+  // ── Save all settings to API ──
+  async function handleSave() {
+    setSaving(true)
+    setApiError(null)
+    try {
+      // Save settings (manager, channels, digest)
+      await saveComplianceSettings({
+        compliance_manager_id: complianceMgr || undefined,
+        escalation_days: escalationDays,
+        notification_channels: [
+          { channel_type: "email", is_enabled: emailEnabled, recipient_uuids: emailRecipients },
+          { channel_type: "push",  is_enabled: mobileEnabled, recipient_uuids: [] },
+        ],
+        daily_digest: {
+          is_active: digestEnabled,
+          delivery_time: `${digestTime}:00`,
+          include_operational_events: digestOps,
+        },
+      })
+
+      // Save alert configs
+      const allExpiryRules = expiryCats.flatMap(cat =>
+        cat.rules.map(rule => ({
+          document_category: cat.label.toLowerCase().includes("vehicle") ? "vehicle" : cat.label.toLowerCase().includes("driver") ? "driver" : cat.label,
+          document_type: rule.name,
+          early_warning_days: earlyDays(rule.early ?? "90d"),
+          reminder_days: reminderDays(rule.reminder ?? "30d"),
+          seven_day_enabled: 1 as number,
+          email_enabled: rule.email ? 1 as number : 0 as number,
+          mobile_enabled: rule.mobile ? 1 as number : 0 as number,
+        }))
+      )
+      const allEventRules = eventCats.flatMap(cat =>
+        cat.rules.map(rule => ({
+          event_category: cat.label,
+          event_type: rule.name,
+          when_type: "Instant",
+          email_enabled: rule.email ? 1 as number : 0 as number,
+          mobile_enabled: rule.mobile ? 1 as number : 0 as number,
+        }))
+      )
+
+      await saveAlertConfigurations({
+        expiry_alerts: allExpiryRules,
+        event_alerts: allEventRules,
+      })
+
+      setSaved(true)
+    } catch (err: unknown) {
+      setApiError(err instanceof Error ? err.message : "Failed to save settings")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ── Test notification via API ──
+  async function sendTest(ch: "email" | "mobile") {
+    setTestError(null)
+    try {
+      if (ch === "email") {
+        const emails = managers.map(u => u.email).filter(Boolean)
+        if (emails.length === 0) { setTestError("No email addresses available"); return }
+        await sendTestNotification({ channel: "email", email: emails })
+      } else {
+        const phones = managers.map(u => u.phone).filter((p): p is string => !!p)
+        if (phones.length === 0) { setTestError("No phone numbers available"); return }
+        await sendTestNotification({ channel: "push", phone: phones })
+      }
+      setTestStatus(ch)
+      setTimeout(() => setTestStatus(null), 3000)
+    } catch (err: unknown) {
+      setTestError(err instanceof Error ? err.message : "Test notification failed")
+    }
+  }
+
+  // ── Reset alerts to API-fetched values ──
+  function handleReset() {
+    const apiExpByType = new Map(apiExpiryAlerts.map(a => [a.document_type, a]))
+    setExpiryCats(expiryAlertCats.map(cat => ({
+      ...cat,
+      rules: cat.rules.map(rule => {
+        const api = apiExpByType.get(rule.name)
+        if (!api) return rule
+        return {
+          ...rule,
+          early:    api.early_warning_days >= 90 ? "90d" as const : api.early_warning_days >= 60 ? "60d" as const : "off" as const,
+          reminder: api.reminder_days >= 30 ? "30d" as const : api.reminder_days >= 21 ? "21d" as const : "14d" as const,
+          email:    api.email_enabled,
+          mobile:   api.mobile_enabled,
+        }
+      }),
+    })))
+    const apiEvtByType = new Map(apiEventAlerts.map(a => [a.event_type, a]))
+    setEventCats(eventAlertCats.map(cat => ({
+      ...cat,
+      rules: cat.rules.map(rule => {
+        const api = apiEvtByType.get(rule.name)
+        if (!api) return rule
+        return { ...rule, email: api.email_enabled, mobile: api.mobile_enabled }
+      }),
+    })))
+    setSaved(true)
+  }
 
   const VIEWS = [
     { id:"notifications" as const, label:"Settings", icon:Bell       },
@@ -3321,6 +3555,22 @@ function SettingsTab() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* API status banners */}
+      {apiError && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20 px-4 py-2.5 text-xs text-amber-800 dark:text-amber-300">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span className="flex-1">API: {apiError}</span>
+          <button onClick={() => setApiError(null)} className="text-amber-600 hover:text-amber-800"><X className="h-3.5 w-3.5" /></button>
+        </div>
+      )}
+      {testError && (
+        <div className="flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/20 px-4 py-2.5 text-xs text-red-800 dark:text-red-300">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span className="flex-1">{testError}</span>
+          <button onClick={() => setTestError(null)} className="text-red-600 hover:text-red-800"><X className="h-3.5 w-3.5" /></button>
+        </div>
+      )}
+
       {/* Sub-tab switcher */}
       <div className="flex gap-1 rounded-xl border bg-muted/30 p-1 w-fit">
         {VIEWS.map(v => (
@@ -3330,6 +3580,7 @@ function SettingsTab() {
             <v.icon className="h-3.5 w-3.5" />{v.label}
           </button>
         ))}
+        {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground self-center ml-2" />}
       </div>
 
       {/* ── Notifications sub-tab ── */}
@@ -3342,19 +3593,25 @@ function SettingsTab() {
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Compliance Manager</p>
             </div>
             <p className="text-[11px] text-muted-foreground leading-relaxed">
-              First to receive non-urgent alerts. Escalates automatically to <strong>all admins</strong> at 7 days or for operational events.
+              First to receive non-urgent alerts. Escalates automatically to <strong>all admins</strong> at {escalationDays} days or for operational events.
             </p>
             <select value={complianceMgr} onChange={e => { setComplianceMgr(e.target.value); setSaved(false) }}
               className="h-9 rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring">
-              {adminUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              <option value="">— Select —</option>
+              {managers.map(u => <option key={u.uuid} value={u.uuid}>{u.name}</option>)}
             </select>
-            <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2 text-[11px]">
-              <div className={`h-6 w-6 shrink-0 flex items-center justify-center rounded-full ${cm.color} text-[9px] font-bold text-white`}>{cm.initials}</div>
-              <div className="min-w-0">
-                <p className="font-semibold text-xs truncate">{cm.name}</p>
-                <p className="text-muted-foreground truncate">{cm.email}</p>
+            {cm && (
+              <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2 text-[11px]">
+                <div className="h-6 w-6 shrink-0 flex items-center justify-center rounded-full bg-indigo-500 text-[9px] font-bold text-white">{cm.name.split(" ").map(n => n[0]).join("")}</div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-xs truncate">{cm.name}</p>
+                  <p className="text-muted-foreground truncate">{cm.email}</p>
+                </div>
               </div>
-            </div>
+            )}
+            {managers.length === 0 && !loading && (
+              <p className="text-[10px] text-muted-foreground italic">No manager candidates found from API</p>
+            )}
           </div>
 
           {/* Channels */}
@@ -3364,7 +3621,7 @@ function SettingsTab() {
               <Toggle on={emailEnabled} onToggle={() => { setEmailEnabled(v => !v); setSaved(false) }} />
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium">Email</p>
-                <p className="text-[10px] text-muted-foreground truncate">{adminUsers.map(u => u.email).join(" · ")}</p>
+                <p className="text-[10px] text-muted-foreground truncate">{managers.map(u => u.email).join(" · ") || "—"}</p>
               </div>
               <button onClick={() => sendTest("email")}
                 className={`shrink-0 inline-flex h-6 items-center rounded-lg border px-2 text-[10px] transition-colors ${testStatus==="email" ? "border-green-400 bg-green-50 text-green-700" : "hover:bg-muted text-muted-foreground"}`}
@@ -3374,7 +3631,7 @@ function SettingsTab() {
               <Toggle on={mobileEnabled} onToggle={() => { setMobileEnabled(v => !v); setSaved(false) }} />
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium">Mobile Notification</p>
-                <p className="text-[10px] text-muted-foreground">{adminUsers.map(u => u.mobile).join(" · ")}</p>
+                <p className="text-[10px] text-muted-foreground">{managers.map(u => u.phone).filter(Boolean).join(" · ") || "—"}</p>
               </div>
               <button onClick={() => sendTest("mobile")}
                 className={`shrink-0 inline-flex h-6 items-center rounded-lg border px-2 text-[10px] transition-colors ${testStatus==="mobile" ? "border-green-400 bg-green-50 text-green-700" : "hover:bg-muted text-muted-foreground"}`}
@@ -3503,12 +3760,12 @@ function SettingsTab() {
           }
           <div className="ml-auto flex items-center gap-2">
             {!saved && (
-              <button onClick={() => { setExpiryCats(expiryAlertCats); setEventCats(eventAlertCats); setSaved(true) }}
-                className="inline-flex h-8 items-center rounded-lg border px-3 text-xs text-muted-foreground hover:bg-muted">Reset defaults</button>
+              <button onClick={handleReset}
+                className="inline-flex h-8 items-center rounded-lg border px-3 text-xs text-muted-foreground hover:bg-muted">Reset</button>
             )}
-            <button onClick={() => setSaved(true)}
-              className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-4 text-xs font-medium transition-colors ${saved ? "border hover:bg-muted text-muted-foreground" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
-              {saved ? "Saved ✓" : "Save Changes"}
+            <button onClick={handleSave} disabled={saving}
+              className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-4 text-xs font-medium transition-colors ${saved ? "border hover:bg-muted text-muted-foreground" : "bg-primary text-primary-foreground hover:bg-primary/90"} disabled:opacity-50`}>
+              {saving ? <><Loader2 className="h-3 w-3 animate-spin" /> Saving…</> : saved ? "Saved ✓" : "Save Changes"}
             </button>
           </div>
         </div>
