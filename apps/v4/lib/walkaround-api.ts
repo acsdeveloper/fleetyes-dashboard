@@ -637,10 +637,10 @@ export function apiCheckToUISummary(api: ApiCheck): UICheckSummary {
   return {
     id: api.id,
     uuid: api.uuid,
-    reg: api.vehicle.plate_number,
-    vehicleName: api.vehicle.name,
-    driverId: api.driver.uuid,
-    driverName: api.driver.name,
+    reg: api.vehicle?.plate_number ?? "",
+    vehicleName: api.vehicle?.name ?? "",
+    driverId: api.driver?.uuid ?? "",
+    driverName: api.driver?.name ?? "Unknown Driver",
     date: checkedAt.toISOString().slice(0, 10),
     time: checkedAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
     elapsedSeconds: api.duration_in_seconds,
@@ -655,6 +655,7 @@ export function apiCheckToUISummary(api: ApiCheck): UICheckSummary {
     reportPdfUrl: api.report_pdf_url,
   }
 }
+
 
 export function apiCheckToUIDetail(api: ApiCheck): UICheckDetail {
   const summary = apiCheckToUISummary(api)
