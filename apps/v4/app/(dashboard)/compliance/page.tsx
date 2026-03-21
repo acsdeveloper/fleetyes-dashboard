@@ -9,11 +9,15 @@ import type { WalkaroundTemplate } from "./walkaround-templates-tab"
 import {
   listChecks as apiListChecks,
   getCheck as apiGetCheck,
+  listDrivers as apiListDrivers,
+  listVehicles as apiListVehicles,
   apiCheckToUISummary,
   apiCheckToUIDetail,
   type UICheckSummary,
   type UICheckDetail,
   type ApiCheckSummary,
+  type ApiDriver,
+  type ApiFleetVehicle,
 } from "@/lib/walkaround-api"
 import {
   CheckCircle2, XCircle, AlertTriangle, Camera, PenLine, Clock,
@@ -401,7 +405,16 @@ const recentChecks = [
 ]
 
 function WalkaroundForm({ onBack, templates }: { onBack: () => void; templates: WalkaroundTemplate[] }) {
-  const [veh, setVeh]         = React.useState(vehicles[0].reg)
+  // API-backed drivers and vehicles
+  const [apiDrivers, setApiDrivers] = React.useState<ApiDriver[]>([])
+  const [apiVehicles, setApiVehicles] = React.useState<ApiFleetVehicle[]>([])
+  const [driversLoading, setDriversLoading] = React.useState(true)
+  const [vehiclesLoading, setVehiclesLoading] = React.useState(true)
+
+  // Selected IDs (UUIDs for submission)
+  const [selectedVehicleUuid, setSelectedVehicleUuid] = React.useState<string>("")
+  const [selectedDriverUuid, setSelectedDriverUuid] = React.useState<string>("")
+
   const [answers, setAnswers] = React.useState<Record<string, string>>({})
   const [photos, setPhotos]   = React.useState<Record<string, boolean>>({})  // itemId → captured
   const [signed, setSigned]   = React.useState(false)
@@ -412,10 +425,37 @@ function WalkaroundForm({ onBack, templates }: { onBack: () => void; templates: 
   const photoPrompt = photoPrompts[Math.floor(Math.random() * photoPrompts.length)]
   const now = new Date()
 
-  const activeTemplate = resolveTemplate(veh, templates)
+  // Fetch drivers from API
+  React.useEffect(() => {
+    let cancelled = false
+    apiListDrivers({ limit: 100 }).then(res => {
+      if (!cancelled) {
+        setApiDrivers(res.drivers)
+        if (res.drivers.length > 0) setSelectedDriverUuid(res.drivers[0].uuid)
+      }
+    }).catch(() => {}).finally(() => { if (!cancelled) setDriversLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  // Fetch vehicles from API
+  React.useEffect(() => {
+    let cancelled = false
+    apiListVehicles({ limit: 100 }).then(res => {
+      if (!cancelled) {
+        setApiVehicles(res.vehicles)
+        if (res.vehicles.length > 0) setSelectedVehicleUuid(res.vehicles[0].uuid)
+      }
+    }).catch(() => {}).finally(() => { if (!cancelled) setVehiclesLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  const selectedVehicle = apiVehicles.find(v => v.uuid === selectedVehicleUuid)
+  const vehDisplayName = selectedVehicle ? `${selectedVehicle.plate_number || selectedVehicle.name}` : ""
+
+  const activeTemplate = resolveTemplate(vehDisplayName, templates)
   const activeSections = activeTemplate?.sections ?? []
 
-  React.useEffect(() => { setAnswers({}); setPhotos({}) }, [veh])
+  React.useEffect(() => { setAnswers({}); setPhotos({}) }, [selectedVehicleUuid])
   React.useEffect(() => {
     const t = setInterval(() => setElapsed(Math.round((Date.now() - startTime) / 1000)), 1000)
     return () => clearInterval(t)
@@ -453,7 +493,7 @@ function WalkaroundForm({ onBack, templates }: { onBack: () => void; templates: 
     <div className="flex flex-col items-center gap-4 py-20 text-center">
       <CheckCircle2 className="h-16 w-16 text-green-500" />
       <h2 className="text-2xl font-bold">Walkaround Submitted</h2>
-      <p className="text-muted-foreground">Vehicle <strong>{veh}</strong> · {now.toLocaleDateString("en-GB")} {now.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})}</p>
+      <p className="text-muted-foreground">Vehicle <strong>{vehDisplayName}</strong> · {now.toLocaleDateString("en-GB")} {now.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})}</p>
       {defects.length > 0
         ? <p className="rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700">⚠ {defects.length} defect{defects.length>1?"s":""} reported — Workshop alert sent · VOR flag raised</p>
         : <p className="rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm text-green-700">✓ Nil defect declaration — Vehicle cleared for use</p>
@@ -475,14 +515,34 @@ function WalkaroundForm({ onBack, templates }: { onBack: () => void; templates: 
       <div className="grid gap-4 sm:grid-cols-3 rounded-xl border bg-card p-5 shadow-sm">
         <div>
           <label className="mb-1 block text-xs font-medium text-muted-foreground">Vehicle</label>
-          <select value={veh} onChange={e => setVeh(e.target.value)} className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring">
-            {vehicles.map(v => <option key={v.reg} value={v.reg}>{v.reg} – {v.make}</option>)}
+          <select
+            value={selectedVehicleUuid}
+            onChange={e => setSelectedVehicleUuid(e.target.value)}
+            disabled={vehiclesLoading}
+            className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+          >
+            {vehiclesLoading && <option value="">Loading vehicles…</option>}
+            {!vehiclesLoading && apiVehicles.length === 0 && <option value="">No vehicles found</option>}
+            {apiVehicles.map(v => (
+              <option key={v.uuid} value={v.uuid}>
+                {v.plate_number || v.name} – {v.make} {v.model}
+              </option>
+            ))}
           </select>
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-muted-foreground">Driver</label>
-          <select className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring">
-            {drivers.map(d => <option key={d.id}>{d.name}</option>)}
+          <select
+            value={selectedDriverUuid}
+            onChange={e => setSelectedDriverUuid(e.target.value)}
+            disabled={driversLoading}
+            className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+          >
+            {driversLoading && <option value="">Loading drivers…</option>}
+            {!driversLoading && apiDrivers.length === 0 && <option value="">No drivers found</option>}
+            {apiDrivers.map(d => (
+              <option key={d.uuid} value={d.uuid}>{d.name}</option>
+            ))}
           </select>
         </div>
         <div>
@@ -882,7 +942,7 @@ function WalkaroundTab({
       setChecksLoading(true)
       setChecksError(null)
       try {
-        const res = await apiListChecks({ limit: 50 })
+        const res = await apiListChecks({ limit: 200 })
         if (!cancelled) {
           setChecks(res.walkaroundChecks.map(apiCheckToUISummary))
           setSummary(res.summary)

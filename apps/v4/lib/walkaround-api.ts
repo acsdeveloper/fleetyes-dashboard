@@ -393,6 +393,56 @@ export function deleteCheck(id: string) {
   })
 }
 
+// ─── Drivers ─────────────────────────────────────────────────────────────────
+
+export interface ApiDriver {
+  id: number
+  uuid: string
+  name: string
+  email: string
+  phone: string | null
+  photo_url: string | null
+  avatar_url: string | null
+  status: string
+  internal_id: string | null
+  vehicle_name: string | null
+}
+
+export interface ApiDriverListResponse {
+  drivers: ApiDriver[]
+  meta?: PaginationMeta
+}
+
+export function listDrivers(params?: { limit?: number; page?: number }) {
+  const qs = buildQueryString(params ?? {})
+  return ontrackFetch<ApiDriverListResponse>(`/drivers${qs}`)
+}
+
+// ─── Vehicles ─────────────────────────────────────────────────────────────────
+
+export interface ApiFleetVehicle {
+  id: number
+  uuid: string
+  name: string
+  plate_number: string
+  make: string
+  model: string
+  year: string | null
+  status: string
+  photo_url: string | null
+}
+
+export interface ApiFleetVehicleListResponse {
+  vehicles: ApiFleetVehicle[]
+  meta?: PaginationMeta
+}
+
+export function listVehicles(params?: { limit?: number; page?: number }) {
+  const qs = buildQueryString(params ?? {})
+  return ontrackFetch<ApiFleetVehicleListResponse>(`/vehicles${qs}`)
+}
+
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // TRANSFORMERS — API ↔ UI shape mapping
 // ═══════════════════════════════════════════════════════════════════════════════
