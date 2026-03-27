@@ -131,3 +131,90 @@
     text-rendering: optimizeLegibility;
   }
 }
+
+/* ─── AG Grid: Inventory-demo style overrides ───────────────────────────────
+   These complement the JS themeQuartz.withParams() settings and handle
+   structural / animation properties that withParams cannot reach.           */
+
+/* Remove outer border entirely */
+.ag-root-wrapper {
+  border: none !important;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Rounded header pill like inventory demo */
+.ag-header {
+  border-radius: 8px !important;
+  border: 1px solid var(--border) !important;
+  margin-bottom: 4px;
+}
+
+/* No per-row bottom border — clean open look */
+.ag-row {
+  border-bottom: none !important;
+}
+
+/* Rounded row corners */
+.ag-row:not(.ag-row-level-1) {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Smooth row hover via pseudo-element (matches inventory demo transition) */
+.ag-row:not(.ag-row-level-1)::before {
+  content: "";
+  display: block;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition: background-color 0.2s ease;
+}
+
+/* Cells: flex-align vertically */
+.ag-cell {
+  display: flex !important;
+  align-items: center;
+}
+
+/* First/last cell rounding */
+.ag-cell:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+.ag-cell:last-child  { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+
+/* Floating filter inputs — match app input style */
+.ag-floating-filter-input input,
+.ag-input-field-input {
+  font-family: var(--font-sans, 'Montserrat', system-ui, sans-serif) !important;
+  font-size: 12px !important;
+  border-radius: 6px !important;
+}
+
+/* Pagination bar compact */
+.ag-paging-panel {
+  height: 40px;
+  font-size: 12px;
+  font-family: var(--font-sans, 'Montserrat', system-ui, sans-serif) !important;
+}
+
+/* Add subtle padding at top of body */
+.ag-body-viewport {
+  padding-top: 4px;
+}
+
+/* Header text */
+.ag-header-cell-text {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-family: var(--font-sans, 'Montserrat', system-ui, sans-serif) !important;
+}
+
+/* Column menu icon subtle */
+.ag-header-cell-menu-button {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.ag-header-cell:hover .ag-header-cell-menu-button {
+  opacity: 0.6;
+}

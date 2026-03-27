@@ -24,11 +24,60 @@ import { AgGridReact } from "ag-grid-react"
 import {
   type ColDef, type ICellRendererParams,
   ModuleRegistry, AllCommunityModule,
+  themeQuartz,
 } from "ag-grid-community"
-import "ag-grid-community/styles/ag-grid.css"
-import "ag-grid-community/styles/ag-theme-quartz.css"
 
 ModuleRegistry.registerModules([AllCommunityModule])
+
+// ─── AG Grid themes (light + dark) ────────────────────────────────────────────
+// Use the JS Theming API so font, colors, and spacing are all in one place
+// and automatically co-ordinate with the app's Montserrat / design tokens.
+
+const baseParams = {
+  fontFamily: "var(--font-sans, 'Montserrat', 'Inter', system-ui, sans-serif)",
+  fontSize: 13,
+  rowHeight: 44,
+  headerHeight: 40,
+  // Match app background / card tokens
+  backgroundColor: "var(--background, #ffffff)",
+  foregroundColor: "var(--foreground, #1a1a1a)",
+  headerBackgroundColor: "var(--muted, #f5f5f5)",
+  headerTextColor: "var(--muted-foreground, #666666)",
+  borderColor: "var(--border, #e5e7eb)",
+  rowBorder: false,          // no bottom cell borders — clean like inventory demo
+  sideBySideBorders: false,
+  wrapperBorder: false,      // remove grid outer border
+  headerRowBorder: false,
+  columnBorder: false,
+  cellHorizontalPaddingScale: 1.1,
+  rowVerticalPaddingScale: 1,
+  // Selection
+  selectedRowBackgroundColor: "var(--accent, #f0f0f0)",
+  // Spacing
+  gridSize: 5,
+}
+
+const lightTheme = themeQuartz.withParams({
+  ...baseParams,
+  backgroundColor: "#ffffff",
+  foregroundColor: "#1f2933",
+  headerBackgroundColor: "#f9fafb",
+  headerTextColor: "#39485d",
+  borderColor: "#eff0f1",
+  rowHoverColor: "#f5f7fb",
+  selectedRowBackgroundColor: "#edf2ff",
+})
+
+const darkTheme = themeQuartz.withParams({
+  ...baseParams,
+  backgroundColor: "#141414",
+  foregroundColor: "#e5e5e5",
+  headerBackgroundColor: "#1e2531",
+  headerTextColor: "#c9d0da",
+  borderColor: "#2a2a2a",
+  rowHoverColor: "#1f2937",
+  selectedRowBackgroundColor: "#1e3a5f",
+})
 
 // ─── Status Config ────────────────────────────────────────────────────────────
 
@@ -1318,10 +1367,17 @@ export default function TripsPage() {
     gridRef.current?.api?.setGridOption("quickFilterText", search)
   }, [search])
 
-  // Detect dark mode for AG Grid theme
-  const isDark = React.useMemo(() => {
-    if (typeof window === "undefined") return false
-    return document.documentElement.classList.contains("dark")
+  // Detect dark mode reactively for AG Grid theme selection
+  const [isDark, setIsDark] = React.useState(() =>
+    typeof window !== "undefined" && document.documentElement.classList.contains("dark")
+  )
+  React.useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)")
+    const observer = new MutationObserver(() =>
+      setIsDark(document.documentElement.classList.contains("dark"))
+    )
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
+    return () => observer.disconnect()
   }, [])
 
   return (
@@ -1427,24 +1483,20 @@ export default function TripsPage() {
           <span className="ml-2 text-sm text-muted-foreground">Loading trips…</span>
         </div>
       ) : (
-        <div
-          className={isDark ? "ag-theme-quartz-dark" : "ag-theme-quartz"}
-          style={{ height: "calc(100vh - 280px)", width: "100%", minHeight: 400 }}
-        >
+        <div style={{ height: "calc(100vh - 280px)", width: "100%", minHeight: 400 }}>
           <AgGridReact<Order>
             ref={gridRef}
             rowData={orders}
             columnDefs={colDefs}
             defaultColDef={defaultColDef}
             context={gridContext}
+            theme={isDark ? darkTheme : lightTheme}
             pagination
             paginationPageSize={20}
             paginationPageSizeSelector={[20, 50, 100]}
             rowSelection="multiple"
             suppressRowClickSelection
             animateRows
-            rowHeight={44}
-            headerHeight={40}
             floatingFiltersHeight={36}
             suppressCellFocus
             getRowId={({ data }) => data.uuid}
