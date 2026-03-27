@@ -1274,11 +1274,14 @@ export default function TripsPage() {
   // Filtered rows: exclude completed (unless toggled) and trips before last Sunday
   const filteredOrders = React.useMemo(() => {
     return orders.filter(o => {
+      // If completed toggle is off, hide completed trips
       if (!showCompleted && o.status === "completed") return false
-      if (o.scheduled_at && new Date(o.scheduled_at) < lastSunday) return false
+      // For non-completed trips on Current tab, apply date filter
+      // Completed trips skip date filter when toggle is on
+      if (tab === "current" && o.status !== "completed" && o.scheduled_at && new Date(o.scheduled_at) < lastSunday) return false
       return true
     })
-  }, [orders, showCompleted, lastSunday])
+  }, [orders, showCompleted, lastSunday, tab])
 
   // Column definitions
   const colDefs = React.useMemo<ColDef<Order>[]>(() => [
@@ -1382,7 +1385,7 @@ export default function TripsPage() {
     sortable: true,
     resizable: true,
     suppressHeaderMenuButton: !showFilters,
-    floatingFilter: showFilters,
+    floatingFilter: false,
   }), [showFilters])
 
   // Quick search
