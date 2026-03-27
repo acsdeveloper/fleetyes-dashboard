@@ -7,6 +7,7 @@ import { ChevronDown, PanelLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useLang } from "@/components/lang-context"
+import { useNavVisibility } from "@/components/nav-visibility-context"
 
 // ─── Colorful SVG icon set ────────────────────────────────────────────────────
 // Each icon uses explicit fill/stroke with a vibrant color palette
@@ -188,6 +189,7 @@ type NavLeaf = {
   href: string
   icon: React.FC
   iconColor: string
+  hidden?: true   // hidden from nav unless showHidden is on
 }
 
 type NavGroup = {
@@ -225,6 +227,8 @@ const NAV: NavEntry[] = [
     groupIcon: IconTrips,
     items: [
       { label: "Trips",               href: "/trips",       icon: IconTrips,      iconColor: "#6366f1" },
+      { label: "Import Hub",          href: "/import-hub",  icon: IconImportHub,  iconColor: "#8b5cf6", hidden: true },
+      { label: "Calendar",            href: "/calendar",    icon: IconCalendar,   iconColor: "#3b82f6", hidden: true },
       { label: "Places",              href: "/places",      icon: IconPlaces,     iconColor: "#10b981" },
       { label: "Drivers",             href: "/drivers",     icon: IconDrivers,    iconColor: "#0ea5e9" },
       { label: "Allocation Settings", href: "/settings",    icon: IconSettings,   iconColor: "#6b7280" },
@@ -269,6 +273,7 @@ export function AppSidebar() {
   const pathname   = usePathname()
   const isMobile   = useIsMobile()
   const { t }      = useLang()
+  const { showHidden } = useNavVisibility()
   const [collapsed, setCollapsed]     = React.useState(false)
   const [mobileOpen, setMobileOpen]   = React.useState(false)
 
@@ -409,7 +414,9 @@ export function AppSidebar() {
                 {/* Sub-items */}
                 {(isOpen || sidebarCollapsed) && (
                   <div className={cn("flex flex-col gap-0.5", !sidebarCollapsed && "pl-2 mt-0.5")}>
-                    {group.items.map(item => {
+                    {group.items
+                      .filter(item => !item.hidden || showHidden)
+                      .map(item => {
                       const active = isActive(item.href)
                       const Icon = item.icon
                       return (
@@ -419,7 +426,9 @@ export function AppSidebar() {
                           title={sidebarCollapsed ? item.label : undefined}
                           className={cn(
                             "group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition-all",
-                            active
+                            item.hidden
+                              ? "border border-dashed border-amber-300/60 text-amber-600/70 dark:text-amber-500/60 hover:bg-amber-50/50 dark:hover:bg-amber-950/20"
+                              : active
                               ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-sm"
                               : "text-sidebar-foreground/65 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground font-normal"
                           )}
@@ -428,8 +437,11 @@ export function AppSidebar() {
                           {!sidebarCollapsed && (
                             <span className="truncate">{item.label}</span>
                           )}
-                          {active && !sidebarCollapsed && (
+                          {active && !sidebarCollapsed && !item.hidden && (
                             <span className="ml-auto h-1.5 w-1.5 rounded-full shrink-0" style={{ background: item.iconColor }} />
+                          )}
+                          {item.hidden && !sidebarCollapsed && (
+                            <span className="ml-auto rounded px-1 text-[9px] font-bold uppercase text-amber-500/70 dark:text-amber-400/60">wip</span>
                           )}
                         </Link>
                       )

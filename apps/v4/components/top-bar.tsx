@@ -2,8 +2,9 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
-import { Sun, Moon, Monitor, LogOut, User, Settings, ChevronDown } from "lucide-react"
+import { Sun, Moon, Monitor, LogOut, User, Settings, ChevronDown, Eye, EyeOff } from "lucide-react"
 import { useLang } from "@/components/lang-context"
+import { useNavVisibility } from "@/components/nav-visibility-context"
 import { cn } from "@/lib/utils"
 import { clearToken } from "@/lib/ontrack-api"
 
@@ -43,6 +44,7 @@ export function TopBar() {
   const router = useRouter()
   const { theme, setTheme } = useTheme()
   const { lang, setLang, t } = useLang()
+  const { showHidden, toggleHidden } = useNavVisibility()
   const [profileOpen, setProfileOpen] = React.useState(false)
   const profileRef = React.useRef<HTMLDivElement>(null)
 
@@ -66,6 +68,21 @@ export function TopBar() {
 
   return (
     <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-end gap-1.5 border-b bg-background/80 px-4 backdrop-blur-md">
+
+      {/* ── Hidden pages toggle ─────────────────────────────────────────── */}
+      <button
+        onClick={toggleHidden}
+        title={showHidden ? "Hide staging pages" : "Show staging pages"}
+        className={cn(
+          "flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors",
+          showHidden
+            ? "border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-700"
+            : "bg-muted/40 text-muted-foreground hover:text-foreground"
+        )}
+      >
+        {showHidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+        <span className="hidden sm:inline">Staging</span>
+      </button>
 
       {/* ── Language toggle ─────────────────────────────────────────────── */}
       <div className="flex items-center rounded-lg border bg-muted/40 p-0.5">
