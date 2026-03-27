@@ -589,52 +589,46 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
 
 const HELP_STEPS = [
   {
+    id: "summary-cards",
+    title: "Summary Cards",
+    icon: "📊",
+    target: "[data-help='summary-cards']",
+    description: "At-a-glance metrics derived from the loaded batch: total trips, how many are unassigned (amber alert), today's scheduled trips, and counts by status. Updates instantly as you change status filters.",
+  },
+  {
     id: "search",
-    title: "Search",
+    title: "Search & Filters",
     icon: "🔍",
-    description: "Type anything to instantly filter by Public ID, Internal ID, Trip Hash, Driver name, Pickup or Dropoff location. Search runs client-side — no waiting for API responses.",
-  },
-  {
-    id: "filters",
-    title: "Filters Panel",
-    icon: "⚙️",
-    description: "Click \"Filters\" to open a panel where you can narrow trips by Status, Driver, Fleet, Pickup/Dropoff name, and a Scheduled date range. Active filters show a badge count. Click \"Clear all\" to reset.",
-  },
-  {
-    id: "status-filter",
-    title: "Status Quick Filter",
-    icon: "🏷️",
-    description: "Use the Status dropdown in the toolbar to quickly jump to one status: Created, Dispatched, Started, Completed, or Cancelled. This triggers a server-side API refetch for accuracy.",
+    target: "[data-help='toolbar']",
+    description: "Type anything to instantly filter across all columns. Use the Status dropdown for a server-side refetch by status. Refresh ↺ reloads from the API. Import uploads a CSV/Excel batch. Export downloads the current view.",
   },
   {
     id: "new-trip",
     title: "New Trip",
     icon: "➕",
-    description: "Open the New Trip slide-over to create an order. Fill in the fleet, driver, vehicle (all from live dropdowns), then set pickup and dropoff by searching your saved Places. Add scheduled dates and dispatch immediately if needed.",
+    target: "[data-help='toolbar']",
+    description: "Click New Trip to open the slide-over. Choose fleet, driver and pickup/dropoff from live Places search. Set scheduled dates and save — the grid refreshes automatically.",
   },
   {
-    id: "row-actions",
-    title: "Row Actions",
-    icon: "⋯",
-    description: "Each row has a ⋯ menu. From here you can: Dispatch a trip (sends it to the driver in real-time), Assign or reassign a driver (shown with their active/inactive status), or Delete the trip after confirmation.",
+    id: "grid",
+    title: "Trips Grid",
+    icon: "📋",
+    target: "[data-help='grid']",
+    description: "AG Grid with 15 rows per page. Click any column header to sort. Drag headers to reorder columns. Resize columns by dragging the edge. Use the ☰ menu icon in each header to open column-level filters.",
   },
   {
-    id: "import",
-    title: "Bulk Import",
-    icon: "📥",
-    description: "Click Import to upload an Excel or CSV file. The wizard runs in two steps: first it geocodes and creates any missing Places, then it bulk-creates or updates all trips. Errors are shown row-by-row and a download link for failed rows is provided.",
-  },
-  {
-    id: "refresh",
-    title: "Refresh",
-    icon: "🔄",
-    description: "Manually refetch the latest trips from the API. Useful after making external changes or after an import completes. The page also auto-refreshes when you create or import new trips.",
+    id: "status",
+    title: "Status Badges",
+    icon: "🏷️",
+    target: "[data-help='grid']",
+    description: "Each trip shows a colour-coded status pill: Created (amber) → Dispatched (violet) → Started (sky) → Completed (emerald). Canceled shows in rose. Statuses are updated in real-time via the API.",
   },
   {
     id: "pagination",
     title: "Pagination",
     icon: "📄",
-    description: "The table loads 50 trips per page. Use Prev / Next at the bottom to navigate. The total count is shown above the table. Status filter and page reset automatically when you change filters.",
+    target: "[data-help='grid']",
+    description: "15 rows per page by default — use the page-size selector to switch to 30, 50 or 100. Navigate pages with the arrows. The total count shown in the top bar reflects the full API result.",
   },
 ]
 
@@ -643,65 +637,113 @@ function HelpWalkthrough({ onClose }: { onClose: () => void }) {
   const current = HELP_STEPS[step]
   const isLast = step === HELP_STEPS.length - 1
 
+  // Spotlight effect: dim body, brighten target element
+  React.useEffect(() => {
+    // Add dim class to body
+    document.body.classList.add("help-tour-active")
+
+    // Inject or update spotlight style
+    let styleEl = document.getElementById("help-spotlight-style") as HTMLStyleElement | null
+    if (!styleEl) {
+      styleEl = document.createElement("style")
+      styleEl.id = "help-spotlight-style"
+      document.head.appendChild(styleEl)
+    }
+
+    const sel = current.target
+    styleEl.textContent = `
+      body.help-tour-active > * {
+        filter: brightness(0.35);
+        transition: filter 0.3s ease;
+      }
+      body.help-tour-active #help-walkthrough-card {
+        filter: none !important;
+      }
+      body.help-tour-active ${sel} {
+        filter: brightness(1) !important;
+        position: relative;
+        z-index: 45;
+        border-radius: 12px;
+        box-shadow: 0 0 0 3px hsl(var(--primary) / 0.5), 0 0 0 6px hsl(var(--primary) / 0.15);
+        transition: box-shadow 0.3s ease, filter 0.3s ease;
+      }
+    `
+
+    // Scroll target into view
+    const el = document.querySelector(sel)
+    el?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+
+    return () => {
+      document.body.classList.remove("help-tour-active")
+      styleEl?.remove()
+    }
+  }, [current.target])
+
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-md rounded-2xl border bg-card shadow-2xl">
-          {/* Progress bar */}
-          <div className="flex gap-1 rounded-t-2xl bg-muted/40 px-5 pt-4 pb-3">
-            {HELP_STEPS.map((s, i) => (
-              <button
-                key={s.id}
-                onClick={() => setStep(i)}
-                className={`h-1.5 flex-1 rounded-full transition-all ${
-                  i === step ? "bg-primary" : i < step ? "bg-primary/40" : "bg-muted-foreground/20"
-                }`}
-                title={s.title}
-              />
-            ))}
-          </div>
+      {/* Invisible click-away to close */}
+      <div className="fixed inset-0 z-40" onClick={onClose} />
 
-          <div className="p-6">
-            <div className="mb-4 flex items-start gap-4">
-              <span className="text-4xl leading-none">{current.icon}</span>
-              <div className="flex-1">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Step {step + 1} of {HELP_STEPS.length}
-                </p>
-                <h3 className="mt-0.5 text-xl font-bold">{current.title}</h3>
-              </div>
-              <button onClick={onClose} className="rounded-lg p-1 text-muted-foreground hover:bg-muted">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <p className="text-sm leading-relaxed text-muted-foreground">{current.description}</p>
-          </div>
-
-          <div className="flex items-center justify-between border-t px-6 py-4">
+      {/* Floating card — bottom-right so it doesn't block content */}
+      <div
+        id="help-walkthrough-card"
+        className="fixed bottom-6 right-6 z-50 w-80 rounded-2xl border bg-card shadow-2xl"
+        style={{ filter: "none" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Progress dots */}
+        <div className="flex gap-1 rounded-t-2xl bg-muted/40 px-5 pt-4 pb-3">
+          {HELP_STEPS.map((s, i) => (
             <button
-              onClick={() => setStep(s => Math.max(0, s - 1))}
-              disabled={step === 0}
-              className="rounded-lg border px-4 py-2 text-sm text-muted-foreground hover:bg-muted disabled:opacity-30"
-            >
-              Back
-            </button>
-            <div className="flex gap-2">
-              <button onClick={onClose} className="rounded-lg px-3 py-2 text-xs text-muted-foreground hover:bg-muted">
-                Skip tour
-              </button>
-              {isLast ? (
-                <button onClick={onClose} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-                  Done
-                </button>
-              ) : (
-                <button onClick={() => setStep(s => s + 1)}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-                  Next <ArrowRight className="h-3.5 w-3.5" />
-                </button>
-              )}
+              key={s.id}
+              onClick={() => setStep(i)}
+              className={`h-1.5 flex-1 rounded-full transition-all ${
+                i === step ? "bg-primary" : i < step ? "bg-primary/40" : "bg-muted-foreground/20"
+              }`}
+              title={s.title}
+            />
+          ))}
+        </div>
+
+        <div className="p-5">
+          <div className="mb-3 flex items-start gap-3">
+            <span className="text-3xl leading-none">{current.icon}</span>
+            <div className="flex-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Step {step + 1} of {HELP_STEPS.length}
+              </p>
+              <h3 className="mt-0.5 text-lg font-bold">{current.title}</h3>
             </div>
+            <button onClick={onClose} className="rounded-lg p-1 text-muted-foreground hover:bg-muted">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <p className="text-sm leading-relaxed text-muted-foreground">{current.description}</p>
+        </div>
+
+        <div className="flex items-center justify-between border-t px-5 py-3">
+          <button
+            onClick={() => setStep(s => Math.max(0, s - 1))}
+            disabled={step === 0}
+            className="rounded-lg border px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted disabled:opacity-30"
+          >
+            Back
+          </button>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted">
+              Skip tour
+            </button>
+            {isLast ? (
+              <button onClick={onClose} className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+                Done
+              </button>
+            ) : (
+              <button onClick={() => setStep(s => s + 1)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+                Next <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1344,7 +1386,7 @@ export default function TripsPage() {
         ]
 
         return (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div data-help="summary-cards" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {cards.map((c) => (
               <div
                 key={c.label}
@@ -1368,7 +1410,7 @@ export default function TripsPage() {
       })()}
 
       {/* Toolbar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div data-help="toolbar" className="flex flex-col gap-3 sm:flex-row sm:items-center">
         {/* Quick search — drives AG Grid quickFilterText */}
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -1462,7 +1504,7 @@ export default function TripsPage() {
           <span className="ml-2 text-sm text-muted-foreground">Loading trips…</span>
         </div>
       ) : (
-        <div style={{ height: "calc(100vh - 280px)", width: "100%", minHeight: 400 }}>
+        <div data-help="grid" style={{ height: "calc(100vh - 280px)", width: "100%", minHeight: 400 }}>
           <AgGridReact<Order>
             ref={gridRef}
             rowData={orders}
