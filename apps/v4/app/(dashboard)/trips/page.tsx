@@ -1127,6 +1127,7 @@ export default function TripsPage() {
   const [showImport, setShowImport] = React.useState(false)
   const [showHelp, setShowHelp] = React.useState(false)
   const [showCompleted, setShowCompleted] = React.useState(false)
+  const [showFilters, setShowFilters] = React.useState(false)
   const [refreshing, setRefreshing] = React.useState(false)
 
   // Tabs
@@ -1380,9 +1381,9 @@ export default function TripsPage() {
   const defaultColDef = React.useMemo<ColDef>(() => ({
     sortable: true,
     resizable: true,
-    suppressHeaderMenuButton: false,
-    floatingFilter: false,   // hidden by default; open column menu to filter
-  }), [])
+    suppressHeaderMenuButton: !showFilters,
+    floatingFilter: showFilters,
+  }), [showFilters])
 
   // Quick search
   const gridRef = React.useRef<AgGridReact<Order>>(null)
@@ -1526,20 +1527,22 @@ export default function TripsPage() {
               </label>
             )}
 
-            {/* Status filter */}
-            <div className="relative">
-              <Filter className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as OrderStatus | "all")}
-                className="h-9 appearance-none rounded-lg border bg-background pl-9 pr-8 text-sm capitalize outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            {/* Filters toggle */}
+            <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+              <button
+                role="switch"
+                aria-checked={showFilters}
+                onClick={() => setShowFilters(v => !v)}
+                className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  showFilters ? "bg-primary" : "bg-muted-foreground/30"
+                }`}
               >
-                <option value="all">All Status</option>
-                {ALL_STATUSES.map((s) => (
-                  <option key={s} value={s} className="capitalize">{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-                ))}
-              </select>
-            </div>
+                <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-md ring-0 transition-transform duration-200 ease-in-out ${
+                  showFilters ? "translate-x-4" : "translate-x-0"
+                }`} />
+              </button>
+              <span className="text-sm text-muted-foreground whitespace-nowrap">Filters</span>
+            </label>
 
             {/* Refresh */}
             <button
