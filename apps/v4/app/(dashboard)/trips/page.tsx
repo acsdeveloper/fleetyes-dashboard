@@ -624,6 +624,9 @@ export default function TripsPage() {
   const [showNewTrip, setShowNewTrip] = React.useState(false)
   const [drivers, setDrivers] = React.useState<Driver[]>([])
   const [fleets, setFleets] = React.useState<Fleet[]>([])
+  // Keep a ref so fetchOrders can read current fleets without depending on them
+  const fleetsRef = React.useRef<Fleet[]>([])
+  React.useEffect(() => { fleetsRef.current = fleets }, [fleets])
 
   // Reset to page 1 on status filter change
   React.useEffect(() => {
@@ -652,7 +655,8 @@ export default function TripsPage() {
         sort: "-created_at",
         status: statusFilter !== "all" ? statusFilter : undefined,
       })
-      const fleetMap = new Map(fleets.map((f) => [f.uuid, f.name]))
+      // Use ref — no dependency on fleets state, no re-fetch loop
+      const fleetMap = new Map(fleetsRef.current.map((f) => [f.uuid, f.name]))
       setOrders(patchFleetNames(res.orders ?? [], fleetMap))
       setTotalPages(res.meta?.last_page ?? 1)
       setTotal(res.meta?.total ?? 0)
@@ -661,7 +665,7 @@ export default function TripsPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, statusFilter, fleets, patchFleetNames])
+  }, [page, statusFilter, patchFleetNames])
 
   React.useEffect(() => {
     fetchOrders()
