@@ -203,6 +203,12 @@
 /* Add subtle padding at top of body */
 .ag-body-viewport {
   padding-top: 4px;
+  /* Hide reserved scrollbar gutter — rows are sized to fit so no scroll needed */
+  scrollbar-width: none;       /* Firefox */
+  overflow-y: hidden !important;
+}
+.ag-body-viewport::-webkit-scrollbar {
+  display: none;               /* Chrome / Safari */
 }
 
 /* Header text */

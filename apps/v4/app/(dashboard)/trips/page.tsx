@@ -1126,7 +1126,16 @@ export default function TripsPage() {
   const [fleets, setFleets] = React.useState<Fleet[]>([])
   const [showImport, setShowImport] = React.useState(false)
   const [showHelp, setShowHelp] = React.useState(false)
+  const [showCompleted, setShowCompleted] = React.useState(false)
   const [refreshing, setRefreshing] = React.useState(false)
+
+  // Last Sunday 00:00 — used as default start-of-week date filter
+  const lastSunday = React.useMemo(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - d.getDay()) // back to Sunday
+    d.setHours(0, 0, 0, 0)
+    return d
+  }, [])
 
   // Keep a ref so fetchOrders can read current fleets without depending on them
   const fleetsRef = React.useRef<Fleet[]>([])
@@ -1237,6 +1246,15 @@ export default function TripsPage() {
     drivers,
   }), [handleDelete, handleDispatch, handleDriverAssigned, drivers])
 
+  // Filtered rows: exclude completed (unless toggled) and trips before last Sunday
+  const filteredOrders = React.useMemo(() => {
+    return orders.filter(o => {
+      if (!showCompleted && o.status === "completed") return false
+      if (o.scheduled_at && new Date(o.scheduled_at) < lastSunday) return false
+      return true
+    })
+  }, [orders, showCompleted, lastSunday])
+
   // Column definitions
   const colDefs = React.useMemo<ColDef<Order>[]>(() => [
     {
@@ -1262,6 +1280,13 @@ export default function TripsPage() {
       width: 110,
       cellClass: "font-mono text-xs",
       cellRenderer: ({ value }: ICellRendererParams) => value ?? <span className="text-muted-foreground">—</span>,
+    },
+    {
+      headerName: "Status",
+      field: "status",
+      filter: "agTextColumnFilter",
+      width: 130,
+      cellRenderer: StatusCellRenderer,
     },
     {
       headerName: "Driver",
@@ -1326,14 +1351,7 @@ export default function TripsPage() {
       width: 110,
       cellRenderer: ({ value }: ICellRendererParams) => value || <span className="text-muted-foreground">—</span>,
     },
-    {
-      headerName: "Status",
-      field: "status",
-      filter: "agTextColumnFilter",
-      width: 120,
-      cellRenderer: StatusCellRenderer,
-    },
-  ], [])
+  ], [showCompleted])
 
   const defaultColDef = React.useMemo<ColDef>(() => ({
     sortable: true,
@@ -1443,6 +1461,24 @@ export default function TripsPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Show Completed toggle */}
+          <button
+            onClick={() => setShowCompleted(v => !v)}
+            className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors ${
+              showCompleted
+                ? "bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-300"
+                : "bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
+            }`}
+          >
+            <span className={`h-2 w-2 rounded-full ${showCompleted ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
+            Completed
+          </button>
+
+          {/* Date range indicator */}
+          <span className="text-xs text-muted-foreground hidden sm:inline">
+            from {lastSunday.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+          </span>
+
           {/* Status API filter */}
           <div className="relative">
             <Filter className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -1526,7 +1562,7 @@ export default function TripsPage() {
         <div ref={gridContainerRef} data-help="grid" className="flex-1 min-h-0" style={{ height: "100%", width: "100%" }}>
           <AgGridReact<Order>
             ref={gridRef}
-            rowData={orders}
+            rowData={filteredOrders}
             columnDefs={colDefs}
             defaultColDef={defaultColDef}
             context={gridContext}
