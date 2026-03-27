@@ -1461,18 +1461,24 @@ export default function TripsPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Show Completed toggle */}
-          <button
-            onClick={() => setShowCompleted(v => !v)}
-            className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors ${
-              showCompleted
-                ? "bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-300"
-                : "bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
-            }`}
-          >
-            <span className={`h-2 w-2 rounded-full ${showCompleted ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
-            Completed
-          </button>
+          {/* Show Completed — sliding toggle */}
+          <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+            <button
+              role="switch"
+              aria-checked={showCompleted}
+              onClick={() => setShowCompleted(v => !v)}
+              className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                showCompleted ? "bg-emerald-500" : "bg-muted-foreground/30"
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-md ring-0 transition-transform duration-200 ease-in-out ${
+                  showCompleted ? "translate-x-4" : "translate-x-0"
+                }`}
+              />
+            </button>
+            <span className="text-sm text-muted-foreground">Completed</span>
+          </label>
 
           {/* Date range indicator */}
           <span className="text-xs text-muted-foreground hidden sm:inline">
