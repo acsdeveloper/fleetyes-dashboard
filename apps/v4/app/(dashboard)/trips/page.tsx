@@ -36,7 +36,7 @@ ModuleRegistry.registerModules([AllCommunityModule])
 const baseParams = {
   fontFamily: "var(--font-sans, 'Montserrat', 'Inter', system-ui, sans-serif)",
   fontSize: 13,
-  rowHeight: 46,
+  rowHeight: 42,
   headerHeight: 38,
   // Match app background / card tokens
   backgroundColor: "var(--background, #ffffff)",
@@ -1500,7 +1500,7 @@ export default function TripsPage() {
           <span className="ml-2 text-sm text-muted-foreground">Loading trips…</span>
         </div>
       ) : (
-        <div data-help="grid" style={{ height: "calc(100vh - 130px)", width: "100%", minHeight: 400 }}>
+        <div data-help="grid" style={{ height: "calc(100vh - 190px)", width: "100%", minHeight: 400 }}>
           <AgGridReact<Order>
             ref={gridRef}
             rowData={orders}
