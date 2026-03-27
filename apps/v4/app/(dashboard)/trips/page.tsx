@@ -36,8 +36,8 @@ ModuleRegistry.registerModules([AllCommunityModule])
 const baseParams = {
   fontFamily: "var(--font-sans, 'Montserrat', 'Inter', system-ui, sans-serif)",
   fontSize: 13,
-  rowHeight: 44,
-  headerHeight: 40,
+  rowHeight: 36,
+  headerHeight: 38,
   // Match app background / card tokens
   backgroundColor: "var(--background, #ffffff)",
   foregroundColor: "var(--foreground, #1a1a1a)",
@@ -82,19 +82,19 @@ const darkTheme = themeQuartz.withParams({
 // ─── Status Config ────────────────────────────────────────────────────────────
 
 const statusStyles: Record<OrderStatus, string> = {
-  created:    "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  dispatched: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
-  started:    "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  completed:  "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  canceled:   "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+  created:    "bg-amber-100 text-amber-800 ring-1 ring-amber-300 dark:bg-amber-900/40 dark:text-amber-300 dark:ring-amber-700",
+  dispatched: "bg-violet-100 text-violet-800 ring-1 ring-violet-300 dark:bg-violet-900/40 dark:text-violet-300 dark:ring-violet-700",
+  started:    "bg-sky-100 text-sky-800 ring-1 ring-sky-300 dark:bg-sky-900/40 dark:text-sky-300 dark:ring-sky-700",
+  completed:  "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-300 dark:ring-emerald-700",
+  canceled:   "bg-rose-100 text-rose-800 ring-1 ring-rose-300 dark:bg-rose-900/40 dark:text-rose-300 dark:ring-rose-700",
 }
 
 const statusDot: Record<OrderStatus, string> = {
-  created:    "bg-yellow-500",
-  dispatched: "bg-purple-500",
-  started:    "bg-blue-500",
-  completed:  "bg-green-500",
-  canceled:   "bg-red-500",
+  created:    "bg-amber-500",
+  dispatched: "bg-violet-500",
+  started:    "bg-sky-500",
+  completed:  "bg-emerald-500",
+  canceled:   "bg-rose-500",
 }
 
 const ALL_STATUSES: OrderStatus[] = ["created", "dispatched", "started", "completed", "canceled"]
@@ -1085,7 +1085,7 @@ function NewTripDrawer({
 function StatusCellRenderer({ value }: ICellRendererParams<Order, OrderStatus>) {
   if (!value) return <span className="text-muted-foreground">—</span>
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${statusStyles[value]}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-semibold capitalize tracking-wide ${statusStyles[value]}`}>
       <span className={`inline-block h-1.5 w-1.5 rounded-full ${statusDot[value]}`} />
       {value}
     </span>
