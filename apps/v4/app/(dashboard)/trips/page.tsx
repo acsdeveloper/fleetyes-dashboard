@@ -113,10 +113,12 @@ function driverInitial(name: string): string {
 
 function formatDate(iso?: string | null): string {
   if (!iso) return "—"
-  return new Date(iso).toLocaleString("en-GB", {
-    day: "2-digit", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  })
+  const d = new Date(iso)
+  const day   = d.getDate().toString().padStart(2, "0")
+  const month = d.toLocaleString("en-GB", { month: "short" })
+  const year  = d.getFullYear().toString().slice(-2)
+  const time  = d.toLocaleString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
+  return `${day} ${month} ${year} ${time}`
 }
 
 // ─── Place Search Combobox ────────────────────────────────────────────────────
@@ -1265,7 +1267,7 @@ export default function TripsPage() {
       headerName: "Public ID",
       field: "public_id",
       filter: "agTextColumnFilter",
-      minWidth: 120,
+      width: 120,
       cellRenderer: ({ value }: ICellRendererParams) => (
         <span className="font-medium text-primary">{value ?? "—"}</span>
       ),
@@ -1274,14 +1276,14 @@ export default function TripsPage() {
       headerName: "Internal ID",
       field: "internal_id",
       filter: "agTextColumnFilter",
-      minWidth: 110,
+      width: 110,
       cellRenderer: ({ value }: ICellRendererParams) => value ?? <span className="text-muted-foreground">—</span>,
     },
     {
       headerName: "Trip Hash",
       field: "trip_hash_id",
       filter: "agTextColumnFilter",
-      minWidth: 110,
+      width: 110,
       cellClass: "font-mono text-xs",
       cellRenderer: ({ value }: ICellRendererParams) => value ?? <span className="text-muted-foreground">—</span>,
     },
@@ -1291,28 +1293,31 @@ export default function TripsPage() {
       filter: "agTextColumnFilter",
       filterValueGetter: ({ data }) =>
         data?.driver_assigned?.name ?? data?.driver_name ?? "",
-      minWidth: 180,
+      flex: 1.5,
+      minWidth: 160,
       cellRenderer: DriverCellRenderer,
     },
     {
       headerName: "Pickup",
       valueGetter: ({ data }) => data?.pickup_name ?? data?.payload?.pickup?.name ?? "",
       filter: "agTextColumnFilter",
-      minWidth: 150,
+      flex: 1.2,
+      minWidth: 120,
       cellRenderer: ({ value }: ICellRendererParams) => value || <span className="text-muted-foreground">—</span>,
     },
     {
       headerName: "Dropoff",
       valueGetter: ({ data }) => data?.dropoff_name ?? data?.payload?.dropoff?.name ?? "",
       filter: "agTextColumnFilter",
-      minWidth: 150,
+      flex: 1.2,
+      minWidth: 120,
       cellRenderer: ({ value }: ICellRendererParams) => value || <span className="text-muted-foreground">—</span>,
     },
     {
       headerName: "Scheduled",
       field: "scheduled_at",
       filter: "agDateColumnFilter",
-      minWidth: 150,
+      width: 132,
       sort: "desc",
       cellRenderer: ({ value }: ICellRendererParams) => (
         <span className="text-xs text-muted-foreground">{formatDate(value)}</span>
@@ -1322,7 +1327,7 @@ export default function TripsPage() {
       headerName: "Est. End",
       field: "estimated_end_date",
       filter: "agDateColumnFilter",
-      minWidth: 150,
+      width: 132,
       cellRenderer: ({ value }: ICellRendererParams) => (
         <span className="text-xs text-muted-foreground">{formatDate(value)}</span>
       ),
@@ -1331,26 +1336,15 @@ export default function TripsPage() {
       headerName: "Fleet",
       valueGetter: ({ data }) => data ? fleetLabel(data) : "",
       filter: "agTextColumnFilter",
-      minWidth: 120,
+      width: 110,
       cellRenderer: ({ value }: ICellRendererParams) => value || <span className="text-muted-foreground">—</span>,
     },
     {
       headerName: "Status",
       field: "status",
       filter: "agTextColumnFilter",
-      minWidth: 120,
+      width: 120,
       cellRenderer: StatusCellRenderer,
-    },
-    {
-      headerName: "",
-      field: "uuid",
-      sortable: false,
-      filter: false,
-      resizable: false,
-      suppressMovable: true,
-      pinned: "right",
-      width: 52,
-      cellRenderer: ActionsCellRenderer,
     },
   ], [])
 
@@ -1358,7 +1352,7 @@ export default function TripsPage() {
     sortable: true,
     resizable: true,
     suppressHeaderMenuButton: false,
-    floatingFilter: true,
+    floatingFilter: false,   // hidden by default; open column menu to filter
   }), [])
 
   // Quick search filter applied to the grid via the external search box
@@ -1497,7 +1491,6 @@ export default function TripsPage() {
             rowSelection="multiple"
             suppressRowClickSelection
             animateRows
-            floatingFiltersHeight={36}
             suppressCellFocus
             getRowId={({ data }) => data.uuid}
           />

@@ -140,14 +140,16 @@
 .ag-root-wrapper {
   border: none !important;
   border-radius: 12px;
-  overflow: hidden;
+  /* overflow: visible so rounded header corners aren't clipped */
+  overflow: visible !important;
 }
 
-/* Rounded header pill like inventory demo */
+/* Rounded header like inventory demo — sits as a pill above rows */
 .ag-header {
   border-radius: 8px !important;
   border: 1px solid var(--border) !important;
   margin-bottom: 4px;
+  overflow: hidden;
 }
 
 /* No per-row bottom border — clean open look */
