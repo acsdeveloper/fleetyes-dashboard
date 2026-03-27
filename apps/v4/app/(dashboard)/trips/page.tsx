@@ -3,9 +3,9 @@
 import { PageHeader } from "@/components/page-header"
 import * as React from "react"
 import {
-  MoreHorizontal, Search, Filter, Download, ChevronLeft, ChevronRight,
+  MoreHorizontal, Search, Filter, Download,
   X, Loader2, AlertCircle, Send, Trash2, UserCheck, Plus, ChevronDown,
-  RefreshCw, Upload, HelpCircle, CheckCircle2, FileText, SlidersHorizontal,
+  RefreshCw, Upload, HelpCircle, CheckCircle2, FileText,
   ChevronRight as ArrowRight, XCircle,
 } from "lucide-react"
 
@@ -19,6 +19,16 @@ import { listPlaces, type Place } from "@/lib/places-api"
 import { listVehicles, type Vehicle } from "@/lib/vehicles-api"
 import { dedupBy } from "@/lib/utils"
 import { ontrackFetch } from "@/lib/ontrack-api"
+
+import { AgGridReact } from "ag-grid-react"
+import {
+  type ColDef, type ICellRendererParams,
+  ModuleRegistry, AllCommunityModule,
+} from "ag-grid-community"
+import "ag-grid-community/styles/ag-grid.css"
+import "ag-grid-community/styles/ag-theme-quartz.css"
+
+ModuleRegistry.registerModules([AllCommunityModule])
 
 // ─── Status Config ────────────────────────────────────────────────────────────
 
@@ -658,7 +668,7 @@ function HelpWalkthrough({ onClose }: { onClose: () => void }) {
   )
 }
 
-// ─── Row Actions Menu ─────────────────────────────────────────────────────────
+// ─── Row Actions Menu ──────────────────────────────────────────────────────────
 
 function RowMenu({
   order,
@@ -1019,25 +1029,61 @@ function NewTripDrawer({
   )
 }
 
-// ─── Skeleton ─────────────────────────────────────────────────────────────────
+// ─── AG Grid custom cell renderers ──────────────────────────────────────────────────────
 
-function TableSkeleton() {
+function StatusCellRenderer({ value }: ICellRendererParams<Order, OrderStatus>) {
+  if (!value) return <span className="text-muted-foreground">—</span>
   return (
-    <>
-      {Array.from({ length: 8 }).map((_, i) => (
-        <tr key={i} className="border-b">
-          {Array.from({ length: 11 }).map((_, j) => (
-            <td key={j} className="px-3 py-2.5">
-              <div className="h-4 rounded bg-muted animate-pulse" style={{ width: j === 3 ? "80px" : j === 10 ? "24px" : "60px" }} />
-            </td>
-          ))}
-        </tr>
-      ))}
-    </>
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${statusStyles[value]}`}>
+      <span className={`inline-block h-1.5 w-1.5 rounded-full ${statusDot[value]}`} />
+      {value}
+    </span>
   )
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+function DriverCellRenderer({ data }: ICellRendererParams<Order>) {
+  if (!data) return null
+  if (!data.driver_assigned) {
+    return <span className="text-muted-foreground text-xs italic">No driver</span>
+  }
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-medium uppercase">
+        {driverInitial(data.driver_assigned.name)}
+      </div>
+      <span className="truncate">{data.driver_assigned.name}</span>
+      {data.vehicle_assigned?.plate_number && (
+        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+          {data.vehicle_assigned.plate_number}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// Page component uses a stable ref to pass callbacks into AG Grid cell renderers
+type RowCallbacks = {
+  onDelete: (o: Order) => void
+  onDispatch: (o: Order) => void
+  onAssigned: (o: Order, driverUuid: string) => void
+  drivers: Driver[]
+}
+
+function ActionsCellRenderer({ data, context }: ICellRendererParams<Order> & { context: RowCallbacks }) {
+  if (!data) return null
+  const { onDelete, onDispatch, onAssigned, drivers } = context
+  return (
+    <RowMenu
+      order={data}
+      drivers={drivers}
+      onDelete={() => onDelete(data)}
+      onDispatch={() => onDispatch(data)}
+      onAssigned={(uuid) => onAssigned(data, uuid)}
+    />
+  )
+}
+
+// ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function TripsPage() {
   const [orders, setOrders] = React.useState<Order[]>([])
@@ -1048,25 +1094,21 @@ export default function TripsPage() {
   const [total, setTotal] = React.useState(0)
   const [search, setSearch] = React.useState("")
   const [statusFilter, setStatusFilter] = React.useState<OrderStatus | "all">("all")
-  const [selectedRows, setSelectedRows] = React.useState<Set<string>>(new Set())
   const [showNewTrip, setShowNewTrip] = React.useState(false)
   const [drivers, setDrivers] = React.useState<Driver[]>([])
   const [fleets, setFleets] = React.useState<Fleet[]>([])
-  const [showFilter, setShowFilter] = React.useState(false)
-  const [filters, setFilters] = React.useState<Filters>(EMPTY_FILTERS)
   const [showImport, setShowImport] = React.useState(false)
   const [showHelp, setShowHelp] = React.useState(false)
   const [refreshing, setRefreshing] = React.useState(false)
+
   // Keep a ref so fetchOrders can read current fleets without depending on them
   const fleetsRef = React.useRef<Fleet[]>([])
   React.useEffect(() => { fleetsRef.current = fleets }, [fleets])
 
   // Reset to page 1 on status filter change
-  React.useEffect(() => {
-    setPage(1)
-  }, [statusFilter])
+  React.useEffect(() => { setPage(1) }, [statusFilter])
 
-  // Resolve fleet_name from in-memory fleet map and patch orders
+  // Resolve fleet_name onto orders from in-memory fleet map
   const patchFleetNames = React.useCallback(
     (rawOrders: Order[], fleetMap: Map<string, string>) =>
       rawOrders.map((o) =>
@@ -1077,18 +1119,16 @@ export default function TripsPage() {
     []
   )
 
-  // Fetch orders — status filter and pagination only; search is client-side
   const fetchOrders = React.useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const res = await listOrders({
         page,
-        per_page: 50,
+        per_page: 200, // load a generous batch; AG Grid paginates client-side at 20
         sort: "-created_at",
         status: statusFilter !== "all" ? statusFilter : undefined,
       })
-      // Use ref — no dependency on fleets state, no re-fetch loop
       const fleetMap = new Map(fleetsRef.current.map((f) => [f.uuid, f.name]))
       setOrders(patchFleetNames(res.orders ?? [], fleetMap))
       setTotalPages(res.meta?.last_page ?? 1)
@@ -1100,53 +1140,21 @@ export default function TripsPage() {
     }
   }, [page, statusFilter, patchFleetNames])
 
-  React.useEffect(() => {
-    fetchOrders()
-  }, [fetchOrders])
+  React.useEffect(() => { fetchOrders() }, [fetchOrders])
 
-  // Fetch drivers + fleets once
   React.useEffect(() => {
     listDrivers().then((r) => setDrivers(dedupBy(r.drivers ?? [], "uuid"))).catch(() => {})
     listFleets().then((r) => setFleets(dedupBy(r.fleets ?? [], "uuid"))).catch(() => {})
   }, [])
 
-  // Re-patch fleet names whenever fleets arrive (handles load-order race)
   React.useEffect(() => {
     if (fleets.length === 0) return
     const fleetMap = new Map(fleets.map((f) => [f.uuid, f.name]))
     setOrders((prev) => patchFleetNames(prev, fleetMap))
   }, [fleets, patchFleetNames])
 
-  // Client-side search across all visible fields
-  const q = search.trim().toLowerCase()
-  const filtered = q
-    ? orders.filter(
-        (o) =>
-          (o.public_id ?? "").toLowerCase().includes(q) ||
-          (o.internal_id ?? "").toLowerCase().includes(q) ||
-          (o.trip_hash_id ?? "").toLowerCase().includes(q) ||
-          (o.driver_assigned?.name ?? o.driver_name ?? "").toLowerCase().includes(q) ||
-          (o.vehicle_assigned?.plate_number ?? "").toLowerCase().includes(q) ||
-          (o.pickup_name ?? o.payload?.pickup?.name ?? "").toLowerCase().includes(q) ||
-          (o.dropoff_name ?? o.payload?.dropoff?.name ?? "").toLowerCase().includes(q) ||
-          (o.fleet_name ?? "").toLowerCase().includes(q)
-      )
-    : orders
-
-  const allSelected = filtered.length > 0 && filtered.every((o) => selectedRows.has(o.uuid))
-  const toggleAll = () => {
-    setSelectedRows(allSelected ? new Set() : new Set(filtered.map((o) => o.uuid)))
-  }
-  const toggleRow = (id: string) => {
-    setSelectedRows((prev) => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }
-
   // Actions
-  const handleDelete = async (order: Order) => {
+  const handleDelete = React.useCallback(async (order: Order) => {
     if (!confirm(`Delete trip ${order.public_id}? This cannot be undone.`)) return
     try {
       await deleteOrder(order.uuid)
@@ -1154,9 +1162,9 @@ export default function TripsPage() {
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "Delete failed")
     }
-  }
+  }, [])
 
-  const handleDispatch = async (order: Order) => {
+  const handleDispatch = React.useCallback(async (order: Order) => {
     try {
       await dispatchOrder(order.uuid)
       setOrders((prev) =>
@@ -1169,25 +1177,24 @@ export default function TripsPage() {
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "Dispatch failed")
     }
-  }
+  }, [])
 
-  const handleDriverAssigned = async (order: Order, driverUuid: string) => {
-    const driver = drivers.find((d) => d.uuid === driverUuid)
+  const handleDriverAssigned = React.useCallback((order: Order, driverUuid: string) => {
     setOrders((prev) =>
-      prev.map((o) =>
-        o.uuid === order.uuid
-          ? {
-              ...o,
-              driver_assigned_uuid: driverUuid,
-              driver_name: driver?.name ?? o.driver_name,
-              driver_assigned: driver
-                ? { uuid: driver.uuid, public_id: driver.public_id, name: driver.name, phone: driver.phone }
-                : o.driver_assigned,
-            }
-          : o
-      )
+      prev.map((o) => {
+        if (o.uuid !== order.uuid) return o
+        const driver = drivers.find((d) => d.uuid === driverUuid)
+        return {
+          ...o,
+          driver_assigned_uuid: driverUuid,
+          driver_name: driver?.name ?? o.driver_name,
+          driver_assigned: driver
+            ? { uuid: driver.uuid, public_id: driver.public_id, name: driver.name, phone: driver.phone }
+            : o.driver_assigned,
+        }
+      })
     )
-  }
+  }, [drivers])
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -1195,29 +1202,127 @@ export default function TripsPage() {
     setRefreshing(false)
   }
 
-  // Apply column filters client-side on top of API results
-  const applyFilters = (o: Order) => {
-    if (filters.status && o.status !== filters.status) return false
-    if (filters.driver_uuid && o.driver_assigned_uuid !== filters.driver_uuid) return false
-    if (filters.fleet_uuid && o.fleet_uuid !== filters.fleet_uuid) return false
-    if (filters.pickup) {
-      const pname = (o.pickup_name ?? o.payload?.pickup?.name ?? "").toLowerCase()
-      if (!pname.includes(filters.pickup.toLowerCase())) return false
-    }
-    if (filters.dropoff) {
-      const dname = (o.dropoff_name ?? o.payload?.dropoff?.name ?? "").toLowerCase()
-      if (!dname.includes(filters.dropoff.toLowerCase())) return false
-    }
-    if (filters.date_from && o.scheduled_at) {
-      if (new Date(o.scheduled_at) < new Date(filters.date_from)) return false
-    }
-    if (filters.date_to && o.scheduled_at) {
-      if (new Date(o.scheduled_at) > new Date(filters.date_to + "T23:59:59")) return false
-    }
-    return true
-  }
+  // Stable context object passed down into AG Grid cell renderers
+  const gridContext = React.useMemo<RowCallbacks>(() => ({
+    onDelete: handleDelete,
+    onDispatch: handleDispatch,
+    onAssigned: handleDriverAssigned,
+    drivers,
+  }), [handleDelete, handleDispatch, handleDriverAssigned, drivers])
 
-  const activeFilterCount = Object.values(filters).filter(Boolean).length
+  // Column definitions
+  const colDefs = React.useMemo<ColDef<Order>[]>(() => [
+    {
+      headerName: "Public ID",
+      field: "public_id",
+      filter: "agTextColumnFilter",
+      minWidth: 120,
+      cellRenderer: ({ value }: ICellRendererParams) => (
+        <span className="font-medium text-primary">{value ?? "—"}</span>
+      ),
+    },
+    {
+      headerName: "Internal ID",
+      field: "internal_id",
+      filter: "agTextColumnFilter",
+      minWidth: 110,
+      cellRenderer: ({ value }: ICellRendererParams) => value ?? <span className="text-muted-foreground">—</span>,
+    },
+    {
+      headerName: "Trip Hash",
+      field: "trip_hash_id",
+      filter: "agTextColumnFilter",
+      minWidth: 110,
+      cellClass: "font-mono text-xs",
+      cellRenderer: ({ value }: ICellRendererParams) => value ?? <span className="text-muted-foreground">—</span>,
+    },
+    {
+      headerName: "Driver",
+      field: "driver_assigned",
+      filter: "agTextColumnFilter",
+      filterValueGetter: ({ data }) =>
+        data?.driver_assigned?.name ?? data?.driver_name ?? "",
+      minWidth: 180,
+      cellRenderer: DriverCellRenderer,
+    },
+    {
+      headerName: "Pickup",
+      valueGetter: ({ data }) => data?.pickup_name ?? data?.payload?.pickup?.name ?? "",
+      filter: "agTextColumnFilter",
+      minWidth: 150,
+      cellRenderer: ({ value }: ICellRendererParams) => value || <span className="text-muted-foreground">—</span>,
+    },
+    {
+      headerName: "Dropoff",
+      valueGetter: ({ data }) => data?.dropoff_name ?? data?.payload?.dropoff?.name ?? "",
+      filter: "agTextColumnFilter",
+      minWidth: 150,
+      cellRenderer: ({ value }: ICellRendererParams) => value || <span className="text-muted-foreground">—</span>,
+    },
+    {
+      headerName: "Scheduled",
+      field: "scheduled_at",
+      filter: "agDateColumnFilter",
+      minWidth: 150,
+      sort: "desc",
+      cellRenderer: ({ value }: ICellRendererParams) => (
+        <span className="text-xs text-muted-foreground">{formatDate(value)}</span>
+      ),
+    },
+    {
+      headerName: "Est. End",
+      field: "estimated_end_date",
+      filter: "agDateColumnFilter",
+      minWidth: 150,
+      cellRenderer: ({ value }: ICellRendererParams) => (
+        <span className="text-xs text-muted-foreground">{formatDate(value)}</span>
+      ),
+    },
+    {
+      headerName: "Fleet",
+      valueGetter: ({ data }) => data ? fleetLabel(data) : "",
+      filter: "agTextColumnFilter",
+      minWidth: 120,
+      cellRenderer: ({ value }: ICellRendererParams) => value || <span className="text-muted-foreground">—</span>,
+    },
+    {
+      headerName: "Status",
+      field: "status",
+      filter: "agTextColumnFilter",
+      minWidth: 120,
+      cellRenderer: StatusCellRenderer,
+    },
+    {
+      headerName: "",
+      field: "uuid",
+      sortable: false,
+      filter: false,
+      resizable: false,
+      suppressMovable: true,
+      pinned: "right",
+      width: 52,
+      cellRenderer: ActionsCellRenderer,
+    },
+  ], [])
+
+  const defaultColDef = React.useMemo<ColDef>(() => ({
+    sortable: true,
+    resizable: true,
+    suppressHeaderMenuButton: false,
+    floatingFilter: true,
+  }), [])
+
+  // Quick search filter applied to the grid via the external search box
+  const gridRef = React.useRef<AgGridReact<Order>>(null)
+  React.useEffect(() => {
+    gridRef.current?.api?.setGridOption("quickFilterText", search)
+  }, [search])
+
+  // Detect dark mode for AG Grid theme
+  const isDark = React.useMemo(() => {
+    if (typeof window === "undefined") return false
+    return document.documentElement.classList.contains("dark")
+  }, [])
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6 md:p-8 lg:p-10">
@@ -1235,12 +1340,12 @@ export default function TripsPage() {
 
       {/* Toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        {/* Search */}
+        {/* Quick search — drives AG Grid quickFilterText */}
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search by ID, driver, pickup, dropoff…"
+            placeholder="Quick search across all columns…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-9 w-full rounded-lg border bg-background pl-9 pr-3 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:ring-offset-2 sm:max-w-sm"
@@ -1248,23 +1353,7 @@ export default function TripsPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Filters button */}
-          <button
-            onClick={() => setShowFilter(true)}
-            className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors hover:bg-accent hover:text-foreground ${
-              activeFilterCount > 0 ? "border-primary bg-primary/5 text-primary" : "bg-background text-muted-foreground"
-            }`}
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            Filters
-            {activeFilterCount > 0 && (
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
-
-          {/* Status quick filter */}
+          {/* Status API filter */}
           <div className="relative">
             <Filter className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <select
@@ -1283,7 +1372,7 @@ export default function TripsPage() {
           <button
             onClick={handleRefresh}
             disabled={refreshing || loading}
-            title="Refresh list from API"
+            title="Refresh from API"
             className="inline-flex h-9 w-9 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
@@ -1299,7 +1388,10 @@ export default function TripsPage() {
           </button>
 
           {/* Export */}
-          <button className="inline-flex h-9 items-center gap-1.5 rounded-lg border bg-background px-3 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+          <button
+            onClick={() => gridRef.current?.api?.exportDataAsCsv()}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border bg-background px-3 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
             <Download className="h-3.5 w-3.5" />
             Export
           </button>
@@ -1317,13 +1409,7 @@ export default function TripsPage() {
 
       {/* Count */}
       <p className="text-xs text-muted-foreground">
-        {loading ? "Loading trips…" : `Showing ${filtered.length} of ${total} trips`}
-        {activeFilterCount > 0 && <span className="ml-2 text-primary">· {activeFilterCount} filter{activeFilterCount > 1 ? "s" : ""} active</span>}
-        {selectedRows.size > 0 && (
-          <span className="ml-2 font-medium text-foreground">
-            · {selectedRows.size} selected
-          </span>
-        )}
+        {loading ? "Loading trips…" : `${total} trips total · column filters active in header rows`}
       </p>
 
       {/* Error banner */}
@@ -1334,181 +1420,37 @@ export default function TripsPage() {
           <button onClick={fetchOrders} className="ml-auto underline text-xs">Retry</button>
         </div>
       )}
-
-      {/* Table */}
-      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                <th className="w-10 px-3 py-3">
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    onChange={toggleAll}
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                </th>
-                {[
-                  "Public ID", "Internal ID", "Trip Hash", "Driver",
-                  "Pickup", "Dropoff", "Scheduled", "Est. End", "Fleet", "Status", "",
-                ].map((h) => (
-                  <th
-                    key={h}
-                    className="whitespace-nowrap px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {loading ? (
-                <TableSkeleton />
-              ) : orders.length === 0 ? (
-                <tr>
-                  <td colSpan={12} className="px-3 py-12 text-center text-sm text-muted-foreground">
-                    {error ? "Error loading trips." : "No trips match your criteria."}
-                  </td>
-                </tr>
-              ) : (
-                orders.map((order) => (
-                  <tr
-                    key={order.uuid}
-                    className={`transition-colors hover:bg-muted/30 ${selectedRows.has(order.uuid) ? "bg-muted/20" : ""}`}
-                  >
-                    <td className="px-3 py-2.5">
-                      <input
-                        type="checkbox"
-                        checked={selectedRows.has(order.uuid)}
-                        onChange={() => toggleRow(order.uuid)}
-                        className="h-4 w-4 rounded border-gray-300"
-                      />
-                    </td>
-
-                    {/* Public ID */}
-                    <td className="whitespace-nowrap px-3 py-2.5">
-                      <button className="font-medium text-primary hover:underline text-left">
-                        {order.public_id}
-                      </button>
-                    </td>
-
-                    {/* Internal ID */}
-                    <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
-                      {order.internal_id ?? "—"}
-                    </td>
-
-                    {/* Trip Hash */}
-                    <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground font-mono text-xs">
-                      {order.trip_hash_id ?? "—"}
-                    </td>
-
-                    {/* Driver */}
-                    <td className="whitespace-nowrap px-3 py-2.5">
-                      {order.driver_assigned ? (
-                        <div className="flex items-center gap-2">
-                          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-muted text-xs font-medium uppercase">
-                            {driverInitial(order.driver_assigned.name)}
-                          </div>
-                          <span>{order.driver_assigned.name}</span>
-                          {order.vehicle_assigned?.plate_number && (
-                            <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                              {order.vehicle_assigned.plate_number}
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground text-xs italic">No driver assigned</span>
-                      )}
-                    </td>
-
-                    {/* Pickup */}
-                    <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
-                      {order.pickup_name ?? order.payload?.pickup?.name ?? "—"}
-                    </td>
-
-                    {/* Dropoff */}
-                    <td className="max-w-[180px] truncate px-3 py-2.5 text-muted-foreground">
-                      {order.dropoff_name ?? order.payload?.dropoff?.name ?? "—"}
-                    </td>
-
-                    {/* Scheduled */}
-                    <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground text-xs">
-                      {formatDate(order.scheduled_at)}
-                    </td>
-
-                    {/* Est End */}
-                    <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground text-xs">
-                      {formatDate(order.estimated_end_date)}
-                    </td>
-
-                    {/* Fleet */}
-                    <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
-                      {fleetLabel(order)}
-                    </td>
-
-                    {/* Status */}
-                    <td className="whitespace-nowrap px-3 py-2.5">
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${statusStyles[order.status]}`}
-                      >
-                        <span className={`inline-block h-1.5 w-1.5 rounded-full ${statusDot[order.status]}`} />
-                        {order.status}
-                      </span>
-                    </td>
-
-                    {/* Actions */}
-                    <td className="px-3 py-2.5">
-                      <RowMenu
-                        order={order}
-                        drivers={drivers}
-                        onAssigned={(uuid) => handleDriverAssigned(order, uuid)}
-                        onDelete={() => handleDelete(order)}
-                        onDispatch={() => handleDispatch(order)}
-                      />
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      {/* AG Grid */}
+      {loading ? (
+        <div className="flex items-center justify-center rounded-xl border bg-card py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <span className="ml-2 text-sm text-muted-foreground">Loading trips…</span>
         </div>
-      </div>
-
-      {/* Pagination */}
-      {!loading && totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm">
-          <p className="text-xs text-muted-foreground">
-            Page {page} of {totalPages}
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="inline-flex h-8 items-center gap-1 rounded-lg border bg-background px-3 text-xs transition-colors hover:bg-muted disabled:opacity-40"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" /> Prev
-            </button>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              className="inline-flex h-8 items-center gap-1 rounded-lg border bg-background px-3 text-xs transition-colors hover:bg-muted disabled:opacity-40"
-            >
-              Next <ChevronRight className="h-3.5 w-3.5" />
-            </button>
-          </div>
+      ) : (
+        <div
+          className={isDark ? "ag-theme-quartz-dark" : "ag-theme-quartz"}
+          style={{ height: "calc(100vh - 280px)", width: "100%", minHeight: 400 }}
+        >
+          <AgGridReact<Order>
+            ref={gridRef}
+            rowData={orders}
+            columnDefs={colDefs}
+            defaultColDef={defaultColDef}
+            context={gridContext}
+            pagination
+            paginationPageSize={20}
+            paginationPageSizeSelector={[20, 50, 100]}
+            rowSelection="multiple"
+            suppressRowClickSelection
+            animateRows
+            rowHeight={44}
+            headerHeight={40}
+            floatingFiltersHeight={36}
+            suppressCellFocus
+            getRowId={({ data }) => data.uuid}
+          />
         </div>
       )}
-
-      {/* Filter Panel */}
-      <FilterPanel
-        open={showFilter}
-        onClose={() => setShowFilter(false)}
-        filters={filters}
-        setFilters={setFilters}
-        drivers={drivers}
-        fleets={fleets}
-      />
 
       {/* Import Wizard */}
       {showImport && (
