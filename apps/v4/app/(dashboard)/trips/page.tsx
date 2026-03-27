@@ -3,7 +3,7 @@
 import { PageHeader } from "@/components/page-header"
 import * as React from "react"
 import {
-  MoreHorizontal, Search, Filter, Download,
+  MoreHorizontal, Search, Download,
   X, Loader2, AlertCircle, Send, Trash2, UserCheck, Plus, ChevronDown,
   RefreshCw, Upload, HelpCircle, CheckCircle2, FileText,
   ChevronRight as ArrowRight, XCircle,
@@ -1120,7 +1120,6 @@ export default function TripsPage() {
   const [totalPages, setTotalPages] = React.useState(1)
   const [total, setTotal] = React.useState(0)
   const [search, setSearch] = React.useState("")
-  const [statusFilter, setStatusFilter] = React.useState<OrderStatus | "all">("all")
   const [showNewTrip, setShowNewTrip] = React.useState(false)
   const [drivers, setDrivers] = React.useState<Driver[]>([])
   const [fleets, setFleets] = React.useState<Fleet[]>([])
@@ -1161,8 +1160,6 @@ export default function TripsPage() {
   const fleetsRef = React.useRef<Fleet[]>([])
   React.useEffect(() => { fleetsRef.current = fleets }, [fleets])
 
-  // Reset to page 1 on status filter change
-  React.useEffect(() => { setPage(1) }, [statusFilter])
 
   // Resolve fleet_name onto orders from in-memory fleet map
   const patchFleetNames = React.useCallback(
@@ -1183,7 +1180,6 @@ export default function TripsPage() {
         page,
         per_page: 200,
         sort: "-created_at",
-        status: statusFilter !== "all" ? statusFilter : undefined,
         ...(opts?.from ? { scheduled_at: opts.from } : {}),
         ...(opts?.to   ? { end_date: opts.to }        : {}),
       })
@@ -1196,7 +1192,7 @@ export default function TripsPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, statusFilter, patchFleetNames])
+  }, [page, patchFleetNames])
 
   // Fetch on mount and when page/status changes (Current tab)
   React.useEffect(() => {
