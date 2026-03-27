@@ -1041,11 +1041,6 @@ function DriverCellRenderer({ data }: ICellRendererParams<Order>) {
         {driverInitial(data.driver_assigned.name)}
       </div>
       <span className="truncate">{data.driver_assigned.name}</span>
-      {data.vehicle_assigned?.plate_number && (
-        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-          {data.vehicle_assigned.plate_number}
-        </span>
-      )}
     </div>
   )
 }
@@ -1234,6 +1229,21 @@ export default function TripsPage() {
       flex: 1.5,
       minWidth: 160,
       cellRenderer: DriverCellRenderer,
+    },
+    {
+      headerName: "Vehicle",
+      valueGetter: ({ data }) => data?.vehicle_assigned?.plate_number ?? "",
+      filter: "agTextColumnFilter",
+      width: 110,
+      cellRenderer: ({ data }: ICellRendererParams<Order>) => {
+        const plate = data?.vehicle_assigned?.plate_number
+        if (!plate) return <span className="text-muted-foreground">—</span>
+        return (
+          <span className="rounded bg-muted px-1.5 py-px font-mono text-[11px] font-medium">
+            {plate}
+          </span>
+        )
+      },
     },
     {
       headerName: "Pickup",
