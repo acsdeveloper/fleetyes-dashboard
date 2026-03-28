@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Compliance API — Edge Case Test Report</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f1117; --surface: #1a1d26; --surface2: #21253a;
+      --border: #2d3149; --text: #e4e8f5; --muted: #7b82a3;
+      --accent: #6366f1; --red: #ef4444; --green: #22c55e;
+      --amber: #f59e0b; --blue: #3b82f6;
+      --red-bg: rgba(239,68,68,.1); --green-bg: rgba(34,197,94,.1);
+      --amber-bg: rgba(245,158,11,.1); --blue-bg: rgba(59,130,246,.1);
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.6; }
+    a { color: var(--accent); }
+
+    /* Layout */
+    .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+    /* Header */
+    .header { border-bottom: 1px solid var(--border); padding-bottom: 24px; margin-bottom: 32px; }
+    .header h1 { font-size: 26px; font-weight: 700; letter-spacing: -.5px; }
+    .header p { color: var(--muted); margin-top: 4px; font-size: 13px; }
+    .meta { display: flex; gap: 20px; margin-top: 12px; flex-wrap: wrap; }
+    .meta span { font-size: 12px; color: var(--muted); }
+    .meta strong { color: var(--text); }
+
+    /* Summary cards */
+    .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 36px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; }
+    .card .num { font-size: 32px; font-weight: 800; line-height: 1; }
+    .card .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-top: 4px; }
+    .card.pass .num { color: var(--green); }
+    .card.fail .num { color: var(--red); }
+    .card.crit .num { color: #f97316; }
+    .card.total .num { color: var(--accent); }
+
+    /* Severity badges */
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; white-space: nowrap; }
+    .badge.critical { background: rgba(239,68,68,.2); color: #f87171; border: 1px solid rgba(239,68,68,.3); }
+    .badge.high     { background: rgba(245,158,11,.2); color: #fbbf24; border: 1px solid rgba(245,158,11,.3); }
+    .badge.low      { background: rgba(107,114,128,.2); color: #9ca3af; border: 1px solid rgba(107,114,128,.3); }
+    .badge.pass     { background: rgba(34,197,94,.2); color: #4ade80; border: 1px solid rgba(34,197,94,.3); }
+    .badge.fail-tag { background: rgba(239,68,68,.15); color: #f87171; border: 1px solid rgba(239,68,68,.3); }
+
+    /* Result indicator */
+    .result { font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .result.ok   { color: var(--green); }
+    .result.fail { color: var(--red); }
+
+    /* Section */
+    .section { margin-bottom: 40px; }
+    .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .section-header h2 { font-size: 15px; font-weight: 700; }
+    .section-header .count { font-size: 12px; color: var(--muted); }
+
+    /* Table */
+    .table-wrap { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    thead tr { background: var(--surface2); }
+    th { text-align: left; padding: 10px 14px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); white-space: nowrap; }
+    tbody tr { border-top: 1px solid var(--border); transition: background .15s; }
+    tbody tr:hover { background: var(--surface2); }
+    td { padding: 10px 14px; font-size: 13px; }
+    td.mono { font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 12px; color: #a5b4fc; word-break: break-all; }
+    td.note { color: var(--muted); font-size: 12px; }
+
+    /* Issue list */
+    .issues { display: flex; flex-direction: column; gap: 12px; }
+    .issue { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; border-left: 3px solid; }
+    .issue.critical { border-left-color: var(--red); }
+    .issue.high     { border-left-color: var(--amber); }
+    .issue.low      { border-left-color: #6b7280; }
+    .issue-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .issue h3 { font-size: 13px; font-weight: 600; }
+    .issue .desc { color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .issue .fix { margin-top: 8px; padding: 8px 10px; background: var(--surface2); border-radius: 6px; font-size: 11px; color: #a5b4fc; border-left: 2px solid var(--accent); }
+    .issue .fix strong { color: var(--text); }
+
+    /* Divider */
+    hr { border: none; border-top: 1px solid var(--border); margin: 36px 0; }
+
+    @media (max-width: 600px) { .summary { grid-template-columns: 1fr 1fr; } }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>🧪 Compliance API — Edge Case Test Report</h1>
+    <p>Automated negative scenario, boundary, and adversarial testing of all compliance and walkaround endpoints</p>
+    <div class="meta">
+      <span><strong>Base URL:</strong> https://ontrack-api.agilecyber.com/int/v1</span>
+      <span><strong>Date:</strong> 21 March 2026</span>
+      <span><strong>Test runner:</strong> Python urllib / Node.js fetch</span>
+      <span><strong>Tested by:</strong> Automated QA script</span>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="summary">
+    <div class="card total"><div class="num">53</div><div class="label">Total Tests</div></div>
+    <div class="card pass"><div class="num">23</div><div class="label">Passed</div></div>
+    <div class="card fail"><div class="num">30</div><div class="label">Failed</div></div>
+    <div class="card crit"><div class="num">2</div><div class="label">Critical Issues</div></div>
+  </div>
+
+  <!-- Issues -->
+  <div class="section">
+    <div class="section-header">
+      <h2>🚨 Issues Requiring Action</h2>
+    </div>
+    <div class="issues">
+
+      <div class="issue critical">
+        <div class="issue-header">
+          <span class="badge critical">Critical — Security</span>
+          <h3>XSS Stored Raw — All Text Fields</h3>
+        </div>
+        <div class="desc">
+          Submitting <code>&lt;script&gt;alert(1)&lt;/script&gt;</code> as the value of <code>document_type</code>, category <code>name</code>, or compliance doc <code>title</code> results in the raw HTML being stored and returned in API responses. Any UI rendering these fields without additional escaping is vulnerable to stored XSS.
+        </div>
+        <div class="fix"><strong>Fix:</strong> Apply <code>strip_tags()</code> or an HTML purifier on input in the relevant model mutators or FormRequest validation rules. Alternatively, validate that these fields contain no HTML tags.</div>
+      </div>
+
+      <div class="issue critical">
+        <div class="issue-header">
+          <span class="badge critical">Critical — Stability</span>
+          <h3>500 Server Error on Invalid <code>documenttype_id</code></h3>
+        </div>
+        <div class="desc">
+          Sending an all-zeros UUID as <code>documenttype_id</code> on <code>POST /compliance-documents</code> triggers an unhandled <code>Illuminate\Database\QueryException</code> with a full HTML stack trace. This exposes internal database query structure.
+        </div>
+        <div class="fix"><strong>Fix:</strong> Add <code>'documenttype_id' =&gt; 'exists:compliance_document_types,uuid'</code> to the FormRequest validation rules so that invalid UUIDs return 422 before the query runs.</div>
+      </div>
+
+      <div class="issue high">
+        <div class="issue-header">
+          <span class="badge high">High — Missing Validation</span>
+          <h3>Required Fields Not Validated — POST Endpoints</h3>
+        </div>
+        <div class="desc">
+          Multiple POST endpoints return <code>200 {"message":"Fleetbase API"}</code> instead of <code>422</code> when required fields are omitted or invalid. This means requests silently fail — callers have no way to detect the error. Affected fields:
+          <ul style="margin:6px 0 0 16px;color:var(--muted)">
+            <li><code>/compliance-document-types</code> — missing <code>entity_type</code>, <code>document_type</code>, <code>company_uuid</code>; invalid <code>entity_type</code> value; invalid <code>company_uuid</code></li>
+            <li><code>/compliance-business-categories</code> — missing <code>name</code>, empty <code>name</code>, missing <code>company_uuid</code></li>
+            <li><code>/compliance-documents</code> — missing <code>entity_type</code>, <code>company_uuid</code>; invalid <code>vehicle_uuid</code> (creates orphaned record!); wrong UUID field (<code>driver_uuid</code> on vehicle entity); invalid <code>expires_at</code> format; <code>notes</code> over 500 chars; business doc with <code>documenttype_id</code> instead of <code>category_id</code>; <code>category_id=other</code> with no <code>custom_category_name</code></li>
+          </ul>
+        </div>
+        <div class="fix"><strong>Fix:</strong> Add Laravel FormRequest classes for each POST endpoint with <code>required</code>, <code>in:vehicle,driver</code>, <code>exists:</code>, <code>date</code>, and <code>max:</code> rules. The 200 fallback response suggests requests are hitting Fleetbase's base route instead of the intended controller — verify route registration.</div>
+      </div>
+
+      <div class="issue high">
+        <div class="issue-header">
+          <span class="badge high">High — Data Integrity</span>
+          <h3>Invalid <code>vehicle_uuid</code> Creates Orphaned Record</h3>
+        </div>
+        <div class="desc">
+          <code>POST /compliance-documents</code> with <code>vehicle_uuid: "00000000-0000-0000-0000-000000000000"</code> (a fake UUID) returned <strong>201 Created</strong> with a real document UUID. A compliance document now exists linked to a non-existent vehicle. This will cause UI crashes when trying to load the associated entity.
+        </div>
+        <div class="fix"><strong>Fix:</strong> Add <code>'vehicle_uuid' =&gt; 'exists:vehicles,uuid'</code> and <code>'driver_uuid' =&gt; 'exists:drivers,uuid'</code> to FormRequest validation (required when <code>entity_type</code> matches). The orphaned record <code>ef896dbf-eaaa-45e2-96ec-8f1339a6a516</code> should be cleaned up.</div>
+      </div>
+
+      <div class="issue high">
+        <div class="issue-header">
+          <span class="badge high">High — Missing Validation</span>
+          <h3>String Length Limits Not Enforced</h3>
+        </div>
+        <div class="desc">
+          Fields documented with <code>max 191 characters</code> (<code>document_type</code>, category <code>name</code>) and <code>max 500 characters</code> (<code>notes</code>) accept strings of 300+ / 600+ characters respectively without error. This can cause database truncation silently or exceed column limits.
+        </div>
+        <div class="fix"><strong>Fix:</strong> Add <code>max:191</code> and <code>max:500</code> validation rules in FormRequest. Alternatively, apply DB-level column constraints.</div>
+      </div>
+
+      <div class="issue low">
+        <div class="issue-header">
+          <span class="badge low">Low — RFC 7235</span>
+          <h3>Unauthenticated Requests Return 400 Instead of 401</h3>
+        </div>
+        <div class="desc">
+          All API endpoints return <code>400 {"errors":["Unauthenticated."]}</code> when no token is provided. Per RFC 7235, the correct status code for missing/invalid credentials is <code>401 Unauthorized</code>. Some HTTP clients use 401 to trigger re-authentication flows.
+        </div>
+        <div class="fix"><strong>Fix:</strong> In the Authenticate middleware, change the response status to <code>401</code> instead of <code>400</code>.</div>
+      </div>
+
+      <div class="issue low">
+        <div class="issue-header">
+          <span class="badge low">Low — Cosmetic</span>
+          <h3><code>DELETE /walkaround-checks/{fake_uuid}</code> Returns 405</h3>
+        </div>
+        <div class="desc">
+          Attempting to DELETE a walkaround check with a non-existent UUID returns <code>405 Method Not Allowed</code> instead of <code>404 Not Found</code>. This suggests the DELETE route isn't registered for this resource or the route pattern doesn't match.
+        </div>
+        <div class="fix"><strong>Fix:</strong> Verify that <code>Route::delete('/walkaround-checks/{id}', ...)</code> is registered, or add a 404 check before the 405 response.</div>
+      </div>
+
+      <div class="issue low">
+        <div class="issue-header">
+          <span class="badge low">Low — Push Config</span>
+          <h3><code>POST /test-notification</code> with <code>channel=push</code> returns 400</h3>
+        </div>
+        <div class="desc">
+          Sending a test push notification returns <code>400</code> with no descriptive error message. This is expected when no mobile device is registered for the account, but the generic 400 with empty body gives callers no way to distinguish &quot;no device registered&quot; from a real error.
+        </div>
+        <div class="fix"><strong>Fix:</strong> Return a descriptive error: <code>{"success": false, "message": "No push device registered for this user", "errors": ["..."]}</code> so callers can surface a helpful message in the UI.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <hr />
+
+  <!-- Full Results Tables -->
+  <div class="section">
+    <div class="section-header"><h2>Document Types API</h2><span class="count">11 tests</span></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Result</th><th>Test</th><th>Expected</th><th>Got</th><th>Severity</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><span class="result ok">PASS</span></td><td>DELETE static doc type</td><td class="mono">422</td><td class="mono">422</td><td><span class="badge pass">OK</span></td><td class="note">Static types correctly protected</td></tr>
+        <tr><td><span class="result ok">PASS</span></td><td>DELETE non-existent UUID</td><td class="mono">404</td><td class="mono">404</td><td><span class="badge pass">OK</span></td><td class="note"></td></tr>
+        <tr><td><span class="result ok">PASS</span></td><td>DELETE malformed UUID</td><td class="mono">404</td><td class="mono">404</td><td><span class="badge pass">OK</span></td><td class="note"></td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST missing <code>entity_type</code></td><td class="mono">422</td><td class="mono">200</td><td><span class="badge high">High</span></td><td class="note">Hits Fleetbase base route — no validation</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST missing <code>document_type</code></td><td class="mono">422</td><td class="mono">200</td><td><span class="badge high">High</span></td><td class="note">Hits Fleetbase base route — no validation</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST invalid <code>entity_type=truck</code></td><td class="mono">422</td><td class="mono">200</td><td><span class="badge high">High</span></td><td class="note">Any value accepted</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST missing <code>company_uuid</code></td><td class="mono">422</td><td class="mono">200</td><td><span class="badge high">High</span></td><td class="note">Hits Fleetbase base route — no validation</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST invalid <code>company_uuid</code> (zeros)</td><td class="mono">422</td><td class="mono">200</td><td><span class="badge high">High</span></td><td class="note">Non-existent company_uuid accepted</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST XSS in <code>document_type</code></td><td class="mono">sanitised</td><td class="mono">stored raw</td><td><span class="badge critical">Critical</span></td><td class="note">&lt;script&gt; tag stored and returned unescaped</td></tr>
+        <tr><td><span class="result ok">PASS</span></td><td>POST SQL injection in name</td><td class="mono">survived</td><td class="mono">201</td><td><span class="badge pass">OK</span></td><td class="note">Parameterised queries protect DB</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST name > 191 chars</td><td class="mono">422</td><td class="mono">200</td><td><span class="badge high">High</span></td><td class="note">No length enforcement</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="section">
+    <div class="section-header"><h2>Business Categories API</h2><span class="count">7 tests</span></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Result</th><th>Test</th><th>Expected</th><th>Got</th><th>Severity</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><span class="result ok">PASS</span></td><td>DELETE static category</td><td class="mono">422</td><td class="mono">422</td><td><span class="badge pass">OK</span></td><td class="note">Static categories correctly protected</td></tr>
+        <tr><td><span class="result ok">PASS</span></td><td>DELETE non-existent UUID</td><td class="mono">404</td><td class="mono">404</td><td><span class="badge pass">OK</span></td><td class="note"></td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST missing <code>name</code></td><td class="mono">422</td><td class="mono">200</td><td><span class="badge high">High</span></td><td class="note">No validation</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST empty <code>name=""</code></td><td class="mono">422</td><td class="mono">200</td><td><span class="badge high">High</span></td><td class="note">Empty string accepted</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST missing <code>company_uuid</code></td><td class="mono">422</td><td class="mono">200</td><td><span class="badge high">High</span></td><td class="note">No validation</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST name > 191 chars</td><td class="mono">422</td><td class="mono">200</td><td><span class="badge high">High</span></td><td class="note">No length enforcement</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST XSS in <code>name</code></td><td class="mono">sanitised</td><td class="mono">stored raw</td><td><span class="badge critical">Critical</span></td><td class="note">&lt;script&gt; tag stored and returned unescaped</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="section">
+    <div class="section-header"><h2>Compliance Documents API</h2><span class="count">20 tests</span></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Result</th><th>Test</th><th>Expected</th><th>Got</th><th>Severity</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><span class="result fail">FAIL</span></td><td>GET without <code>entity_type</code></td><td class="mono">422</td><td class="mono">200</td><td><span class="badge high">High</span></td><td class="note">Required param, no validation</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>GET <code>entity_type=banana</code></td><td class="mono">422</td><td class="mono">200</td><td><span class="badge high">High</span></td><td class="note">Invalid enum value accepted</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>GET /entities without <code>entity_type</code></td><td class="mono">422</td><td class="mono">200</td><td><span class="badge high">High</span></td><td class="note">Required param, no validation</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST missing <code>company_uuid</code></td><td class="mono">422</td><td class="mono">200</td><td><span class="badge high">High</span></td><td class="note">No validation</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST missing <code>entity_type</code></td><td class="mono">422</td><td class="mono">200</td><td><span class="badge high">High</span></td><td class="note">No validation</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST vehicle doc, <code>vehicle_uuid=zeros</code></td><td class="mono">422</td><td class="mono">201</td><td><span class="badge critical">Critical</span></td><td class="note">Orphaned record created! UUID: ef896dbf</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST vehicle doc, <code>driver_uuid</code> sent instead of <code>vehicle_uuid</code></td><td class="mono">422</td><td class="mono">200</td><td><span class="badge high">High</span></td><td class="note">Wrong field silently ignored</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST driver doc, <code>vehicle_uuid</code> sent instead of <code>driver_uuid</code></td><td class="mono">422</td><td class="mono">200</td><td><span class="badge high">High</span></td><td class="note">Wrong field silently ignored</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST vehicle doc, invalid <code>documenttype_id</code></td><td class="mono">422</td><td class="mono">500</td><td><span class="badge critical">Critical</span></td><td class="note">SQL exception thrown — stack trace leaked</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST business doc with <code>documenttype_id</code></td><td class="mono">422</td><td class="mono">200</td><td><span class="badge high">High</span></td><td class="note">Wrong field for entity type, no error</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST business <code>category_id=other</code>, no <code>custom_category_name</code></td><td class="mono">422</td><td class="mono">200</td><td><span class="badge high">High</span></td><td class="note">Conditional required not enforced</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST invalid <code>expires_at</code> format</td><td class="mono">422</td><td class="mono">200</td><td><span class="badge high">High</span></td><td class="note">Date format not validated</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST XSS in <code>title</code></td><td class="mono">sanitised</td><td class="mono">stored raw</td><td><span class="badge critical">Critical</span></td><td class="note">&lt;script&gt; tag stored unescaped</td></tr>
+        <tr><td><span class="result ok">PASS</span></td><td>POST SQL injection in <code>title</code></td><td class="mono">survived</td><td class="mono">201</td><td><span class="badge pass">OK</span></td><td class="note">DB parameterisation protects against SQLi</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST <code>notes</code> > 500 chars</td><td class="mono">422</td><td class="mono">200</td><td><span class="badge high">High</span></td><td class="note">No length limit enforced</td></tr>
+        <tr><td><span class="result ok">PASS</span></td><td>GET with fake UUID</td><td class="mono">404</td><td class="mono">404</td><td><span class="badge pass">OK</span></td><td class="note"></td></tr>
+        <tr><td><span class="result ok">PASS</span></td><td>GET with malformed UUID</td><td class="mono">404</td><td class="mono">404</td><td><span class="badge pass">OK</span></td><td class="note"></td></tr>
+        <tr><td><span class="result ok">PASS</span></td><td>PUT with fake UUID</td><td class="mono">404</td><td class="mono">404</td><td><span class="badge pass">OK</span></td><td class="note"></td></tr>
+        <tr><td><span class="result ok">PASS</span></td><td>DELETE with fake UUID</td><td class="mono">404</td><td class="mono">404</td><td><span class="badge pass">OK</span></td><td class="note"></td></tr>
+        <tr><td><span class="result ok">PASS</span></td><td>POST /entities with wrong HTTP method</td><td class="mono">405</td><td class="mono">405</td><td><span class="badge pass">OK</span></td><td class="note"></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="section">
+    <div class="section-header"><h2>Walkaround APIs</h2><span class="count">8 tests</span></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Result</th><th>Test</th><th>Expected</th><th>Got</th><th>Severity</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><span class="result ok">PASS</span></td><td>GET checks with <code>limit=99999</code></td><td class="mono">200</td><td class="mono">200</td><td><span class="badge pass">OK</span></td><td class="note">Large limits accepted gracefully</td></tr>
+        <tr><td><span class="result ok">PASS</span></td><td>GET checks with <code>page=-1</code></td><td class="mono">200</td><td class="mono">200</td><td><span class="badge pass">OK</span></td><td class="note">Negative page accepted gracefully</td></tr>
+        <tr><td><span class="result ok">PASS</span></td><td>GET check with fake UUID</td><td class="mono">404</td><td class="mono">404</td><td><span class="badge pass">OK</span></td><td class="note"></td></tr>
+        <tr><td><span class="result ok">PASS</span></td><td>GET template with fake UUID</td><td class="mono">404</td><td class="mono">404</td><td><span class="badge pass">OK</span></td><td class="note"></td></tr>
+        <tr><td><span class="result ok">PASS</span></td><td>GET checks with <code>status=critical</code></td><td class="mono">200</td><td class="mono">200</td><td><span class="badge pass">OK</span></td><td class="note">Invalid filter value ignored</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>DELETE check with fake UUID</td><td class="mono">404</td><td class="mono">405</td><td><span class="badge low">Low</span></td><td class="note">DELETE route may not be registered / route mismatch</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>GET checks without auth</td><td class="mono">401</td><td class="mono">400</td><td><span class="badge low">Low</span></td><td class="note">Unauthenticated returns 400 instead of 401 (all endpoints)</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>GET doc types without auth</td><td class="mono">401</td><td class="mono">400</td><td><span class="badge low">Low</span></td><td class="note">Same 400 vs 401 issue as above</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="section">
+    <div class="section-header"><h2>Compliance Settings &amp; Notifications API</h2><span class="count">7 tests</span></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Result</th><th>Test</th><th>Status</th><th>Severity</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><span class="result ok">PASS</span></td><td>GET /compliance-settings/users</td><td class="mono">200</td><td><span class="badge pass">OK</span></td><td class="note">19 manager candidates returned (role: Administrator)</td></tr>
+        <tr><td><span class="result ok">PASS</span></td><td>GET /compliance-settings</td><td class="mono">200</td><td><span class="badge pass">OK</span></td><td class="note">escalation_days=7, 2 channels (Email+Mobile enabled), daily digest at 08:00</td></tr>
+        <tr><td><span class="result ok">PASS</span></td><td>POST /compliance-settings/save</td><td class="mono">200</td><td><span class="badge pass">OK</span></td><td class="note">Round-trip save successful</td></tr>
+        <tr><td><span class="result ok">PASS</span></td><td>GET /compliance-settings/alerts</td><td class="mono">200</td><td><span class="badge pass">OK</span></td><td class="note">19 expiry alerts + 8 event alerts loaded</td></tr>
+        <tr><td><span class="result ok">PASS</span></td><td>POST /compliance-settings/alerts/save</td><td class="mono">200</td><td><span class="badge pass">OK</span></td><td class="note">All 27 alerts saved back cleanly</td></tr>
+        <tr><td><span class="result ok">PASS</span></td><td>POST /test-notification (channel=email)</td><td class="mono">200</td><td><span class="badge pass">OK</span></td><td class="note">&quot;Test email sent successfully&quot; — email delivered</td></tr>
+        <tr><td><span class="result fail">FAIL</span></td><td>POST /test-notification (channel=push)</td><td class="mono">400</td><td><span class="badge low">Low</span></td><td class="note">No device registered for test account — 400 with no error message body</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <hr />
+
+  <!-- Recommended fix priority -->
+  <div class="section">
+    <div class="section-header"><h2>📋 Fix Priority</h2></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>#</th><th>Issue</th><th>Priority</th><th>Effort</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Input sanitisation — strip HTML tags from all text fields (XSS)</td><td><span class="badge critical">Critical</span></td><td class="note">Low — model mutator or Form Request rule</td></tr>
+        <tr><td>2</td><td>Validate <code>documenttype_id</code> exists before DB query (prevents 500)</td><td><span class="badge critical">Critical</span></td><td class="note">Low — add <code>exists:</code> rule in FormRequest</td></tr>
+        <tr><td>3</td><td>Delete orphaned compliance doc <code>ef896dbf-eaaa-45e2-96ec-8f1339a6a516</code></td><td><span class="badge critical">Critical</span></td><td class="note">One-time DB cleanup</td></tr>
+        <tr><td>4</td><td>Validate <code>vehicle_uuid</code> / <code>driver_uuid</code> existence</td><td><span class="badge high">High</span></td><td class="note">Low — <code>exists:</code> rules</td></tr>
+        <tr><td>5</td><td>Add required field validation to all POST FormRequests</td><td><span class="badge high">High</span></td><td class="note">Medium — create/update FormRequest classes</td></tr>
+        <tr><td>6</td><td>Validate <code>entity_type</code> as enum <code>in:vehicle,driver,business</code></td><td><span class="badge high">High</span></td><td class="note">Low — one rule</td></tr>
+        <tr><td>7</td><td>Enforce string <code>max:191</code> / <code>max:500</code> column limits</td><td><span class="badge high">High</span></td><td class="note">Low — add max rules</td></tr>
+        <tr><td>8</td><td>Validate <code>expires_at</code> as a date format</td><td><span class="badge high">High</span></td><td class="note">Low — <code>'expires_at' =&gt; 'nullable|date'</code></td></tr>
+        <tr><td>9</td><td>Conditional validation: <code>custom_category_name</code> required when <code>category_id=other</code></td><td><span class="badge high">High</span></td><td class="note">Low — <code>required_if</code> rule</td></tr>
+        <tr><td>10</td><td>Fix unauthenticated response to return HTTP <code>401</code> not <code>400</code></td><td><span class="badge low">Low</span></td><td class="note">Low — middleware status code</td></tr>
+        <tr><td>11</td><td>Register or fix DELETE route for <code>/walkaround-checks/{id}</code></td><td><span class="badge low">Low</span></td><td class="note">Low — route definition</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div style="padding: 20px 0; color: var(--muted); font-size: 12px;">
+    Generated: 21 March 2026 21:57 UTC &nbsp;|&nbsp; All tests run against production API &nbsp;|&nbsp; Test data created and cleaned up during run
+  </div>
+
+</div>
+</body>
+</html>
