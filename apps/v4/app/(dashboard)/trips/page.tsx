@@ -1673,6 +1673,50 @@ export default function TripsPage() {
             />
           </div>
 
+          {/* History date range — inline, only when History tab active */}
+          {tab === "history" && (
+            <>
+              <span className="h-6 w-px bg-border" />
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="date"
+                  value={dateFrom}
+                  min="2025-01-01"
+                  max={dateTo}
+                  onChange={(e) => {
+                    setDateFrom(e.target.value)
+                    setDateError(validateDates(e.target.value, dateTo))
+                  }}
+                  className="h-8 rounded-lg border bg-background px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                />
+                <span className="text-xs text-muted-foreground">→</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom || "2025-01-01"}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => {
+                    setDateTo(e.target.value)
+                    setDateError(validateDates(dateFrom, e.target.value))
+                  }}
+                  className="h-8 rounded-lg border bg-background px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                />
+                <button
+                  disabled={!!dateError || !dateFrom || !dateTo}
+                  onClick={() => {
+                    const err = validateDates(dateFrom, dateTo)
+                    if (err) { setDateError(err); return }
+                    fetchOrders({ from: dateFrom, to: dateTo })
+                  }}
+                  className="inline-flex h-8 items-center gap-1 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
+                >
+                  <Search className="h-3 w-3" /> Go
+                </button>
+                {dateError && <span className="text-xs text-red-500 whitespace-nowrap">{dateError}</span>}
+              </div>
+            </>
+          )}
+
           {/* Flex spacer — pushes controls to the right */}
           <div className="flex-1" />
 
@@ -1766,60 +1810,6 @@ export default function TripsPage() {
 
         </div>
 
-        {/* Row 2: History date range picker (only shown when History tab is active) */}
-        {tab === "history" && (
-          <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-4 py-2.5">
-            <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Date range</span>
-            <div className="flex items-center gap-2 flex-1">
-              <input
-                type="date"
-                value={dateFrom}
-                min="2025-01-01"
-                max={dateTo}
-                onChange={(e) => {
-                  setDateFrom(e.target.value)
-                  setDateError(validateDates(e.target.value, dateTo))
-                }}
-                className="h-8 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-              />
-              <span className="text-muted-foreground text-sm">to</span>
-              <input
-                type="date"
-                value={dateTo}
-                min={dateFrom || "2025-01-01"}
-                max={new Date().toISOString().slice(0, 10)}
-                onChange={(e) => {
-                  setDateTo(e.target.value)
-                  setDateError(validateDates(dateFrom, e.target.value))
-                }}
-                className="h-8 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-              />
-              {dateError && (
-                <span className="text-xs text-red-500">{dateError}</span>
-              )}
-            </div>
-            <button
-              disabled={!!dateError || !dateFrom || !dateTo}
-              onClick={() => {
-                const err = validateDates(dateFrom, dateTo)
-                if (err) { setDateError(err); return }
-                fetchOrders({ from: dateFrom, to: dateTo })
-              }}
-              className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
-            >
-              <Search className="h-3.5 w-3.5" />
-              Search
-            </button>
-            <span className="text-xs text-muted-foreground">Max 31 days · from 1 Jan 2025</span>
-          </div>
-        )}
-
-        {/* Current tab date hint */}
-        {tab === "current" && (
-          <p className="text-[11px] text-muted-foreground">
-            Showing trips scheduled from {lastSunday.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })} · Toggle <strong>Completed</strong> to include delivered trips
-          </p>
-        )}
       </div>
 
 
