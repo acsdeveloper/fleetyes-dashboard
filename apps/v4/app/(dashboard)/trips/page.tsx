@@ -1414,6 +1414,13 @@ export default function TripsPage() {
       else next.add(uuid)
       return next
     })
+    // Tell AG Grid to re-measure all row heights after the state flush
+    setTimeout(() => {
+      const api = gridRef.current?.api
+      if (!api) return
+      api.resetRowHeights()
+      api.refreshCells({ force: true })
+    }, 0)
   }, [])
 
   // Stable context object passed down into AG Grid cell renderers
@@ -1484,8 +1491,9 @@ export default function TripsPage() {
     {
       headerName: "Route",
       colId: "_route",
+      autoHeight: true,
       flex: 2,
-      minWidth: 180,
+      minWidth: 220,
       sortable: false,
       filter: false,
       cellRenderer: ({ data, context }: ICellRendererParams<Order> & { context: RowCallbacks & { expandedRows: Set<string>; toggleRow: (id: string) => void } }) => {
@@ -1539,29 +1547,37 @@ export default function TripsPage() {
           )
         }
 
-        // Expanded: full stop list
+        // Expanded: full stop list, capped at 10
+        const MAX_LEGS = 10
+        const visible = stops.slice(0, MAX_LEGS)
+        const hidden  = stops.length - visible.length
         return (
           <div className="py-1 leading-none">
             <button
               onClick={() => context?.toggleRow(data.uuid)}
-              className="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+              className="mb-1.5 flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowRight className="h-3 w-3 rotate-90" /> Collapse
             </button>
-            {stops.map((s, i) => (
+            {visible.map((s, i) => (
               <div key={i} className="flex items-start gap-1.5">
                 <div className="flex flex-col items-center" style={{ minWidth: 14 }}>
-                  <span className={`mt-0.5 h-2 w-2 rounded-full flex-shrink-0 ${
+                  <span className={`mt-1 h-2 w-2 rounded-full flex-shrink-0 ${
                     i === 0 ? "bg-emerald-500" : i === stops.length - 1 ? "bg-rose-500" : "bg-violet-400"
                   }`} />
-                  {i < stops.length - 1 && <span className="w-px flex-1 bg-border" style={{ minHeight: 10 }} />}
+                  {i < visible.length - 1 && <span className="w-px flex-1 bg-border" style={{ minHeight: 12 }} />}
                 </div>
-                <div className="pb-1.5">
+                <div className="pb-2">
                   <span className="text-[12px] font-medium leading-tight">{s.name ?? "—"}</span>
                   {s.publicId && <span className="ml-1 font-mono text-[10px] text-muted-foreground">({s.publicId})</span>}
                 </div>
               </div>
             ))}
+            {hidden > 0 && (
+              <div className="mt-0.5 ml-4 text-[10px] text-muted-foreground">
+                +{hidden} more stop{hidden > 1 ? "s" : ""} (not shown)
+              </div>
+            )}
           </div>
         )
       },
