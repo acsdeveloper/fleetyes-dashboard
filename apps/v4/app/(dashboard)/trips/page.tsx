@@ -33,7 +33,7 @@ import {
 } from "ag-grid-enterprise"
 
 LicenseManager.setLicenseKey(
-  "Using_this_AG_Grid_Enterprise_key_( AG-045903 )_in_excess_of_the_licence_granted_is_not_permitted___Please_report_misuse_to_( legal@ag-grid.com )___For_help_with_changing_this_key_please_contact_( info@ag-grid.com )___( Turnkey Group )_is_granted_a_( Single Application )_Developer_License_for_the_application_( Sustainion by Turnkey )_only_for_( 1 )_Front-End_JavaScript_developer___All_Front-End_JavaScript_developers_working_on_( Sustainion by Turnkey )_need_to_be_licensed___( Sustainion by Turnkey )_has_been_granted_a_Deployment_License_Add-on_for_( 1 )_Production_Environment___This_key_works_with_AG_Grid_Enterprise_versions_released_before_( 1_August_2024 )____[v2]_MTcyMjQ2NjgwMDAwMA==e57594dcbaa8ebd270fe76e66aa6669f"
+  "Using_this_AG_Grid_Enterprise_key_( AG-045903 )_in_excess_of_the_licence_granted_is_not_permitted___Please_report_misuse_to_( legal@ag-grid.com )___For_help_with_changing_this_key_please_contact_( info@ag-grid.com )___( Turnkey Group )_is_granted_a_( Single Application )_Developer_License_for_the_application_( Sustainion by Turnkey )_only_for_( 1 )_Front-End_JavaScript_developer___All_Front-End_JavaScript_developers_working_on_( Sustainion by Turnkey )_need_to_be_licensed___( Sustainion by Turnkey )_has_been_granted_a_Deployment_License_Add-on_for_( 1 )_Production_Environment___This_key_works_with_AG_Grid_Enterprise_versions_released_before_( 1 August 2024 )____[v2]_MTcyMjQ2NjgwMDAwMA==e57594dcbaa8ebd270fe76e66aa6669f"
 )
 ModuleRegistry.registerModules([AllEnterpriseModule])
 
@@ -1180,6 +1180,18 @@ export default function TripsPage() {
   const [showFilters, setShowFilters] = React.useState(false)
   const [refreshing, setRefreshing] = React.useState(false)
 
+  // Detect dark mode reactively — declared here so detailCellRendererParams can use it
+  const [isDark, setIsDark] = React.useState(() =>
+    typeof window !== "undefined" && document.documentElement.classList.contains("dark")
+  )
+  React.useEffect(() => {
+    const observer = new MutationObserver(() =>
+      setIsDark(document.documentElement.classList.contains("dark"))
+    )
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
+    return () => observer.disconnect()
+  }, [])
+
   // Tabs
   const [tab, setTab] = React.useState<"current" | "history">("current")
 
@@ -1319,8 +1331,10 @@ export default function TripsPage() {
   }), [handleDelete, handleDispatch, handleDriverAssigned, drivers])
 
   // Detail cell renderer params — drives the master-detail sub-grid
-  const detailCellRendererParams = React.useMemo<IDetailCellRendererParams<Order, LegData>>(() => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const detailCellRendererParams = React.useMemo(() => ({
     detailGridOptions: {
+      theme:         isDark ? darkTheme : lightTheme,
       columnDefs: [
         {
           field:       "vrId",
@@ -1332,7 +1346,6 @@ export default function TripsPage() {
           field:      "from",
           headerName: "From",
           flex:        1,
-          cellStyle:   { color: "var(--muted-foreground)" },
         },
         {
           field:       "to",
@@ -1362,13 +1375,13 @@ export default function TripsPage() {
       headerHeight:  32,
       domLayout:     "autoHeight",
     },
-    getDetailRowData: (params) => {
+    getDetailRowData: (params: { data: Order; successCallback: (rows: LegData[]) => void }) => {
       // Lazy-fetch the full order then resolve legs
       getOrder(params.data.uuid)
         .then(({ order: full }) => params.successCallback(buildLegs(full)))
         .catch(() => params.successCallback([]))
     },
-  }), [])
+  }), [isDark])
 
   // Filtered orders
   const filteredOrders = React.useMemo(() => {
@@ -1549,18 +1562,6 @@ export default function TripsPage() {
     return () => ro.disconnect()
   }, [])
 
-  // Detect dark mode reactively for AG Grid theme selection
-  const [isDark, setIsDark] = React.useState(() =>
-    typeof window !== "undefined" && document.documentElement.classList.contains("dark")
-  )
-  React.useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)")
-    const observer = new MutationObserver(() =>
-      setIsDark(document.documentElement.classList.contains("dark"))
-    )
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
-    return () => observer.disconnect()
-  }, [])
 
   return (
     <div className="flex flex-1 flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
