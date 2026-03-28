@@ -16,10 +16,12 @@ export type OrderStatus =
 
 export interface OrderPayload {
   id?: string
-  pickup?: { uuid: string; name: string; address: string } | null
-  dropoff?: { uuid: string; name: string; address: string } | null
-  return?: null
-  waypoints?: unknown[]
+  pickup?:      { uuid: string; public_id?: string; name: string; address: string } | null
+  dropoff?:     { uuid: string; public_id?: string; name: string; address: string } | null
+  return?:      null
+  waypoints?:   unknown[]
+  pickup_name?:  string   // appended by Fleetbase API
+  dropoff_name?: string   // appended by Fleetbase API
 }
 
 export interface OrderDriver {
