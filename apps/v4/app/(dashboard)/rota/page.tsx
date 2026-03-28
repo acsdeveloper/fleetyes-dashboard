@@ -35,7 +35,7 @@ const STATUS_CONFIG: Record<RotaStatus | "NOT_ON_ROTA", {
 }
 
 const STATUSES: RotaStatus[] = ["WD", "RD", "HOL_REQ", "UNAVAILABLE", "OFF"]
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 const DEFAULT_SHIFTS: ShiftTemplate = {
   1: { start: "09:00", pushed_later: false },
   2: { start: "10:00", pushed_later: false },
@@ -91,17 +91,23 @@ function CellPopover({
   React.useEffect(() => {
     if (status !== "WD") { setTrips([]); return }
     setLoadingTrips(true)
-    listOrders({ on: date, per_page: 100 })
+    // Filter by scheduled_at (start of day) + end_date (start of next day)
+    // to get all trips on this specific date
+    const nextDay = new Date(date + "T00:00:00")
+    nextDay.setDate(nextDay.getDate() + 1)
+    const endDate = nextDay.toISOString().slice(0, 10)
+    listOrders({ scheduled_at: date, end_date: endDate, per_page: 100 })
       .then((res) => {
-        // Show trips with no driver OR already assigned to THIS driver
-        const eligible = (res.orders ?? []).filter(
-          (o) => !o.driver_assigned_uuid || o.driver_assigned_uuid === driver.uuid
-        )
+        // Show unassigned trips and any already assigned to this driver
+        const eligible = (res.orders ?? []).filter((o) => {
+          const assignedUuid = o.driver_assigned_uuid || o.driver_assigned?.uuid
+          return !assignedUuid || assignedUuid === driver.uuid
+        })
         setTrips(eligible)
         // Pre-select trips already assigned to this driver
         const pre = new Set(
           eligible
-            .filter((o) => o.driver_assigned_uuid === driver.uuid)
+            .filter((o) => (o.driver_assigned_uuid || o.driver_assigned?.uuid) === driver.uuid)
             .map((o) => o.uuid)
         )
         if (pre.size > 0) setSelected(pre)

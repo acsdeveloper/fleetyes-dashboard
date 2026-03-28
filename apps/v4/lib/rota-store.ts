@@ -157,20 +157,20 @@ export function weekKey(date: Date): string {
   return `${date.getFullYear()}-W${String(getISOWeek(date)).padStart(2, "0")}`
 }
 
-/** Monday of the ISO week containing `date` */
+/** Sunday of the week containing `date` (weeks run Sun–Sat) */
 export function weekStart(date: Date): Date {
   const d = new Date(date)
-  const day = d.getDay() || 7
-  d.setDate(d.getDate() - day + 1)
+  const day = d.getDay() // 0=Sun, 1=Mon … 6=Sat
+  d.setDate(d.getDate() - day) // back to Sunday
   d.setHours(0, 0, 0, 0)
   return d
 }
 
-/** Array of 7 "YYYY-MM-DD" strings for Mon–Sun of the given week */
-export function weekDates(monday: Date): string[] {
+/** Array of 7 "YYYY-MM-DD" strings for Sun–Sat of the given week */
+export function weekDates(sunday: Date): string[] {
   return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday)
-    d.setDate(monday.getDate() + i)
+    const d = new Date(sunday)
+    d.setDate(sunday.getDate() + i)
     return d.toISOString().slice(0, 10)
   })
 }
