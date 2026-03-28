@@ -3,7 +3,7 @@
 import * as React from "react"
 import {
   ChevronLeft, ChevronRight, Settings2, Check, X,
-  Sun, Moon, Clock, AlertTriangle, Calendar,
+  Sun, Clock, AlertTriangle, Calendar, Loader2,
 } from "lucide-react"
 import {
   type RotaStatus, type RotaEntry, type ShiftTemplate, type DriverPreference,
@@ -12,6 +12,7 @@ import {
   getAllPreferences, upsertPreference, getPreference,
   weekStart, weekDates, weekKey, fmtDate, fmtDay, getISOWeek,
 } from "@/lib/rota-store"
+import { listOrders, updateOrder, type Order } from "@/lib/orders-api"
 import { listDrivers, type Driver } from "@/lib/drivers-api"
 import { dedupBy } from "@/lib/utils"
 import * as ReactDOM from "react-dom"
@@ -48,32 +49,95 @@ const DEFAULT_SHIFTS: ShiftTemplate = {
   10: { start: "23:00", pushed_later: false },
 }
 
-// ─── Cell Popover ─────────────────────────────────────────────────────────────
+/** Format "HH:MM" from a scheduled_at ISO string */
+function tripTime(scheduledAt?: string | null): string {
+  if (!scheduledAt) return "—"
+  return scheduledAt.slice(11, 16)
+}
+
+/** Derive shift start from earliest selected trip — HH:00 or HH:30 */
+function deriveShiftStart(orders: Order[]): string | undefined {
+  if (orders.length === 0) return undefined
+  const sorted = [...orders].sort((a, b) =>
+    (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? "")
+  )
+  const t = sorted[0].scheduled_at
+  if (!t) return undefined
+  const [h, m] = t.slice(11, 16).split(":").map(Number)
+  return `${String(h).padStart(2, "0")}:${m >= 30 ? "30" : "00"}`
+}
 
 function CellPopover({
-  driver, date, entry, template,
+  driver, date, entry,
   onSave, onClear, onClose,
 }: {
   driver: Driver
   date: string
   entry?: RotaEntry
-  template: ShiftTemplate
-  onSave: (e: RotaEntry) => void
+  onSave: (e: RotaEntry, selectedOrders: Order[]) => void
   onClear: () => void
   onClose: () => void
 }) {
   const [status, setStatus] = React.useState<RotaStatus>(entry?.status ?? "WD")
-  const [shiftNum, setShiftNum] = React.useState<string>(String(entry?.shift_number ?? ""))
-  const [customTime, setCustomTime] = React.useState(entry?.shift_start ?? "")
   const [note, setNote] = React.useState(entry?.note ?? "")
+  const [trips, setTrips] = React.useState<Order[]>([])
+  const [loadingTrips, setLoadingTrips] = React.useState(false)
+  const [selected, setSelected] = React.useState<Set<string>>(
+    new Set(entry?.trip_uuids ?? [])
+  )
+  const [saving, setSaving] = React.useState(false)
 
-  const resolvedTime = customTime || (shiftNum ? template[Number(shiftNum)]?.start : undefined)
+  // Fetch trips for this date when status = WD
+  React.useEffect(() => {
+    if (status !== "WD") { setTrips([]); return }
+    setLoadingTrips(true)
+    listOrders({ on: date, per_page: 100 })
+      .then((res) => {
+        // Show trips with no driver OR already assigned to THIS driver
+        const eligible = (res.orders ?? []).filter(
+          (o) => !o.driver_assigned_uuid || o.driver_assigned_uuid === driver.uuid
+        )
+        setTrips(eligible)
+        // Pre-select trips already assigned to this driver
+        const pre = new Set(
+          eligible
+            .filter((o) => o.driver_assigned_uuid === driver.uuid)
+            .map((o) => o.uuid)
+        )
+        if (pre.size > 0) setSelected(pre)
+      })
+      .catch(() => setTrips([]))
+      .finally(() => setLoadingTrips(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, date, driver.uuid])
+
+  const toggleTrip = (uuid: string) => {
+    setSelected(prev => {
+      const n = new Set(prev)
+      n.has(uuid) ? n.delete(uuid) : n.add(uuid)
+      return n
+    })
+  }
+
+  const selectedOrders = trips.filter(t => selected.has(t.uuid))
+  const derivedStart = deriveShiftStart(selectedOrders)
+
+  const handleSave = async () => {
+    setSaving(true)
+    const rotaEntry: RotaEntry = {
+      driver_uuid: driver.uuid,
+      date,
+      status,
+      shift_start: status === "WD" ? derivedStart : undefined,
+      trip_uuids: status === "WD" ? [...selected] : undefined,
+      note: note || undefined,
+    }
+    onSave(rotaEntry, status === "WD" ? selectedOrders : [])
+    setSaving(false)
+  }
 
   return (
-    <div
-      className="flex flex-col gap-3 p-4 min-w-[260px]"
-      onMouseDown={(e) => e.stopPropagation()}
-    >
+    <div className="flex flex-col gap-3 p-4 min-w-[280px]" onMouseDown={(e) => e.stopPropagation()}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -85,9 +149,9 @@ function CellPopover({
         </button>
       </div>
 
-      {/* Status */}
+      {/* Status selector */}
       <div>
-        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Status</p>
+        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Day status</p>
         <div className="grid grid-cols-3 gap-1.5">
           {STATUSES.map((s) => {
             const cfg = STATUS_CONFIG[s]
@@ -109,20 +173,55 @@ function CellPopover({
         </div>
       </div>
 
-      {/* Shift start time — only shown for WD */}
+      {/* Trip selector — WD only */}
       {status === "WD" && (
         <div>
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Shift starts at</p>
-          <input
-            type="time"
-            value={customTime}
-            onChange={(e) => setCustomTime(e.target.value)}
-            className="w-full rounded-lg border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-          {customTime && (
-            <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Select trips
+          </p>
+          {loadingTrips ? (
+            <div className="flex items-center gap-2 py-3 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Loading trips…
+            </div>
+          ) : trips.length === 0 ? (
+            <p className="rounded-lg border border-dashed py-3 text-center text-xs text-muted-foreground">
+              No unassigned trips on this date
+            </p>
+          ) : (
+            <div className="max-h-48 overflow-y-auto rounded-lg border divide-y">
+              {trips.map((trip) => {
+                const isSel = selected.has(trip.uuid)
+                const time = tripTime(trip.scheduled_at)
+                const route = [trip.pickup_name, trip.dropoff_name]
+                  .filter(Boolean).join(" → ") || trip.public_id
+                return (
+                  <button
+                    key={trip.uuid}
+                    onClick={() => toggleTrip(trip.uuid)}
+                    className={`flex w-full items-start gap-2.5 px-3 py-2 text-left transition-colors ${
+                      isSel ? "bg-primary/5 dark:bg-primary/10" : "hover:bg-muted"
+                    }`}
+                  >
+                    <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                      isSel ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/30"
+                    }`}>
+                      {isSel && <Check className="h-2.5 w-2.5" />}
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block truncate text-xs font-medium">{route}</span>
+                      <span className="block text-[10px] text-muted-foreground">{trip.public_id} · {time}</span>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          {derivedStart && (
+            <p className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
               <Clock className="h-3 w-3" />
-              First trip starts at <span className="font-semibold text-foreground">{customTime}</span>
+              Shift starts at <span className="font-semibold text-foreground">{derivedStart}</span>
+              {" "}({selected.size} trip{selected.size !== 1 ? "s" : ""})
             </p>
           )}
         </div>
@@ -143,10 +242,13 @@ function CellPopover({
       {/* Actions */}
       <div className="flex gap-2">
         <button
-          onClick={() => onSave({ driver_uuid: driver.uuid, date, status, shift_number: shiftNum ? Number(shiftNum) : undefined, shift_start: customTime || undefined, note: note || undefined })}
-          className="flex-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+          onClick={handleSave}
+          disabled={saving}
+          className="flex-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
         >
-          Save
+          {saving ? "Saving…" : status === "WD" && selected.size > 0
+            ? `Assign ${selected.size} trip${selected.size !== 1 ? "s" : ""}`
+            : "Save"}
         </button>
         {entry && (
           <button
@@ -160,6 +262,7 @@ function CellPopover({
     </div>
   )
 }
+
 
 // ─── Preference Editor ────────────────────────────────────────────────────────
 
@@ -325,8 +428,14 @@ export default function RotaPage() {
   const getEntry = (driverUuid: string, date: string): RotaEntry | undefined =>
     rotas.find((r) => r.driver_uuid === driverUuid && r.date === date)
 
-  const handleSave = (entry: RotaEntry) => {
+  const handleSave = async (entry: RotaEntry, selectedOrders: Order[]) => {
     upsertRota(entry)
+    // Assign the driver to each selected trip
+    await Promise.all(
+      selectedOrders.map((o) =>
+        updateOrder(o.uuid, { driver_assigned_uuid: entry.driver_uuid }).catch(() => {})
+      )
+    )
     setRotas(getWeekRota(dates))
     setPopover(null)
   }
@@ -532,7 +641,6 @@ export default function RotaPage() {
               driver={popover.driver}
               date={popover.date}
               entry={getEntry(popover.driver.uuid, popover.date)}
-              template={template}
               onSave={handleSave}
               onClear={() => handleClear(popover.driver.uuid, popover.date)}
               onClose={() => setPopover(null)}

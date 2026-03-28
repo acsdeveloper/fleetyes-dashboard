@@ -12,8 +12,9 @@ export interface RotaEntry {
   driver_uuid: string
   date: string         // "YYYY-MM-DD"
   status: RotaStatus
-  shift_number?: number // 1–10
-  shift_start?: string  // "HH:MM" — overrides shift template if set
+  shift_number?: number // 1–10 (legacy relay concept)
+  shift_start?: string  // "HH:MM" — auto-derived from earliest trip
+  trip_uuids?: string[] // trips assigned on this day via rota
   note?: string
 }
 
