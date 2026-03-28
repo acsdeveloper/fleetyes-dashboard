@@ -95,7 +95,10 @@ function CellPopover({
     // to get all trips on this specific date
     const nextDay = new Date(date + "T00:00:00")
     nextDay.setDate(nextDay.getDate() + 1)
-    const endDate = nextDay.toISOString().slice(0, 10)
+    const y = nextDay.getFullYear()
+    const mo = String(nextDay.getMonth() + 1).padStart(2, "0")
+    const d = String(nextDay.getDate()).padStart(2, "0")
+    const endDate = `${y}-${mo}-${d}`
     listOrders({ scheduled_at: date, end_date: endDate, per_page: 100 })
       .then((res) => {
         // Show unassigned trips and any already assigned to this driver

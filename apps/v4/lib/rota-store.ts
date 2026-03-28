@@ -166,12 +166,20 @@ export function weekStart(date: Date): Date {
   return d
 }
 
+/** Format a Date as "YYYY-MM-DD" in local time (not UTC) */
+function toLocalDateStr(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}
+
 /** Array of 7 "YYYY-MM-DD" strings for Sun–Sat of the given week */
 export function weekDates(sunday: Date): string[] {
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(sunday)
     d.setDate(sunday.getDate() + i)
-    return d.toISOString().slice(0, 10)
+    return toLocalDateStr(d)
   })
 }
 
