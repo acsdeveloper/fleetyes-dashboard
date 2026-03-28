@@ -23,8 +23,11 @@ import { ontrackFetch } from "@/lib/ontrack-api"
 import { AgGridReact } from "ag-grid-react"
 import {
   type ColDef, type ICellRendererParams,
+  ModuleRegistry, AllCommunityModule,
   themeQuartz,
 } from "ag-grid-community"
+
+ModuleRegistry.registerModules([AllCommunityModule])
 
 // ─── AG Grid themes (light + dark) ────────────────────────────────────────────
 // Use the JS Theming API so font, colors, and spacing are all in one place
