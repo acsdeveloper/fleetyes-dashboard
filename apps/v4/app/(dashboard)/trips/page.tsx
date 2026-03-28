@@ -23,11 +23,19 @@ import { ontrackFetch } from "@/lib/ontrack-api"
 import { AgGridReact } from "ag-grid-react"
 import {
   type ColDef, type ICellRendererParams,
-  ModuleRegistry, AllCommunityModule,
+  ModuleRegistry,
   themeQuartz,
 } from "ag-grid-community"
+import {
+  AllEnterpriseModule,
+  LicenseManager,
+  type IDetailCellRendererParams,
+} from "ag-grid-enterprise"
 
-ModuleRegistry.registerModules([AllCommunityModule])
+LicenseManager.setLicenseKey(
+  "Using_this_AG_Grid_Enterprise_key_( AG-045903 )_in_excess_of_the_licence_granted_is_not_permitted___Please_report_misuse_to_( legal@ag-grid.com )___For_help_with_changing_this_key_please_contact_( info@ag-grid.com )___( Turnkey Group )_is_granted_a_( Single Application )_Developer_License_for_the_application_( Sustainion by Turnkey )_only_for_( 1 )_Front-End_JavaScript_developer___All_Front-End_JavaScript_developers_working_on_( Sustainion by Turnkey )_need_to_be_licensed___( Sustainion by Turnkey )_has_been_granted_a_Deployment_License_Add-on_for_( 1 )_Production_Environment___This_key_works_with_AG_Grid_Enterprise_versions_released_before_( 1_August_2024 )____[v2]_MTcyMjQ2NjgwMDAwMA==e57594dcbaa8ebd270fe76e66aa6669f"
+)
+ModuleRegistry.registerModules([AllEnterpriseModule])
 
 // ─── AG Grid themes (light + dark) ────────────────────────────────────────────
 // Use the JS Theming API so font, colors, and spacing are all in one place
@@ -1088,27 +1096,7 @@ function DriverCellRenderer({ data }: ICellRendererParams<Order>) {
   )
 }
 
-// ─── Leg data type ────────────────────────────────────────────────────────────
 
-type LegData = {
-  legIndex:  number
-  vrId:      string    // waypoint public_id or generated
-  from:      string
-  to:        string
-  legType:   "pickup" | "waypoint" | "dropoff"
-}
-
-// ─── Page component uses a stable context passed into AG Grid cell renderers ──
-type RowCallbacks = {
-  onDelete:      (o: Order) => void
-  onDispatch:    (o: Order) => void
-  onAssigned:    (o: Order, driverUuid: string) => void
-  drivers:       Driver[]
-  expandedUuids: Set<string>
-  loadingLegs:   Set<string>
-  legCache:      Map<string, LegData[]>
-  toggleExpand:  (order: Order) => void
-}
 
 function ActionsCellRenderer({ data, context }: ICellRendererParams<Order> & { context: RowCallbacks }) {
   if (!data) return null
@@ -1124,108 +1112,53 @@ function ActionsCellRenderer({ data, context }: ICellRendererParams<Order> & { c
   )
 }
 
-// ─── Expand chevron cell (column 0)  ─────────────────────────────────────────
-
-function ExpandToggleCell({ data, context }: ICellRendererParams<Order>) {
-  if (!data) return null
-  const ctx = context as RowCallbacks
-  const isExpanded = ctx.expandedUuids?.has(data.uuid)
-  const isLoading  = ctx.loadingLegs?.has(data.uuid)
-  return (
-    <button
-      onClick={(e) => { e.stopPropagation(); ctx.toggleExpand(data) }}
-      title={isExpanded ? "Collapse legs" : "Expand legs"}
-      className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
-    >
-      {isLoading
-        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        : <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-150 ${isExpanded ? "rotate-0" : "-rotate-90"}`} />}
-    </button>
-  )
+type LegData = {
+  legIndex: number
+  vrId:     string    // waypoint public_id or generated
+  from:     string
+  to:       string
+  legType:  "pickup" | "waypoint" | "dropoff"
 }
 
-// ─── Full-width renderer for expanded order rows ──────────────────────────────
-// When a row is expanded it becomes a fullWidthRow whose single cell renders
-// BOTH the normal row summary header AND the detail leg table with column headers.
-// This keeps pagination working correctly (one logical row per order always).
+// Pure function — no component state needed
+function buildLegs(order: Order): LegData[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const payload = order.payload as any
+  if (!payload) return []
 
-const LEG_ROW_H = 34   // px per leg row
-const LEG_HEAD_H = 32  // px for the detail header row
-const LEG_FOOT_H = 8   // bottom padding
+  type Stop = { name: string; publicId?: string }
+  const stops: Stop[] = []
 
-function detailPanelHeight(legCount: number): number {
-  return LEG_HEAD_H + legCount * LEG_ROW_H + LEG_FOOT_H
+  if (payload.pickup)
+    stops.push({ name: payload.pickup.name ?? "Pickup", publicId: payload.pickup.public_id })
+
+  const waypoints: Record<string, unknown>[] = Array.isArray(payload.waypoints) ? payload.waypoints : []
+  waypoints.forEach((wp) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = wp as any
+    stops.push({ name: w.name ?? w.address ?? w.place?.name ?? "Waypoint", publicId: w.public_id })
+  })
+
+  if (payload.dropoff)
+    stops.push({ name: payload.dropoff.name ?? "Dropoff", publicId: payload.dropoff.public_id })
+
+  if (stops.length < 2) return []
+
+  return stops.slice(0, -1).map((stop, i): LegData => ({
+    legIndex: i,
+    vrId:     stops[i + 1].publicId ?? `VR-${String(i + 1).padStart(3, "0")}`,
+    from:     stop.name,
+    to:       stops[i + 1].name,
+    legType:  i === 0 ? "pickup" : i === stops.length - 2 ? "dropoff" : "waypoint",
+  }))
 }
 
-function ExpandedOrderRenderer({ data, context }: ICellRendererParams<Order>) {
-  if (!data) return null
-  const ctx = context as RowCallbacks
-  const legs = ctx.legCache?.get(data.uuid) ?? []
-  const isLoading = ctx.loadingLegs?.has(data.uuid)
-
-  const typeStyle: Record<string, string> = {
-    pickup:  "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-    waypoint:"bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",
-    dropoff: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  }
-
-  return (
-    <div className="flex flex-col w-full h-full">
-      {/* ── Normal row summary ─────────────────────────────────────── */}
-      <div
-        className="flex items-center gap-3 px-3 h-[39px] shrink-0 border-b border-border/60 cursor-pointer hover:bg-muted/30 transition-colors"
-        onClick={() => ctx.toggleExpand(data)}
-      >
-        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0 rotate-0 transition-transform" />
-        <span className="font-medium text-primary text-sm w-24 shrink-0 truncate">{data.public_id ?? "—"}</span>
-        <span className="text-xs text-muted-foreground w-24 shrink-0 truncate">{data.internal_id ?? "—"}</span>
-        <span className="text-xs text-muted-foreground flex-1 truncate">
-          {data.payload?.pickup_name ?? "—"} → {data.payload?.dropoff_name ?? "—"}
-        </span>
-        <span className="text-xs text-muted-foreground shrink-0">{data.driver_assigned?.name ?? "No driver"}</span>
-      </div>
-
-      {/* ── Detail panel: leg table ───────────────────────────────── */}
-      <div className="flex-1 overflow-hidden bg-muted/[0.03]">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-full gap-2 text-muted-foreground text-xs">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Fetching legs…
-          </div>
-        ) : legs.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-muted-foreground text-xs italic">No leg data available</div>
-        ) : (
-          <table className="w-full text-xs border-collapse">
-            <thead>
-              <tr className="border-b border-border/60 bg-muted/40">
-                <th className="pl-10 pr-3 py-2 text-left font-semibold text-muted-foreground text-[11px] w-36">VR ID</th>
-                <th className="px-3 py-2 text-left font-semibold text-muted-foreground text-[11px]">From</th>
-                <th className="px-2 py-2 w-5"></th>
-                <th className="px-3 py-2 text-left font-semibold text-muted-foreground text-[11px]">To</th>
-                <th className="px-3 py-2 text-right font-semibold text-muted-foreground text-[11px] w-24">Type</th>
-              </tr>
-            </thead>
-            <tbody>
-              {legs.map((leg) => (
-                <tr key={leg.legIndex} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
-                  <td className="pl-10 pr-3 py-2 font-mono text-[11px] text-primary/60 truncate max-w-[140px]">{leg.vrId}</td>
-                  <td className="px-3 py-2 text-muted-foreground truncate max-w-[200px]">{leg.from}</td>
-                  <td className="px-2 py-2 text-center">
-                    <ArrowRight className="h-3 w-3 text-muted-foreground/40 inline-block" />
-                  </td>
-                  <td className="px-3 py-2 font-medium truncate max-w-[200px]">{leg.to}</td>
-                  <td className="px-3 py-2 text-right">
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${typeStyle[leg.legType] ?? "bg-muted text-muted-foreground"}`}>
-                      {leg.legType}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-  )
+// ─── Page component uses a stable context passed into AG Grid cell renderers ──
+type RowCallbacks = {
+  onDelete:   (o: Order) => void
+  onDispatch: (o: Order) => void
+  onAssigned: (o: Order, driverUuid: string) => void
+  drivers:    Driver[]
 }
 
 // ─── Page ────────────────────────────────────────────────────────────────────
@@ -1249,11 +1182,6 @@ export default function TripsPage() {
 
   // Tabs
   const [tab, setTab] = React.useState<"current" | "history">("current")
-
-  // Master-detail leg expansion
-  const [expandedUuids, setExpandedUuids] = React.useState<Set<string>>(new Set())
-  const [legCache,      setLegCache]      = React.useState<Map<string, LegData[]>>(new Map())
-  const [loadingLegs,   setLoadingLegs]   = React.useState<Set<string>>(new Set())
 
   // Last Sunday 00:00 — default start for Current tab
   const lastSunday = React.useMemo(() => {
@@ -1382,76 +1310,65 @@ export default function TripsPage() {
     setRefreshing(false)
   }
 
-  // ── Build leg data from a fully-loaded order's payload ─────────────────────
-  const buildLegs = React.useCallback((order: Order): LegData[] => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const payload = order.payload as any
-    if (!payload) return []
-
-    type Stop = { name: string; publicId?: string }
-    const stops: Stop[] = []
-
-    if (payload.pickup)
-      stops.push({ name: payload.pickup.name ?? "Pickup", publicId: payload.pickup.public_id })
-
-    const waypoints: Record<string, unknown>[] = Array.isArray(payload.waypoints) ? payload.waypoints : []
-    waypoints.forEach((wp) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const w = wp as any
-      stops.push({ name: w.name ?? w.address ?? w.place?.name ?? "Waypoint", publicId: w.public_id })
-    })
-
-    if (payload.dropoff)
-      stops.push({ name: payload.dropoff.name ?? "Dropoff", publicId: payload.dropoff.public_id })
-
-    if (stops.length < 2) return []
-
-    return stops.slice(0, -1).map((stop, i): LegData => ({
-      legIndex: i,
-      vrId:     stops[i + 1].publicId ?? `VR-${String(i + 1).padStart(3, "0")}`,
-      from:     stop.name,
-      to:       stops[i + 1].name,
-      legType:  i === 0 ? "pickup" : i === stops.length - 2 ? "dropoff" : "waypoint",
-    }))
-  }, [])
-
-  const toggleExpand = React.useCallback(async (order: Order) => {
-    const uuid = order.uuid
-    if (expandedUuids.has(uuid)) {
-      setExpandedUuids(prev => { const s = new Set(prev); s.delete(uuid); return s })
-      return
-    }
-    // Fetch if not cached yet
-    if (!legCache.has(uuid)) {
-      setLoadingLegs(prev => new Set(prev).add(uuid))
-      try {
-        const { order: full } = await getOrder(uuid)
-        setLegCache(prev => new Map(prev).set(uuid, buildLegs(full)))
-      } catch {
-        setLegCache(prev => new Map(prev).set(uuid, []))
-      } finally {
-        setLoadingLegs(prev => { const s = new Set(prev); s.delete(uuid); return s })
-      }
-    }
-    setExpandedUuids(prev => new Set(prev).add(uuid))
-  }, [expandedUuids, legCache, buildLegs])
-
-  // Tell AG Grid to recalculate row heights whenever expansion state changes
-  React.useEffect(() => {
-    gridRef.current?.api?.resetRowHeights()
-  }, [expandedUuids, legCache])
-
   // Stable context object passed down into AG Grid cell renderers
   const gridContext = React.useMemo<RowCallbacks>(() => ({
-    onDelete:     handleDelete,
-    onDispatch:   handleDispatch,
-    onAssigned:   handleDriverAssigned,
+    onDelete:   handleDelete,
+    onDispatch: handleDispatch,
+    onAssigned: handleDriverAssigned,
     drivers,
-    expandedUuids,
-    loadingLegs,
-    legCache,
-    toggleExpand,
-  }), [handleDelete, handleDispatch, handleDriverAssigned, drivers, expandedUuids, loadingLegs, legCache, toggleExpand])
+  }), [handleDelete, handleDispatch, handleDriverAssigned, drivers])
+
+  // Detail cell renderer params — drives the master-detail sub-grid
+  const detailCellRendererParams = React.useMemo<IDetailCellRendererParams<Order, LegData>>(() => ({
+    detailGridOptions: {
+      columnDefs: [
+        {
+          field:       "vrId",
+          headerName:  "VR ID",
+          width:       150,
+          cellStyle:   { fontFamily: "var(--font-mono, monospace)", fontSize: 11, color: "var(--muted-foreground)" },
+        },
+        {
+          field:      "from",
+          headerName: "From",
+          flex:        1,
+          cellStyle:   { color: "var(--muted-foreground)" },
+        },
+        {
+          field:       "to",
+          headerName:  "To",
+          flex:         1,
+        },
+        {
+          field:       "legType",
+          headerName:  "Type",
+          width:        110,
+          cellRenderer: ({ value }: ICellRendererParams) => {
+            const colours: Record<string, string> = {
+              pickup:  "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+              waypoint:"bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300",
+              dropoff: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
+            }
+            return (
+              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize ${colours[value] ?? "bg-muted text-muted-foreground"}`}>
+                {value}
+              </span>
+            )
+          },
+        },
+      ],
+      defaultColDef: { sortable: false, filter: false, resizable: false },
+      rowHeight:     34,
+      headerHeight:  32,
+      domLayout:     "autoHeight",
+    },
+    getDetailRowData: (params) => {
+      // Lazy-fetch the full order then resolve legs
+      getOrder(params.data.uuid)
+        .then(({ order: full }) => params.successCallback(buildLegs(full)))
+        .catch(() => params.successCallback([]))
+    },
+  }), [])
 
   // Filtered orders
   const filteredOrders = React.useMemo(() => {
@@ -1464,31 +1381,17 @@ export default function TripsPage() {
 
   // Column definitions
   const colDefs = React.useMemo<ColDef<Order>[]>(() => [
-    // ── Expand chevron ──────────────────────────────────────────────────────
-    {
-      headerName: "",
-      colId: "_expand",
-      width: 42,
-      minWidth: 42,
-      maxWidth: 42,
-      resizable: false,
-      sortable: false,
-      filter: false,
-      suppressHeaderMenuButton: true,
-      suppressHeaderFilterButton: true,
-      suppressMovable: true,
-      suppressColumnsToolPanel: true,
-      cellRenderer: ExpandToggleCell,
-      cellStyle: { padding: 0, display: "flex", alignItems: "center", justifyContent: "center" },
-    },
     {
       headerName: "Public ID",
       field: "public_id",
       filter: "agTextColumnFilter",
-      width: 120,
-      cellRenderer: ({ value }: ICellRendererParams) => (
-        <span className="font-medium text-primary">{value ?? "—"}</span>
-      ),
+      width: 140,
+      cellRenderer: "agGroupCellRenderer",
+      cellRendererParams: {
+        innerRenderer: ({ value }: ICellRendererParams) => (
+          <span className="font-medium text-primary">{value ?? "—"}</span>
+        ),
+      },
     },
     {
       headerName: "Internal ID",
@@ -1574,6 +1477,23 @@ export default function TripsPage() {
       filter: "agTextColumnFilter",
       width: 110,
       cellRenderer: ({ value }: ICellRendererParams) => value || <span className="text-muted-foreground">—</span>,
+    },
+    {
+      headerName: "Actions",
+      colId: "_actions",
+      width: 60,
+      minWidth: 60,
+      maxWidth: 60,
+      resizable: false,
+      sortable: false,
+      filter: false,
+      suppressHeaderMenuButton: true,
+      suppressHeaderFilterButton: true,
+      suppressMovable: true,
+      suppressColumnsToolPanel: true,
+      pinned: "right",
+      cellRenderer: ActionsCellRenderer,
+      cellStyle: { padding: 0, overflow: "visible" },
     },
   ], [showCompleted])
 
@@ -1894,20 +1814,16 @@ export default function TripsPage() {
             animateRows
             suppressCellFocus
             getRowId={({ data }) => data.uuid}
-            isFullWidthRow={({ rowNode }) => expandedUuids.has(rowNode.data?.uuid ?? "")}
-            fullWidthCellRenderer={ExpandedOrderRenderer}
-            getRowHeight={({ data }) => {
-              if (!data) return 39
-              if (!expandedUuids.has(data.uuid)) return 39
-              const legs = legCache.get(data.uuid)
-              const count = legs ? legs.length : 1   // 1 = loading / empty placeholder
-              return 39 + detailPanelHeight(count)
-            }}
+            masterDetail
+            detailRowAutoHeight
+            detailCellRendererParams={detailCellRendererParams}
             onGridReady={() => {
               const el = gridContainerRef.current
               if (!el) return
-              // For this grid we use a fixed row height of 39px (detail rows vary)
-              gridRef.current?.api?.setGridOption("rowHeight", 39)
+              const available = el.clientHeight - 38 - 40 - 8
+              const rh = Math.max(32, Math.floor(available / 15))
+              gridRef.current?.api?.setGridOption("rowHeight", rh)
+              gridRef.current?.api?.resetRowHeights()
             }}
           />
         </div>
