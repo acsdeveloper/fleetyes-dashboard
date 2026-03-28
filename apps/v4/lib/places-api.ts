@@ -36,3 +36,15 @@ export async function listPlaces(params: {
   const qs = buildQueryString(merged as Record<string, string | number | boolean | undefined | null>)
   return ontrackFetch<PlaceListResponse>(`/places${qs}`)
 }
+
+export async function deletePlace(uuid: string): Promise<void> {
+  return ontrackFetch<void>(`/places/${uuid}`, { method: "DELETE" })
+}
+
+export async function bulkDeletePlaces(uuids: string[]): Promise<{ deleted: number; errors: string[] }> {
+  const results = await Promise.allSettled(uuids.map(id => deletePlace(id)))
+  const errors = results
+    .map((r, i) => r.status === "rejected" ? `${uuids[i]}: ${r.reason?.message ?? "failed"}` : null)
+    .filter(Boolean) as string[]
+  return { deleted: results.filter(r => r.status === "fulfilled").length, errors }
+}

@@ -3,10 +3,10 @@
 import * as React from "react"
 import {
   Search, RefreshCw, Plus, Upload, Download,
-  MoreHorizontal, LayoutGrid, List,
-  Phone, MapPin, UserCheck, UserX,
+  LayoutGrid, List,
+  Phone, MapPin, UserCheck, UserX, Trash2, AlertTriangle,
 } from "lucide-react"
-import { listDrivers, type Driver, type DriverStatus } from "@/lib/drivers-api"
+import { listDrivers, bulkDeleteDrivers, type Driver, type DriverStatus } from "@/lib/drivers-api"
 import { listFleets, type Fleet } from "@/lib/fleets-api"
 
 import { AgGridReact } from "ag-grid-react"
@@ -118,15 +118,6 @@ function StatusCell({ data }: ICellRendererParams<DriverRow>) {
   )
 }
 
-function ActionsCell() {
-  return (
-    <div className="flex items-center justify-center h-full">
-      <button className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-        <MoreHorizontal className="h-4 w-4" />
-      </button>
-    </div>
-  )
-}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -140,6 +131,9 @@ export default function DriversPage() {
   const [view,          setView]          = React.useState<"list" | "cards">("list")
   const [showFilters,   setShowFilters]   = React.useState(false)
   const [searchFocused, setSearchFocused] = React.useState(false)
+  const [selectedCount, setSelectedCount] = React.useState(0)
+  const [deleting,      setDeleting]      = React.useState(false)
+  const [confirmDelete, setConfirmDelete] = React.useState(false)
 
   // Dark mode
   const [isDark, setIsDark] = React.useState(() =>
@@ -218,6 +212,8 @@ export default function DriversPage() {
       flex: 2,
       minWidth: 180,
       filter: "agTextColumnFilter",
+      checkboxSelection: true,
+      headerCheckboxSelection: true,
     },
     {
       headerName: "Email",
@@ -262,14 +258,6 @@ export default function DriversPage() {
       field: "status",
       width: 120,
       cellRenderer: StatusCell,
-    },
-    {
-      headerName: "",
-      colId: "_actions",
-      width: 52,
-      sortable: false,
-      filter: false,
-      cellRenderer: ActionsCell,
     },
   ], [])
 
@@ -393,9 +381,81 @@ export default function DriversPage() {
             animateRows
             suppressCellFocus
             getRowId={({ data }) => data.uuid}
+            rowSelection={{ mode: "multiRow", enableClickSelection: false }}
+            onSelectionChanged={() =>
+              setSelectedCount(gridRef.current?.api?.getSelectedRows().length ?? 0)
+            }
             overlayLoadingTemplate='<span class="text-sm text-muted-foreground">Loading drivers…</span>'
             overlayNoRowsTemplate='<span class="text-sm text-muted-foreground">No drivers found.</span>'
           />
+        </div>
+      )}
+
+      {/* ── Floating selection action bar ── */}
+      {view === "list" && selectedCount > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-2xl border bg-card px-5 py-3 shadow-2xl animate-in slide-in-from-bottom-4 duration-200">
+          <span className="text-sm font-medium">{selectedCount} driver{selectedCount !== 1 ? "s" : ""} selected</span>
+          <span className="h-4 w-px bg-border" />
+          <button
+            onClick={() => { gridRef.current?.api?.deselectAll(); setSelectedCount(0) }}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Clear
+          </button>
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-red-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-red-600"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Delete ({selectedCount})
+          </button>
+        </div>
+      )}
+
+      {/* ── Confirm delete modal ── */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border bg-card p-6 shadow-2xl">
+            <div className="mb-4 flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+              </span>
+              <div>
+                <p className="font-semibold">Delete {selectedCount} driver{selectedCount !== 1 ? "s" : ""}?</p>
+                <p className="text-sm text-muted-foreground">This action cannot be undone.</p>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setConfirmDelete(false)}
+                disabled={deleting}
+                className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={deleting}
+                onClick={async () => {
+                  const uuids = (gridRef.current?.api?.getSelectedRows() ?? []).map(r => r.uuid)
+                  setDeleting(true)
+                  try {
+                    const { deleted, errors } = await bulkDeleteDrivers(uuids)
+                    setConfirmDelete(false)
+                    setSelectedCount(0)
+                    await load()
+                    if (errors.length) setError(`Deleted ${deleted}, ${errors.length} failed: ${errors[0]}`)
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : "Delete failed")
+                  } finally {
+                    setDeleting(false)
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600 disabled:opacity-50"
+              >
+                {deleting ? "Deleting…" : `Delete ${selectedCount}`}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

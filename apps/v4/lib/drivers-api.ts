@@ -57,3 +57,15 @@ export async function listDrivers(
   const qs = buildQueryString(merged as Record<string, string | number | boolean | undefined | null>)
   return ontrackFetch<DriverListResponse>(`/drivers${qs}`)
 }
+
+export async function deleteDriver(uuid: string): Promise<void> {
+  return ontrackFetch<void>(`/drivers/${uuid}`, { method: "DELETE" })
+}
+
+export async function bulkDeleteDrivers(uuids: string[]): Promise<{ deleted: number; errors: string[] }> {
+  const results = await Promise.allSettled(uuids.map(id => deleteDriver(id)))
+  const errors = results
+    .map((r, i) => r.status === "rejected" ? `${uuids[i]}: ${r.reason?.message ?? "failed"}` : null)
+    .filter(Boolean) as string[]
+  return { deleted: results.filter(r => r.status === "fulfilled").length, errors }
+}
