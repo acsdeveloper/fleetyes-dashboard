@@ -1232,6 +1232,9 @@ export default function TripsPage() {
   const [showFilters, setShowFilters] = React.useState(false)
   const [refreshing, setRefreshing] = React.useState(false)
   const [selectedCount, setSelectedCount] = React.useState(0)
+  const [showCards, setShowCards] = React.useState(false)
+  const [expandedRows, setExpandedRows] = React.useState<Set<string>>(new Set())
+  const [searchFocused, setSearchFocused] = React.useState(false)
 
   // Detect dark mode reactively — declared here so detailCellRendererParams can use it
   const [isDark, setIsDark] = React.useState(() =>
@@ -1404,15 +1407,26 @@ export default function TripsPage() {
     setRefreshing(false)
   }
 
+  const toggleRow = React.useCallback((uuid: string) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev)
+      if (next.has(uuid)) next.delete(uuid)
+      else next.add(uuid)
+      return next
+    })
+  }, [])
+
   // Stable context object passed down into AG Grid cell renderers
-  const gridContext = React.useMemo<RowCallbacks>(() => ({
+  const gridContext = React.useMemo<RowCallbacks & { expandedRows: Set<string>; toggleRow: (id: string) => void }>(() => ({
     onDelete:          handleDelete,
     onDispatch:        handleDispatch,
     onAssigned:        handleDriverAssigned,
     onVehicleAssigned: handleVehicleAssigned,
     drivers,
     vehicles,
-  }), [handleDelete, handleDispatch, handleDriverAssigned, handleVehicleAssigned, drivers, vehicles])
+    expandedRows,
+    toggleRow,
+  }), [handleDelete, handleDispatch, handleDriverAssigned, handleVehicleAssigned, drivers, vehicles, expandedRows, toggleRow])
 
 
   // Filtered orders
@@ -1470,18 +1484,17 @@ export default function TripsPage() {
     {
       headerName: "Route",
       colId: "_route",
-      autoHeight: true,
       flex: 2,
       minWidth: 180,
       sortable: false,
       filter: false,
-      cellRenderer: ({ data }: ICellRendererParams<Order>) => {
+      cellRenderer: ({ data, context }: ICellRendererParams<Order> & { context: RowCallbacks & { expandedRows: Set<string>; toggleRow: (id: string) => void } }) => {
         if (!data) return null
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const payload = data.payload as any
         if (!payload) return <span className="text-muted-foreground text-xs">No route</span>
 
-        type Stop = { name?: string; publicId?: string; address?: string }
+        type Stop = { name?: string; publicId?: string }
         const stops: Stop[] = []
 
         const pickup = payload.pickup
@@ -1497,35 +1510,55 @@ export default function TripsPage() {
 
         if (stops.length === 0) return <span className="text-muted-foreground text-xs">No route</span>
 
+        const isExpanded = context?.expandedRows?.has(data.uuid)
+        const from = stops[0]?.name ?? "—"
+        const to = stops[stops.length - 1]?.name ?? "—"
+
+        if (!isExpanded) {
+          // Compact: From → To with expand chevron
+          return (
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => context?.toggleRow(data.uuid)}
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-muted transition-colors"
+                title="Show all stops"
+              >
+                <ArrowRight className="h-3 w-3 text-muted-foreground" />
+              </button>
+              <span className="flex items-center gap-1 text-[12px]">
+                <span className="font-medium truncate max-w-[120px]" title={from}>{from}</span>
+                <span className="text-muted-foreground shrink-0">→</span>
+                <span className="font-medium truncate max-w-[120px]" title={to}>{to}</span>
+                {stops.length > 2 && (
+                  <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                    +{stops.length - 2}
+                  </span>
+                )}
+              </span>
+            </div>
+          )
+        }
+
+        // Expanded: full stop list
         return (
           <div className="py-1 leading-none">
+            <button
+              onClick={() => context?.toggleRow(data.uuid)}
+              className="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowRight className="h-3 w-3 rotate-90" /> Collapse
+            </button>
             {stops.map((s, i) => (
               <div key={i} className="flex items-start gap-1.5">
-                {/* connector line + dot */}
                 <div className="flex flex-col items-center" style={{ minWidth: 14 }}>
-                  <span
-                    className={`mt-0.5 h-2 w-2 rounded-full flex-shrink-0 ${
-                      i === 0
-                        ? "bg-emerald-500"
-                        : i === stops.length - 1
-                        ? "bg-rose-500"
-                        : "bg-violet-400"
-                    }`}
-                  />
-                  {i < stops.length - 1 && (
-                    <span className="w-px flex-1 bg-border" style={{ minHeight: 10 }} />
-                  )}
+                  <span className={`mt-0.5 h-2 w-2 rounded-full flex-shrink-0 ${
+                    i === 0 ? "bg-emerald-500" : i === stops.length - 1 ? "bg-rose-500" : "bg-violet-400"
+                  }`} />
+                  {i < stops.length - 1 && <span className="w-px flex-1 bg-border" style={{ minHeight: 10 }} />}
                 </div>
-                {/* label */}
                 <div className="pb-1.5">
-                  <span className="text-[12px] font-medium leading-tight">
-                    {s.name ?? "—"}
-                  </span>
-                  {s.publicId && (
-                    <span className="ml-1 font-mono text-[10px] text-muted-foreground">
-                      ({s.publicId})
-                    </span>
-                  )}
+                  <span className="text-[12px] font-medium leading-tight">{s.name ?? "—"}</span>
+                  {s.publicId && <span className="ml-1 font-mono text-[10px] text-muted-foreground">({s.publicId})</span>}
                 </div>
               </div>
             ))}
@@ -1559,7 +1592,7 @@ export default function TripsPage() {
       width: 110,
       cellRenderer: ({ value }: ICellRendererParams) => value || <span className="text-muted-foreground">—</span>,
     },
-  ], [showCompleted])
+  ], [showCompleted, expandedRows])
 
   const defaultColDef = React.useMemo<ColDef>(() => ({
     sortable: true,
@@ -1598,8 +1631,8 @@ export default function TripsPage() {
 
     <div className="flex flex-1 flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
 
-      {/* ── Summary Cards ────────────────────────────────────────────── */}
-      {(() => {
+      {/* ── Summary Cards (hidden by default, toggled by Stats button in toolbar) ─── */}
+      {showCards && (() => {
         const todayStr   = new Date().toDateString()
         const unassigned = orders.filter(o => !o.driver_assigned_uuid).length
         const todayCount = orders.filter(o => o.scheduled_at && new Date(o.scheduled_at).toDateString() === todayStr).length
@@ -1719,14 +1752,16 @@ export default function TripsPage() {
             </button>
           )}
 
-          {/* Search — right side, operates on whatever view is active */}
-          <div className="relative w-40">
+          {/* Search — expands on focus */}
+          <div className={`relative transition-all duration-200 ${searchFocused ? "w-72" : "w-40"}`}>
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
               placeholder="Search…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
               className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
             />
           </div>
@@ -1758,6 +1793,21 @@ export default function TripsPage() {
                 <path strokeLinecap="round" d="M2 4h12M4 8h8M6 12h4" />
               </svg>
               Filters
+            </button>
+            {/* Stats toggle — shows/hides summary cards */}
+            <button
+              onClick={() => setShowCards(v => !v)}
+              title={showCards ? "Hide summary stats" : "Show summary stats"}
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${
+                showCards
+                  ? "bg-blue-500 text-white shadow-sm"
+                  : "text-muted-foreground hover:bg-background hover:text-foreground"
+              }`}
+            >
+              <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2 13V8M6 13V5M10 13V7M14 13V3" />
+              </svg>
+              Stats
             </button>
           </div>
 
