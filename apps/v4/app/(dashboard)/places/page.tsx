@@ -143,7 +143,7 @@ function OSMMap({ places, selectedId, onSelect }: {
 </style></head>
 <body><div id="map"></div><script>
 var map=L.map('map',{zoomControl:true,attributionControl:true}).setView([${cLat},${cLng}],${zoom});
-L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/256/{z}/{x}/{y}@2x?access_token=${mapboxToken}',{maxZoom:22,tileSize:256,attribution:'\u00a9 <a href="https://www.mapbox.com/about/maps/">Mapbox</a> \u00a9 <a href="https://www.openstreetmap.org/copyright">OSM</a>'}).addTo(map);
+L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/256/{z}/{x}/{y}@2x?access_token=${mapboxToken}',{maxZoom:22,tileSize:256,attribution:'\u00a9 <a href="https://www.mapbox.com/about/maps/">Mapbox</a> \u00a9 <a href="https://www.openstreetmap.org/copyright">OSM</a>'}).addTo(map);
 var markers={};
 ${markersJs}
 </script></body></html>`
