@@ -1643,7 +1643,7 @@ export default function TripsPage() {
       {/* ── Toolbar ─────────────────────────────────────────────────────────── */}
       <div data-help="toolbar" className="flex flex-col gap-2">
 
-        {/* Single row: [Tabs + Search] ··· spacer ··· [Delete?] [toggles] │ [utils] │ [New Trip] [?] */}
+        {/* Single row: [Tabs + date range?] ···spacer··· [Delete?] [🔍] [toggles] │ [utils] │ [New Trip] [?] */}
         <div className="flex items-center gap-2">
 
           {/* LEFT: Tabs */}
@@ -1661,19 +1661,7 @@ export default function TripsPage() {
             ))}
           </div>
 
-          {/* Search — compact */}
-          <div className="relative w-44">
-            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
-            />
-          </div>
-
-          {/* History date range — inline, only when History tab active */}
+          {/* History date range — sits right beside the History tab, defines what you're viewing */}
           {tab === "history" && (
             <>
               <span className="h-6 w-px bg-border" />
@@ -1717,7 +1705,7 @@ export default function TripsPage() {
             </>
           )}
 
-          {/* Flex spacer — pushes controls to the right */}
+          {/* Flex spacer — everything below is pushed to the right */}
           <div className="flex-1" />
 
           {/* Delete selected — appears when rows are checked */}
@@ -1730,6 +1718,18 @@ export default function TripsPage() {
               Delete {selectedCount}
             </button>
           )}
+
+          {/* Search — right side, operates on whatever view is active */}
+          <div className="relative w-40">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
+            />
+          </div>
 
           {/* Pill toggles — view options grouped together */}
           <div className="flex items-center gap-0.5 rounded-lg border bg-muted/30 p-0.5">
