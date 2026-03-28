@@ -1313,7 +1313,7 @@ export default function TripsPage() {
   }, [fetchOrders, tab])
 
   React.useEffect(() => {
-    listDrivers().then((r) => setDrivers(dedupBy(dedupBy(r.drivers ?? [], "uuid"), "name"))).catch(() => {})
+    listDrivers().then((r) => setDrivers(dedupBy(dedupBy(r.drivers ?? [], "uuid"), (d) => `${d.name}|${d.phone ?? ""}`))).catch(() => {})
     listFleets().then((r) => setFleets(dedupBy(r.fleets ?? [], "uuid"))).catch(() => {})
     listVehicles().then((r) => setVehicles(dedupBy(r.vehicles ?? [], "uuid"))).catch(() => {})
   }, [])
