@@ -84,6 +84,38 @@ function eventSlot(startIso: string, endIso: string | null | undefined, pxPerHou
   return { top: Math.max(0, top), height }
 }
 
+/**
+ * Assigns a column index to each event so overlapping events sit side-by-side.
+ * Returns items in same order as input with { col, totalCols } added.
+ */
+function columnizeEvents<T>(events: T[], getStart: (e: T) => number, getEnd: (e: T) => number) {
+  const sorted  = [...events].sort((a, b) => getStart(a) - getStart(b))
+  const cols    = new Array<number>(sorted.length).fill(0)
+  const colEnds: number[] = []
+
+  for (let i = 0; i < sorted.length; i++) {
+    const start = getStart(sorted[i])
+    let placed  = false
+    for (let c = 0; c < colEnds.length; c++) {
+      if (colEnds[c] <= start) {
+        cols[i] = c
+        colEnds[c] = getEnd(sorted[i])
+        placed = true
+        break
+      }
+    }
+    if (!placed) { cols[i] = colEnds.length; colEnds.push(getEnd(sorted[i])) }
+  }
+
+  return sorted.map((item, i) => {
+    // Find max col in all events that overlap with this one
+    const s = getStart(item), e = getEnd(item)
+    const maxCol = sorted.reduce((m, other, j) =>
+      getStart(other) < e && getEnd(other) > s ? Math.max(m, cols[j]) : m, 0)
+    return { item, col: cols[i], totalCols: maxCol + 1 }
+  })
+}
+
 // ─── 6-category colour system ──────────────────────────────────────────────────
 
 const CHIP = {
@@ -364,7 +396,7 @@ function DayView({
   hd: (o: Order) => boolean; hv: (o: Order) => boolean
   showOrders: boolean; showDriverLeave: boolean; showVehicleLeave: boolean
 }) {
-  const PX_PER_HOUR = 64
+  const PX_PER_HOUR = 28   // matches week view — 28 × 24 = 672px, fits 1080p
   const FIRST_HOUR  = HOURS[0]
   const GRID_H      = HOURS.length * PX_PER_HOUR
 
@@ -375,19 +407,30 @@ function DayView({
     return isInRange(anchor, l.start_date, l.end_date)
   })
 
-  // Leave events get left strips; orders take the remaining right area
-  const leaveW = dayLeave.length > 0 ? Math.min(dayLeave.length * 60, 180) : 0  // px reserved for leave strips
+  // Leave events get left strips; the rest of the width is for orders
+  const leaveW = dayLeave.length > 0 ? Math.min(dayLeave.length * 72, 216) : 0
+
+  // Columnize overlapping orders so they sit side-by-side
+  const ordersWithSlot = dayOrders
+    .filter(o => !!o.scheduled_at)
+    .map(o => ({
+      ...o,
+      _start: new Date(o.scheduled_at!).getTime(),
+      _end:   o.estimated_end_date
+        ? new Date(o.estimated_end_date).getTime()
+        : new Date(o.scheduled_at!).getTime() + 3_600_000,
+    }))
+  const layout = columnizeEvents(ordersWithSlot, e => e._start, e => e._end)
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden min-h-0">
-      {/* Time grid — leave events and orders live together in the same scroll area */}
       <div className="flex flex-1 overflow-y-auto min-h-0">
 
         {/* Time gutter */}
         <div className="w-14 shrink-0 border-r relative" style={{ height: GRID_H }}>
           {HOURS.map(h => (
             <div key={h} className="absolute w-full border-t" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }}>
-              <span className="text-[10px] text-muted-foreground px-2">{fmtHour(h)}</span>
+              <span className="text-[9px] text-muted-foreground px-2">{fmtHour(h)}</span>
             </div>
           ))}
         </div>
@@ -399,7 +442,7 @@ function DayView({
             <div key={h} className="absolute w-full border-t border-muted/30" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }} />
           ))}
 
-          {/* Full-day leave strips — left side of the events area */}
+          {/* Full-day leave strips — left portion */}
           {dayLeave.map((l, li) => {
             const isVehicle = l.unavailability_type === "vehicle"
             const stripPx   = leaveW / dayLeave.length
@@ -414,38 +457,36 @@ function DayView({
                 }`}
                 style={{ left: li * stripPx, width: stripPx - 2, height: GRID_H }}
               >
-                <div className={`sticky top-1 mx-0.5 rounded px-1.5 py-1 text-[10px] font-semibold leading-tight truncate ${
+                <div className={`sticky top-1 mx-0.5 rounded px-1.5 py-1 text-[9px] font-semibold leading-tight truncate ${
                   isVehicle ? "bg-neutral-800 text-white" : "bg-red-500/80 text-white"
                 }`}>
                   {leaveLabel(l)}: {name}
-                  <div className="text-[9px] font-normal opacity-80 mt-0.5">{l.start_date.slice(0,10)} → {l.end_date.slice(0,10)}</div>
+                  <div className="text-[8px] font-normal opacity-80 mt-0.5">{l.start_date.slice(0,10)} → {l.end_date.slice(0,10)}</div>
                 </div>
               </div>
             )
           })}
 
-          {/* Orders — positioned by scheduled_at, sized by estimated_end_date */}
-          {dayOrders.map(o => {
-            if (!o.scheduled_at) return null
-            const { top, height } = eventSlot(o.scheduled_at, o.estimated_end_date, PX_PER_HOUR, FIRST_HOUR)
+          {/* Orders — columnized so overlapping events sit side by side */}
+          {layout.map(({ item: o, col, totalCols }) => {
+            const { top, height } = eventSlot(o.scheduled_at!, o.estimated_end_date, PX_PER_HOUR, FIRST_HOUR)
+            // Divide the non-leave area into equal columns
+            const colW  = `calc((100% - ${leaveW + 8}px) / ${totalCols})`
+            const left  = `calc(${leaveW + 4}px + ${col} * (100% - ${leaveW + 8}px) / ${totalCols})`
+            const right = `calc((${totalCols - col - 1}) * (100% - ${leaveW + 8}px) / ${totalCols} + 2px)`
             return (
               <div
                 key={o.uuid}
-                className={`absolute right-2 rounded-lg px-2 py-1.5 text-xs font-medium shadow-sm overflow-hidden ${orderChip(o, hd, hv)}`}
-                style={{ top, height, left: leaveW + 8 }}
+                className={`absolute rounded-lg px-2 py-1 text-xs font-medium shadow-sm overflow-hidden ${orderChip(o, hd, hv)}`}
+                style={{ top, height, left, right, zIndex: col + 1 }}
               >
-                <div className="font-semibold truncate">
+                <div className="font-semibold truncate text-[10px]">
                   {fmtTime(o.scheduled_at)}{o.estimated_end_date ? ` – ${fmtTime(o.estimated_end_date)}` : ""}
                   {" · "}{o.internal_id ?? o.public_id}
                 </div>
-                {height > 36 && (
-                  <div className="opacity-70 text-[10px] mt-0.5 truncate">
+                {height > 28 && (
+                  <div className="opacity-70 text-[9px] truncate">
                     {o.driver_name ?? "No driver"} · {o.vehicle_assigned?.plate_number ?? "No vehicle"}
-                  </div>
-                )}
-                {height > 56 && (
-                  <div className="opacity-60 text-[10px] truncate">
-                    {o.dropoff_name ?? o.payload?.dropoff?.name ?? ""}
                   </div>
                 )}
               </div>
