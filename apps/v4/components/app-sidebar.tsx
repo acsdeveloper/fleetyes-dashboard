@@ -267,7 +267,7 @@ const NAV: NavEntry[] = [
       { label: "Vehicles",            href: "/vehicles",    icon: IconVehicles,   iconColor: "#6366f1" },
       { label: "Fleets",              href: "/fleets",      icon: IconFleets,     iconColor: "#6366f1" },
       { label: "Import Hub",          href: "/import-hub",  icon: IconImportHub,  iconColor: "#8b5cf6", hidden: true },
-      { label: "Calendar",            href: "/calendar",    icon: IconCalendar,   iconColor: "#3b82f6", hidden: true },
+      { label: "Calendar",            href: "/calendar",    icon: IconCalendar,   iconColor: "#3b82f6" },
       { label: "Places",              href: "/places",      icon: IconPlaces,     iconColor: "#10b981" },
       { label: "Drivers",             href: "/drivers",     icon: IconDrivers,    iconColor: "#0ea5e9" },
       { label: "Allocation Settings", href: "/settings",    icon: IconSettings,   iconColor: "#6b7280" },
