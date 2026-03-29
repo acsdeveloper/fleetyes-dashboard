@@ -678,12 +678,9 @@ export default function RotaPage() {
                                   </div>
                                 ) : effectiveStatus ? (
                                   <div className={`text-[10px] font-bold ${cfg.text}`}>
-                                    {cfg.short}
-                                    {leave && !entry && (
-                                      <div className="text-[8px] font-normal opacity-70 truncate leading-tight mt-0.5">
-                                        {leave.leave_type}
-                                      </div>
-                                    )}
+                                    {leave && !entry
+                                      ? (leave.leave_type || leave.non_availability_type || cfg.short)
+                                      : cfg.short}
                                   </div>
                                 ) : null}
                                 {/* Dot indicator when there's a leave but also a manual entry */}
