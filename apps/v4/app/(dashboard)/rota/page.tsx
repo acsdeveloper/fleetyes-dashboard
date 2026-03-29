@@ -293,11 +293,13 @@ function TripsDockPanel({
   assignedUuids,
   onDragStart,
   onDragEnd,
+  onTripsLoaded,
 }: {
   dates: string[]
   assignedUuids: Set<string>
   onDragStart: (trip: Order) => void
   onDragEnd: () => void
+  onTripsLoaded?: (orders: Order[]) => void
 }) {
   const [allTrips, setAllTrips] = React.useState<Order[]>([])
   const [loading, setLoading]   = React.useState(false)
@@ -324,6 +326,8 @@ function TripsDockPanel({
           return d ? datesSet.has(d) : false
         })
         setAllTrips(unassigned)
+        // Bubble all fetched orders (not just unassigned) up to parent for cell labels
+        onTripsLoaded?.(res.orders ?? [])
       })
       .catch(() => setAllTrips([]))
       .finally(() => setLoading(false))
@@ -445,6 +449,8 @@ export default function RotaPage() {
   const [draggingTrip, setDraggingTrip] = React.useState<Order | null>(null)
   // Drop-target highlight
   const [dropTarget, setDropTarget] = React.useState<{ driverUuid: string; date: string } | null>(null)
+  // Index of all orders fetched for the current week (uuid → Order) for cell labels
+  const [tripIndex, setTripIndex] = React.useState<Map<string, Order>>(new Map())
 
   // Popover state
   const [popover, setPopover] = React.useState<{
@@ -777,12 +783,12 @@ export default function RotaPage() {
                               <td
                                 key={date}
                                 // Apply collapsed colour DIRECTLY on td — visible at any pixel width
-                                className={`p-0 relative overflow-hidden
+                                className={`relative overflow-hidden
                                   ${isCollapsed
                                     ? effectiveStatus
-                                      ? cfg.dot + ' opacity-35'
-                                      : 'bg-border/50'          // empty collapsed = visible grey strip
-                                    : ''}
+                                      ? cfg.dot + ' opacity-35 p-0'
+                                      : 'bg-border/50 p-0'
+                                    : 'px-0.5 py-0.5'}  // small pad so button ring never clips
                                 `}
                                 // Attach DnD to td when collapsed (no child button in that state)
                                 onDragOver={isCollapsed ? (e) => handleDragOver(e, driver.uuid, date, effectiveStatus) : undefined}
@@ -795,18 +801,24 @@ export default function RotaPage() {
                                     onDragOver={(e) => handleDragOver(e, driver.uuid, date, effectiveStatus)}
                                     onDragLeave={handleDragLeave}
                                     onDrop={(e) => handleDrop(e, driver, date)}
-                                    className={`group relative w-full flex items-center justify-center rounded-lg min-h-[32px] p-1 m-0.5 transition-all
-                                      ${isActive ? "ring-2 ring-primary ring-offset-1" : ""}
-                                      ${isDrop && isValidDrop ? "ring-2 ring-primary ring-offset-1 bg-primary/10" : ""}
+                                    className={`group relative w-full flex items-center justify-center rounded-md min-h-[32px] p-1 transition-all
+                                      ${isActive ? "ring-2 ring-primary" : ""}
+                                      ${isDrop && isValidDrop ? "ring-2 ring-primary bg-primary/10" : ""}
                                       ${!effectiveStatus ? "border border-dashed border-border hover:border-muted-foreground/40 hover:bg-muted/20" : ""}
                                     `}
                                   >
                                     {effectiveStatus ? (
-                                      // Pill: no w-full — auto-sizes to content, stays centred even in expanded col
+                                      // WD: show first trip's time + public_id; fall back to short label
                                       <span className={`inline-flex items-center gap-1 rounded-[100px] border px-2 text-[10px] font-semibold leading-[1.9] ${cfg.bg} ${cfg.border} ${cfg.text}`}>
                                         <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dot}`} />
-                                        {entry?.status === "WD"
-                                          ? (tripCount ? `${tripCount}t` : "WD")
+                                        {entry?.status === "WD" && entry.trip_uuids?.length
+                                          ? (() => {
+                                              const t = tripIndex.get(entry.trip_uuids[0])
+                                              const time = t?.scheduled_at?.slice(11, 16) ?? ""
+                                              const id   = t?.public_id ?? ""
+                                              const extra = entry.trip_uuids.length > 1 ? ` +${entry.trip_uuids.length - 1}` : ""
+                                              return time ? `${time}${id ? ` · ${id}` : ""}${extra}` : `${entry.trip_uuids.length}t`
+                                            })()
                                           : leave && !entry
                                             ? (leave.leave_type || leave.non_availability_type || cfg.short)
                                             : cfg.short}
@@ -842,6 +854,11 @@ export default function RotaPage() {
           <TripsDockPanel
             dates={dates}
             assignedUuids={assignedTripUuids}
+            onTripsLoaded={(orders) => {
+              const m = new Map<string, Order>()
+              orders.forEach(o => m.set(o.uuid, o))
+              setTripIndex(m)
+            }}
             onDragStart={(trip) => {
               draggingTripRef.current = trip
               setDraggingTrip(trip)
