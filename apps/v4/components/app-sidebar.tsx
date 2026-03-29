@@ -241,6 +241,7 @@ type NavStandalone = {
   icon: React.FC
   iconColor: string
   standalone: true
+  hidden?: true
 }
 
 type NavEntry = NavGroup | NavStandalone
@@ -262,37 +263,36 @@ const NAV: NavEntry[] = [
     groupColor: "#6366f1",
     groupIcon: IconTrips,
     items: [
-      { label: "Trips",               href: "/trips",       icon: IconTrips,      iconColor: "#6366f1" },
-      { label: "Rota",                href: "/rota",        icon: IconRota,       iconColor: "#6366f1" },
-      { label: "Vehicles",            href: "/vehicles",    icon: IconVehicles,   iconColor: "#6366f1" },
-      { label: "Fleets",              href: "/fleets",      icon: IconFleets,     iconColor: "#6366f1" },
-      { label: "Import Hub",          href: "/import-hub",  icon: IconImportHub,  iconColor: "#8b5cf6", hidden: true },
-      { label: "Calendar",            href: "/calendar",    icon: IconCalendar,   iconColor: "#3b82f6" },
-      { label: "Places",              href: "/places",      icon: IconPlaces,     iconColor: "#10b981" },
-      { label: "Drivers",             href: "/drivers",     icon: IconDrivers,    iconColor: "#0ea5e9" },
-      { label: "Allocation Settings", href: "/settings",    icon: IconSettings,   iconColor: "#6b7280" },
+      { label: "Trips",      href: "/trips",      icon: IconTrips,    iconColor: "#6366f1" },
+      { label: "Rota",       href: "/rota",       icon: IconRota,     iconColor: "#6366f1" },
+      { label: "Vehicles",   href: "/vehicles",   icon: IconVehicles, iconColor: "#6366f1" },
+      { label: "Fleets",     href: "/fleets",     icon: IconFleets,   iconColor: "#6366f1" },
+      { label: "Calendar",   href: "/calendar",   icon: IconCalendar, iconColor: "#3b82f6" },
+      { label: "Places",     href: "/places",     icon: IconPlaces,   iconColor: "#10b981" },
+      { label: "Drivers",    href: "/drivers",    icon: IconDrivers,  iconColor: "#0ea5e9" },
+      { label: "Import Hub", href: "/import-hub", icon: IconImportHub, iconColor: "#8b5cf6", hidden: true },
     ],
   },
-  // 2 — Compliance (standalone)
-  { label: "Compliance",  href: "/compliance",  icon: IconCompliance,  iconColor: "#ef4444", standalone: true },
-  // 3 — Maintenance (standalone)
-  { label: "Maintenance", href: "/maintenance", icon: IconMaintenance, iconColor: "#f59e0b", standalone: true },
-  // 4 — Inventory (standalone)
-  { label: "Inventory",   href: "/inventory",   icon: IconInventory,   iconColor: "#14b8a6", standalone: true },
-  // 6 — Expense Management
+  // 2 — Compliance (hidden — staging only)
+  { label: "Compliance",  href: "/compliance",  icon: IconCompliance,  iconColor: "#ef4444", standalone: true, hidden: true },
+  // 3 — Maintenance (hidden — staging only)
+  { label: "Maintenance", href: "/maintenance", icon: IconMaintenance, iconColor: "#f59e0b", standalone: true, hidden: true },
+  // 4 — Inventory (hidden — staging only)
+  { label: "Inventory",   href: "/inventory",   icon: IconInventory,   iconColor: "#14b8a6", standalone: true, hidden: true },
+  // 5 — Expense Management
   {
     groupLabel: "Expenses",
     groupColor: "#f59e0b",
     groupIcon: IconTollExpenses,
     items: [
-      { label: "Fuel Tracking",    href: "/fuel-tracking",  icon: IconFuelTracking,  iconColor: "#22c55e" },
-      { label: "Fuel Receipts",    href: "/fuel-receipts",  icon: IconFuelReceipts,  iconColor: "#10b981" },
-      { label: "Parking",          href: "/parking",        icon: IconParking,       iconColor: "#3b82f6" },
-      { label: "Toll Expenses",    href: "/toll-expenses",  icon: IconTollExpenses,  iconColor: "#f59e0b" },
-      { label: "Toll Receipts",    href: "/toll-receipts",  icon: IconTollReceipts,  iconColor: "#eab308" },
+      { label: "Fuel Tracking", href: "/fuel-tracking", icon: IconFuelTracking, iconColor: "#22c55e" },
+      { label: "Fuel Receipts", href: "/fuel-receipts", icon: IconFuelReceipts, iconColor: "#10b981" },
+      { label: "Parking",       href: "/parking",       icon: IconParking,      iconColor: "#3b82f6" },
+      { label: "Toll Expenses", href: "/toll-expenses", icon: IconTollExpenses, iconColor: "#f59e0b" },
+      { label: "Toll Receipts", href: "/toll-receipts", icon: IconTollReceipts, iconColor: "#eab308" },
     ],
   },
-  // 7 — People Management
+  // 6 — People Management
   {
     groupLabel: "People",
     groupColor: "#a855f7",
@@ -300,6 +300,15 @@ const NAV: NavEntry[] = [
     items: [
       { label: "Holidays & Leave", href: "/holidays",  icon: IconHolidays, iconColor: "#f97316" },
       { label: "Off-Shift",        href: "/off-shift", icon: IconOffShift, iconColor: "#a855f7" },
+    ],
+  },
+  // 7 — Settings
+  {
+    groupLabel: "Settings",
+    groupColor: "#6b7280",
+    groupIcon: IconSettings,
+    items: [
+      { label: "Allocation", href: "/settings", icon: IconSettings, iconColor: "#6b7280" },
     ],
   },
 ]
@@ -319,6 +328,7 @@ export function AppSidebar() {
     "Transport": true,
     "Expenses":  false,
     "People":    true,
+    "Settings":  false,
   })
 
   const toggleGroup = (label: string) =>
@@ -393,7 +403,8 @@ export function AppSidebar() {
         <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
           {NAV.map((entry, idx) => {
             if (isStandalone(entry)) {
-              // ── Standalone module ──
+              // Skip hidden standalones unless showHidden is on
+              if (entry.hidden && !showHidden) return null
               const active = isActive(entry.href)
               const Icon = entry.icon
               return (
@@ -403,7 +414,9 @@ export function AppSidebar() {
                   title={sidebarCollapsed ? entry.label : undefined}
                   className={cn(
                     "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-semibold transition-all",
-                    active
+                    entry.hidden
+                      ? "border border-dashed border-amber-300/60 text-amber-600/70 dark:text-amber-500/60 hover:bg-amber-50/50 dark:hover:bg-amber-950/20"
+                      : active
                       ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
                       : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
                   )}
@@ -412,8 +425,11 @@ export function AppSidebar() {
                   {!sidebarCollapsed && (
                     <span className="truncate">{entry.label}</span>
                   )}
-                  {active && !sidebarCollapsed && (
+                  {active && !sidebarCollapsed && !entry.hidden && (
                     <span className="ml-auto h-1.5 w-1.5 rounded-full shrink-0" style={{ background: entry.iconColor }} />
+                  )}
+                  {entry.hidden && !sidebarCollapsed && (
+                    <span className="ml-auto rounded px-1 text-[9px] font-bold uppercase text-amber-500/70 dark:text-amber-400/60">wip</span>
                   )}
                 </Link>
               )
