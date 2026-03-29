@@ -12,6 +12,17 @@ import { useNavVisibility } from "@/components/nav-visibility-context"
 // ─── Colorful SVG icon set ────────────────────────────────────────────────────
 // Each icon uses explicit fill/stroke with a vibrant color palette
 
+function IconDashboard() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 shrink-0">
+      <rect x="3" y="3" width="6" height="6" rx="1.5" fill="rgba(73,100,83,0.18)" stroke="#496453" strokeWidth="1.5"/>
+      <rect x="11" y="3" width="6" height="6" rx="1.5" fill="rgba(73,100,83,0.12)" stroke="#496453" strokeWidth="1.5"/>
+      <rect x="3" y="11" width="6" height="6" rx="1.5" fill="rgba(73,100,83,0.12)" stroke="#496453" strokeWidth="1.5"/>
+      <rect x="11" y="11" width="6" height="6" rx="1.5" fill="rgba(73,100,83,0.06)" stroke="#496453" strokeWidth="1.5" opacity="0.7"/>
+    </svg>
+  )
+}
+
 function IconRota() {
   return (
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 shrink-0">
@@ -257,6 +268,8 @@ function GroupHeaderIcon({ color }: { color: string }) {
 }
 
 const NAV: NavEntry[] = [
+  // 0 — Dashboard
+  { label: "Dashboard", href: "/", icon: IconDashboard, iconColor: "#496453", standalone: true },
   // 1 — Transport Management
   {
     groupLabel: "Transport",
@@ -351,7 +364,7 @@ export function AppSidebar() {
   }, [isMobile])
 
   const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + "/")
+    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/")
 
   const sidebarCollapsed = collapsed && !isMobile
 
