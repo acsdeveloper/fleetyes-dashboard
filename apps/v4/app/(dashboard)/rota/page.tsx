@@ -14,6 +14,7 @@ import {
 } from "@/lib/rota-store"
 import { listOrders, updateOrder, type Order } from "@/lib/orders-api"
 import { listDrivers, type Driver } from "@/lib/drivers-api"
+import { listDriverLeave, type LeaveRequest } from "@/lib/leave-requests-api"
 import { dedupBy } from "@/lib/utils"
 import * as ReactDOM from "react-dom"
 
@@ -411,6 +412,7 @@ export default function RotaPage() {
   const [preferences, setPreferences] = React.useState<DriverPreference[]>([])
   const [template, setTemplate] = React.useState<ShiftTemplate>({})
   const [loading, setLoading] = React.useState(true)
+  const [leaves, setLeaves] = React.useState<LeaveRequest[]>([])
 
   // Popover state
   const [popover, setPopover] = React.useState<{
@@ -438,7 +440,21 @@ export default function RotaPage() {
     setPreferences(getAllPreferences())
     const tpl = getTemplate(wk)
     setTemplate(Object.keys(tpl).length ? tpl : DEFAULT_SHIFTS)
+    // Fetch driver leaves for a window around this week
+    listDriverLeave({ per_page: 500, sort: "-start_date" })
+      .then(res => setLeaves(res.data ?? []))
+      .catch(() => {})
   }, [dates, wk])
+
+  /** Returns the leave record for a driver on a given YYYY-MM-DD date string, if any */
+  function leaveForDriverDate(driverUuid: string, date: string): LeaveRequest | undefined {
+    return leaves.find(l => {
+      if (!l.driver_uuid) return false
+      if (l.driver_uuid !== driverUuid) return false
+      // date-string comparison — avoids timezone issues
+      return date >= l.start_date.slice(0, 10) && date <= l.end_date.slice(0, 10)
+    })
+  }
 
   const navWeek = (delta: number) => {
     setMonday(prev => {
@@ -617,8 +633,17 @@ export default function RotaPage() {
                             <PreferenceCell driver={driver} pref={pref} onChange={handlePreference} />
                           </td>
                           {dates.map((date) => {
-                            const entry = getEntry(driver.uuid, date)
-                            const cfg = STATUS_CONFIG[entry?.status ?? "NOT_ON_ROTA"]
+                            const entry    = getEntry(driver.uuid, date)
+                            const leave    = leaveForDriverDate(driver.uuid, date)
+                            // Leave-derived status when no manual entry
+                            const leaveStatus: typeof entry extends undefined ? "HOL_REQ" | "UNAVAILABLE" | undefined : undefined =
+                              !entry && leave
+                                ? (leave.leave_type === "Vacation" || leave.non_availability_type === "Holiday"
+                                    ? "HOL_REQ" as const
+                                    : "UNAVAILABLE" as const)
+                                : undefined
+                            const effectiveStatus = entry?.status ?? leaveStatus
+                            const cfg    = STATUS_CONFIG[effectiveStatus ?? "NOT_ON_ROTA"]
                             const isActive = popover?.driver.uuid === driver.uuid && popover.date === date
                             const resolvedTime = entry?.status === "WD"
                               ? (entry.shift_start ?? (entry.shift_number ? template[entry.shift_number]?.start : undefined))
@@ -630,7 +655,7 @@ export default function RotaPage() {
                               <td key={date} className="px-1 py-1">
                                 <button
                                   onClick={(e) => handleCellClick(e, driver, date)}
-                                  className={`w-full rounded-lg border px-1 py-1.5 text-center transition-all hover:shadow-sm ${cfg.bg} ${cfg.border} ${isActive ? "ring-2 ring-primary ring-offset-1" : ""}`}
+                                  className={`relative w-full rounded-lg border px-1 py-1.5 text-center transition-all hover:shadow-sm ${cfg.bg} ${cfg.border} ${isActive ? "ring-2 ring-primary ring-offset-1" : ""}`}
                                 >
                                 {/* WD: single compact line with time + trip count */}
                                 {entry?.status === "WD" ? (
@@ -639,9 +664,20 @@ export default function RotaPage() {
                                     {resolvedTime ?? "WD"}
                                     {tripCount != null && tripCount > 0 && <span className="opacity-60"> · {tripCount}t</span>}
                                   </div>
-                                ) : entry?.status ? (
-                                  <div className={`text-[10px] font-bold ${cfg.text}`}>{cfg.short}</div>
+                                ) : effectiveStatus ? (
+                                  <div className={`text-[10px] font-bold ${cfg.text}`}>
+                                    {cfg.short}
+                                    {leave && !entry && (
+                                      <div className="text-[8px] font-normal opacity-70 truncate leading-tight mt-0.5">
+                                        {leave.leave_type}
+                                      </div>
+                                    )}
+                                  </div>
                                 ) : null}
+                                {/* Dot indicator when there's a leave but also a manual entry */}
+                                {leave && entry && (
+                                  <span className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-rose-400" title={`Leave: ${leave.leave_type}`} />
+                                )}
                                 </button>
                               </td>
                             )
