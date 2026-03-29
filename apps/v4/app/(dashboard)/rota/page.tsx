@@ -661,16 +661,15 @@ export default function RotaPage() {
                               <td key={date} className="px-1 py-1">
                                 <button
                                   onClick={(e) => handleCellClick(e, driver, date)}
-                                  className={`group relative w-full flex items-center justify-center rounded-lg border min-h-[32px] p-1 transition-all
-                                    ${isActive
-                                      ? "border-primary/50 bg-primary/5 ring-2 ring-primary ring-offset-1"
-                                      : "border-border bg-card hover:border-muted-foreground/30 hover:bg-muted/30"
-                                    }`}
+                                  className={`group relative w-full flex items-center justify-center rounded-lg min-h-[32px] p-1 transition-all
+                                    ${isActive ? "ring-2 ring-primary ring-offset-1 rounded-lg" : ""}
+                                    ${effectiveStatus ? "border-0" : "border border-dashed border-border hover:border-muted-foreground/40 hover:bg-muted/20"}
+                                  `}
                                 >
                                   {effectiveStatus ? (
-                                    /* Pill — colour lives here, not in the cell */
-                                    <span className={`inline-flex items-center gap-1 rounded-[100px] border pl-1 pr-2 text-[10px] font-medium capitalize leading-[1.8] ${cfg.bg} ${cfg.border} ${cfg.text}`}>
-                                      <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${pushed ? "bg-rose-500" : cfg.dot}`} />
+                                    /* Pill fills the cell — no competing cell border */
+                                    <span className={`inline-flex w-full items-center justify-start gap-1.5 rounded-[100px] border pl-2 pr-3 text-[11px] font-medium capitalize leading-[2] ${cfg.bg} ${cfg.border} ${cfg.text}`}>
+                                      <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${pushed ? "bg-rose-500" : cfg.dot}`} />
                                       {entry?.status === "WD"
                                         ? (pushed ? `⚠ ${resolvedTime ?? "WD"}` : `${resolvedTime ?? "WD"}${tripCount ? ` · ${tripCount}t` : ""}`)
                                         : leave && !entry
@@ -678,8 +677,8 @@ export default function RotaPage() {
                                           : cfg.label}
                                     </span>
                                   ) : (
-                                    /* Empty cell — show + to indicate it's clickable/allocatable */
-                                    <span className="text-[14px] leading-none text-muted-foreground/30 group-hover:text-muted-foreground/60">+</span>
+                                    /* Empty cell — faint + to show it's clickable */
+                                    <span className="text-[14px] leading-none text-muted-foreground/20 group-hover:text-muted-foreground/50 transition-colors">+</span>
                                   )}
                                   {/* Conflict dot: leave exists but a manual entry overrides it */}
                                   {leave && entry && (
