@@ -38,11 +38,51 @@ function isInRange(date: Date, start: string, end: string) {
   return d >= s && d <= e
 }
 
-const LEAVE_STYLE: Record<string, { chip: string; label: string }> = {
-  "Off-shift": { chip: "border-l-2 border-slate-400 bg-slate-200/60 text-slate-600 dark:bg-slate-700/40 dark:text-slate-300", label: "Off-shift" },
-  "Holiday":   { chip: "border-l-2 border-blue-400 bg-blue-100/70 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",   label: "Leave" },
-  "vehicle":   { chip: "border-l-2 border-amber-500 bg-amber-100/70 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300", label: "Vehicle off" },
-  "default":   { chip: "border-l-2 border-blue-400 bg-blue-100/70 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",   label: "Leave" },
+// ─── 6-category colour system ────────────────────────────────────────────────
+//  1. Driver non-availability  → red
+//  2. Vehicle non-availability → black / white
+//  3. Assigned (driver + vehicle both present) → green
+//  4. Unassigned (neither driver nor vehicle)  → blue
+//  5. Vehicle unassigned (driver present, vehicle absent) → yellow
+//  6. Driver unassigned (vehicle present, driver absent)  → amber
+
+const CHIP = {
+  driverLeave:   "border-l-2 border-red-500    bg-red-100/80   text-red-800   dark:bg-red-900/40   dark:text-red-300",
+  vehicleLeave:  "border-l-2 border-neutral-700 bg-neutral-800  text-white     dark:bg-neutral-900 dark:text-neutral-100",
+  assigned:      "border-l-2 border-green-500  bg-green-100/70 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+  unassigned:    "border-l-2 border-blue-500   bg-blue-100/70  text-blue-800  dark:bg-blue-900/30  dark:text-blue-300",
+  noVehicle:     "border-l-2 border-yellow-500 bg-yellow-100/70 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
+  noDriver:      "border-l-2 border-amber-500  bg-amber-100/70 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+} as const
+
+const LEGEND = [
+  { chip: CHIP.driverLeave,  label: "Driver unavailable" },
+  { chip: CHIP.vehicleLeave, label: "Vehicle unavailable" },
+  { chip: CHIP.assigned,     label: "Fully assigned" },
+  { chip: CHIP.unassigned,   label: "Unassigned" },
+  { chip: CHIP.noVehicle,    label: "No vehicle" },
+  { chip: CHIP.noDriver,     label: "No driver" },
+] as const
+
+/** Classify a leave record into the 6-system */
+function leaveChip(l: LeaveRequest): string {
+  if (l.unavailability_type === "vehicle") return CHIP.vehicleLeave
+  return CHIP.driverLeave
+}
+
+function leaveLabel(l: LeaveRequest): string {
+  if (l.unavailability_type === "vehicle") return "Vehicle off"
+  return l.non_availability_type ?? "Leave"
+}
+
+/** Classify an order into the 6-system */
+function orderChip(o: Order, hasDriver: (o: Order) => boolean, hasVehicle: (o: Order) => boolean): string {
+  const d = hasDriver(o)
+  const v = hasVehicle(o)
+  if (d && v)  return CHIP.assigned
+  if (!d && !v) return CHIP.unassigned
+  if (d && !v) return CHIP.noVehicle   // driver present, vehicle absent
+  return CHIP.noDriver                  // vehicle present, driver absent
 }
 
 function getCalendarDays(year: number, month: number) {
@@ -117,9 +157,24 @@ function Row({ icon, label, value, muted }: { icon: React.ReactNode; label: stri
   )
 }
 
+// ─── Legend bar ───────────────────────────────────────────────────────────────
+
+function Legend() {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 shrink-0">
+      {LEGEND.map(({ chip, label }) => (
+        <div key={label} className="flex items-center gap-1.5">
+          <span className={`inline-block h-3 w-3 rounded-sm border-l-2 ${chip.replace(/text-\S+/g, "").replace(/border-l-2\s/g, "").trim()}`} />
+          <span className="text-[11px] text-muted-foreground font-medium">{label}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ─── Collapsible panel ────────────────────────────────────────────────────────
 
-function Panel({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
+function Panel({ title, count, accent, children }: { title: string; count: number; accent?: string; children: React.ReactNode }) {
   const [open, setOpen] = React.useState(true)
   return (
     <div className="flex flex-col min-h-0 overflow-hidden rounded-xl border bg-card shadow-sm">
@@ -129,6 +184,7 @@ function Panel({ title, count, children }: { title: string; count: number; child
       >
         <div className="flex items-center gap-2">
           {open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" />}
+          {accent && <span className={`h-2.5 w-2.5 rounded-full ${accent}`} />}
           <span className="text-sm font-semibold">{title}</span>
           <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{count}</span>
         </div>
@@ -199,16 +255,22 @@ export default function CalendarPage() {
   const selectedDayOrders = selected ? ordersForDay(selected) : []
   const selectedDayLeave  = selected ? leaveForDay(selected)  : []
 
-  // An order is assigned if ANY of the three driver signals is present
+  // Assignment helpers — check all three signals the API may return
   const hasDriver  = (o: Order) => !!(o.driver_name || o.driver_assigned_uuid || o.driver_assigned)
-  const unassigned = orders.filter(o => !hasDriver(o))
-  const assigned   = orders.filter(o =>  hasDriver(o))
+  const hasVehicle = (o: Order) => !!(o.vehicle_assigned?.plate_number || o.vehicle_assigned_uuid)
+
+  // Sidebar groupings
+  const fullyAssigned   = orders.filter(o =>  hasDriver(o) &&  hasVehicle(o))
+  const fullyUnassigned = orders.filter(o => !hasDriver(o) && !hasVehicle(o))
+  const noVehicleOrders = orders.filter(o =>  hasDriver(o) && !hasVehicle(o))
+  const noDriverOrders  = orders.filter(o => !hasDriver(o) &&  hasVehicle(o))
 
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
 
       {/* ── Toolbar ── */}
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-3 shrink-0 flex-wrap">
+        <Legend />
         <div className="flex-1" />
         {error && (
           <span className="text-xs text-red-500">{error}</span>
@@ -237,18 +299,34 @@ export default function CalendarPage() {
           ) : (
             <>
               <div className="flex-1 min-h-0 flex flex-col">
-                <Panel title="Unassigned" count={unassigned.length}>
-                  {unassigned.length === 0
-                    ? <p className="text-xs text-muted-foreground text-center py-2">No unassigned orders</p>
-                    : unassigned.map(o => <OrderCard key={o.uuid} order={o} />)
+                <Panel title="Fully Assigned" count={fullyAssigned.length} accent="bg-green-500">
+                  {fullyAssigned.length === 0
+                    ? <p className="text-xs text-muted-foreground text-center py-2">None</p>
+                    : fullyAssigned.map(o => <OrderCard key={o.uuid} order={o} />)
                   }
                 </Panel>
               </div>
               <div className="flex-1 min-h-0 flex flex-col">
-                <Panel title="Assigned" count={assigned.length}>
-                  {assigned.length === 0
-                    ? <p className="text-xs text-muted-foreground text-center py-2">No assigned orders</p>
-                    : assigned.map(o => <OrderCard key={o.uuid} order={o} />)
+                <Panel title="No Driver" count={noDriverOrders.length} accent="bg-amber-500">
+                  {noDriverOrders.length === 0
+                    ? <p className="text-xs text-muted-foreground text-center py-2">None</p>
+                    : noDriverOrders.map(o => <OrderCard key={o.uuid} order={o} />)
+                  }
+                </Panel>
+              </div>
+              <div className="flex-1 min-h-0 flex flex-col">
+                <Panel title="No Vehicle" count={noVehicleOrders.length} accent="bg-yellow-500">
+                  {noVehicleOrders.length === 0
+                    ? <p className="text-xs text-muted-foreground text-center py-2">None</p>
+                    : noVehicleOrders.map(o => <OrderCard key={o.uuid} order={o} />)
+                  }
+                </Panel>
+              </div>
+              <div className="flex-1 min-h-0 flex flex-col">
+                <Panel title="Unassigned" count={fullyUnassigned.length} accent="bg-blue-500">
+                  {fullyUnassigned.length === 0
+                    ? <p className="text-xs text-muted-foreground text-center py-2">None</p>
+                    : fullyUnassigned.map(o => <OrderCard key={o.uuid} order={o} />)
                   }
                 </Panel>
               </div>
@@ -304,27 +382,19 @@ export default function CalendarPage() {
                     </span>
 
                     <div className="flex flex-col gap-0.5 overflow-hidden">
-                      {loading ? null : dayOrders.slice(0, 2).map(o => {
-                        const s = statusStyle(o.status)
-                        return (
-                          <div
-                            key={o.uuid}
-                            className={`truncate rounded border-l-2 px-1.5 py-0.5 text-[10px] font-medium leading-tight ${s.event}`}
-                          >
-                            {fmtTime(o.scheduled_at)} {o.internal_id ?? o.public_id}
-                          </div>
-                        )
-                      })}
-                      {!loading && leaveForDay(cell.date).slice(0, 2).map(l => {
-                        const key = l.non_availability_type ?? l.unavailability_type ?? "default"
-                        const ls  = LEAVE_STYLE[key] ?? LEAVE_STYLE["default"]
-                        const name = l.vehicle_name ?? l.user?.name ?? "Unknown"
-                        return (
-                          <div key={l.uuid} className={`truncate rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight ${ls.chip}`}>
-                            {ls.label}: {name}
-                          </div>
-                        )
-                      })}
+                      {loading ? null : dayOrders.slice(0, 2).map(o => (
+                        <div
+                          key={o.uuid}
+                          className={`truncate rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight ${orderChip(o, hasDriver, hasVehicle)}`}
+                        >
+                          {fmtTime(o.scheduled_at)} {o.internal_id ?? o.public_id}
+                        </div>
+                      ))}
+                      {!loading && leaveForDay(cell.date).slice(0, 2).map(l => (
+                        <div key={l.uuid} className={`truncate rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight ${leaveChip(l)}`}>
+                          {leaveLabel(l)}: {l.vehicle_name ?? l.user?.name ?? "—"}
+                        </div>
+                      ))}
                       {(dayOrders.length + leaveForDay(cell.date).length) > 4 && (
                         <div className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground">
                           +{dayOrders.length + leaveForDay(cell.date).length - 4} more
@@ -361,13 +431,11 @@ export default function CalendarPage() {
                   </div>
                 ))}
                 {selectedDayLeave.map(l => {
-                  const key = l.non_availability_type ?? l.unavailability_type ?? "default"
-                  const ls  = LEAVE_STYLE[key] ?? LEAVE_STYLE["default"]
                   const who = l.vehicle_name ?? l.user?.name ?? "Unknown"
                   return (
                     <div key={l.uuid} className="min-w-[200px] flex-1 overflow-hidden rounded-lg border bg-card shadow-sm">
-                      <div className={`flex items-center justify-between border-b px-3 py-2 ${ls.chip}`}>
-                        <span className="text-[11px] font-semibold">{ls.label}: {who}</span>
+                      <div className={`flex items-center justify-between border-b px-3 py-2 ${leaveChip(l)}`}>
+                        <span className="text-[11px] font-semibold">{leaveLabel(l)}: {who}</span>
                         <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-medium">{l.status}</span>
                       </div>
                       <div className="space-y-1 p-3 text-xs">
