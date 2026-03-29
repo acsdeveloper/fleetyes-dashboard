@@ -679,8 +679,7 @@ export default function RotaPage() {
             <table className="w-full border-collapse text-sm">
               <thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-sm">
                 <tr className="border-b">
-                  <th className="w-[160px] px-3 py-2 text-left text-[11px] font-bold text-muted-foreground">Driver</th>
-                  <th className="w-[86px] px-2 py-2 text-left text-[11px] font-bold text-muted-foreground">Preference</th>
+                  <th className="w-[36px] min-w-[36px] px-1 py-2 text-left text-[11px] font-bold text-muted-foreground"></th>
                   {dates.map((d, i) => (
                     <th key={d} className="px-1 py-2 text-center w-[52px] min-w-[52px] max-w-[52px]">
                       <div className="text-[11px] font-bold text-muted-foreground">{DAYS[i]}</div>
@@ -692,25 +691,17 @@ export default function RotaPage() {
               <tbody>
                 {allDriverGroups.map((group) => (
                   <React.Fragment key={group.label}>
-                    <tr className="border-b bg-muted/20">
-                      <td colSpan={2 + 7} className="px-3 py-1">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{group.label}</span>
-                      </td>
-                    </tr>
                     {group.items.map((driver) => {
-                      const pref = preferences.find(p => p.driver_uuid === driver.uuid)
                       return (
                         <tr key={driver.uuid} className="border-b last:border-0 hover:bg-muted/10 transition-colors">
-                          <td className="px-3 py-1.5">
-                            <div className="flex items-center gap-2">
-                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-bold">
-                                {(driver.name ?? "?")[0].toUpperCase()}
-                              </span>
-                              <span className="text-xs font-medium truncate max-w-[100px]">{driver.name}</span>
-                            </div>
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <PreferenceCell driver={driver} pref={pref} onChange={handlePreference} />
+                          {/* Avatar only — full name in tooltip */}
+                          <td className="px-1 py-1 w-[36px] min-w-[36px]">
+                            <span
+                              title={driver.name}
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-bold cursor-default select-none"
+                            >
+                              {(driver.name ?? "?")[0].toUpperCase()}
+                            </span>
                           </td>
                           {dates.map((date) => {
                             const entry         = getEntry(driver.uuid, date)
@@ -732,7 +723,7 @@ export default function RotaPage() {
                             const isValidDrop = draggingTrip != null && tripDate === date && !isBlocked
 
                             return (
-                              <td key={date} className="px-1 py-1">
+                              <td key={date} className="px-1 py-1 relative">
                                 <button
                                   onClick={(e) => handleCellClick(e, driver, date)}
                                   onDragOver={(e) => handleDragOver(e, driver.uuid, date, effectiveStatus)}
@@ -740,8 +731,7 @@ export default function RotaPage() {
                                   onDrop={(e) => handleDrop(e, driver, date)}
                                   className={`group relative w-full flex items-center justify-center rounded-lg min-h-[32px] p-1 transition-all
                                     ${isActive ? "ring-2 ring-primary ring-offset-1" : ""}
-                                    ${isDrop && isValidDrop ? "ring-2 ring-primary/70 ring-offset-1 bg-primary/5" : ""}
-                                    ${draggingTrip && !isValidDrop ? "opacity-40" : ""}
+                                    ${isDrop && isValidDrop ? "ring-2 ring-primary ring-offset-1 bg-primary/10" : ""}
                                     ${effectiveStatus ? "border-0" : "border border-dashed border-border hover:border-muted-foreground/40 hover:bg-muted/20"}
                                   `}
                                 >
@@ -760,6 +750,10 @@ export default function RotaPage() {
                                   {/* Conflict dot */}
                                   {leave && entry && (
                                     <span className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-rose-400" title={`Leave: ${leave.leave_type}`} />
+                                  )}
+                                  {/* Dark overlay on invalid drop targets */}
+                                  {draggingTrip && !isValidDrop && (
+                                    <span className="absolute inset-0 rounded-lg bg-background/60 pointer-events-none" />
                                   )}
                                 </button>
                               </td>
