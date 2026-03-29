@@ -3,7 +3,7 @@
 import * as React from "react"
 import {
   ChevronLeft, ChevronRight, Check, X,
-  Sun, Clock, Calendar, Loader2,
+  Sun, Clock, Calendar, Loader2, Plus, Pencil, Info,
 } from "lucide-react"
 import {
   type RotaStatus, type RotaEntry, type ShiftTemplate, type DriverPreference,
@@ -396,6 +396,36 @@ function ShiftTemplatePanel({ wk, template, onChange }: {
   )
 }
 
+// ─── Interaction hint banner ──────────────────────────────────────────────────
+
+function HintBanner() {
+  const [visible, setVisible] = React.useState(() => {
+    try { return !sessionStorage.getItem("rota_hint_dismissed") } catch { return true }
+  })
+
+  React.useEffect(() => {
+    if (!visible) return
+    const t = setTimeout(() => setVisible(false), 10_000)
+    return () => clearTimeout(t)
+  }, [visible])
+
+  const dismiss = () => {
+    setVisible(false)
+    try { sessionStorage.setItem("rota_hint_dismissed", "1") } catch {}
+  }
+
+  if (!visible) return null
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs text-primary animate-in fade-in slide-in-from-top-1">
+      <Info className="h-3.5 w-3.5 shrink-0" />
+      <span>Click any cell to set a driver&apos;s shift status and assign trips.</span>
+      <button onClick={dismiss} className="ml-1 rounded p-0.5 hover:bg-primary/10 transition-colors">
+        <X className="h-3 w-3" />
+      </button>
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function RotaPage() {
@@ -570,6 +600,9 @@ export default function RotaPage() {
             )
           })}
         </div>
+
+        {/* Interaction hint — auto-dismisses after 10s */}
+        <HintBanner />
       </div>
 
       {/* ── Main two-column area ──────────────────────────────────────────── */}
@@ -627,21 +660,34 @@ export default function RotaPage() {
                             const tripCount = entry?.trip_uuids?.length
 
                             return (
-                              <td key={date} className="px-1 py-1">
+                              <td key={date} className="px-1 py-1 group/cell">
                                 <button
                                   onClick={(e) => handleCellClick(e, driver, date)}
-                                  className={`w-full rounded-lg border px-1 py-1.5 text-center transition-all hover:shadow-sm ${cfg.bg} ${cfg.border} ${isActive ? "ring-2 ring-primary ring-offset-1" : ""}`}
+                                  title="Click to set shift status and assign trips"
+                                  className={`relative w-full rounded-lg border px-1 py-1.5 text-center transition-all cursor-pointer
+                                    hover:shadow-md hover:ring-1 hover:ring-primary/40
+                                    ${cfg.bg} ${cfg.border}
+                                    ${isActive ? "ring-2 ring-primary ring-offset-1" : ""}`}
                                 >
-                                {/* WD: single compact line with time + trip count */}
-                                {entry?.status === "WD" ? (
-                                  <div className={`text-[10px] font-medium leading-none ${pushed ? "text-rose-600 dark:text-rose-400" : "text-emerald-700 dark:text-emerald-300"}`}>
-                                    {pushed && "⚠ "}
-                                    {resolvedTime ?? "WD"}
-                                    {tripCount != null && tripCount > 0 && <span className="opacity-60"> · {tripCount}t</span>}
-                                  </div>
-                                ) : entry?.status ? (
-                                  <div className={`text-[10px] font-bold ${cfg.text}`}>{cfg.short}</div>
-                                ) : null}
+                                  {/* WD: compact time + trip count + edit hint */}
+                                  {entry?.status === "WD" ? (
+                                    <>
+                                      <div className={`text-[10px] font-medium leading-none ${pushed ? "text-rose-600 dark:text-rose-400" : "text-emerald-700 dark:text-emerald-300"}`}>
+                                        {pushed && "⚠ "}
+                                        {resolvedTime ?? "WD"}
+                                        {tripCount != null && tripCount > 0 && <span className="opacity-60"> · {tripCount}t</span>}
+                                      </div>
+                                      {/* Edit icon — appears only on cell hover */}
+                                      <Pencil className="absolute right-1 top-1 h-2.5 w-2.5 text-muted-foreground/50 opacity-0 group-hover/cell:opacity-100 transition-opacity" />
+                                    </>
+                                  ) : entry?.status ? (
+                                    <div className={`text-[10px] font-bold ${cfg.text}`}>{cfg.short}</div>
+                                  ) : (
+                                    /* Empty cell — show + icon on row hover */
+                                    <div className="flex items-center justify-center">
+                                      <Plus className="h-3 w-3 text-muted-foreground/20 group-hover/cell:text-primary/60 transition-colors" />
+                                    </div>
+                                  )}
                                 </button>
                               </td>
                             )
