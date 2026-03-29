@@ -668,9 +668,14 @@ export default function RotaPage() {
                               <td key={date} className="px-1 py-1">
                                 <button
                                   onClick={(e) => handleCellClick(e, driver, date)}
-                                  className={`relative w-full flex items-center justify-center rounded-lg border p-1 min-h-[32px] transition-all hover:shadow-sm ${cfg.bg} ${cfg.border} ${isActive ? "ring-2 ring-primary ring-offset-1" : ""}`}
+                                  className={`group relative w-full flex items-center justify-center rounded-lg border min-h-[32px] p-1 transition-all
+                                    ${isActive
+                                      ? "border-primary/50 bg-primary/5 ring-2 ring-primary ring-offset-1"
+                                      : "border-border bg-card hover:border-muted-foreground/30 hover:bg-muted/30"
+                                    }`}
                                 >
                                   {effectiveStatus ? (
+                                    /* Pill — colour lives here, not in the cell */
                                     <span className={`inline-flex items-center gap-1 rounded-[100px] border pl-1 pr-2 text-[10px] font-medium capitalize leading-[1.8] ${cfg.bg} ${cfg.border} ${cfg.text}`}>
                                       <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${pushed ? "bg-rose-500" : cfg.dot}`} />
                                       {entry?.status === "WD"
@@ -679,8 +684,11 @@ export default function RotaPage() {
                                           ? (leave.leave_type || leave.non_availability_type || cfg.label)
                                           : cfg.label}
                                     </span>
-                                  ) : null}
-                                  {/* Conflict dot: leave exists but manual entry overrides */}
+                                  ) : (
+                                    /* Empty cell — show + to indicate it's clickable/allocatable */
+                                    <span className="text-[14px] leading-none text-muted-foreground/30 group-hover:text-muted-foreground/60">+</span>
+                                  )}
+                                  {/* Conflict dot: leave exists but a manual entry overrides it */}
                                   {leave && entry && (
                                     <span className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-rose-400" title={`Leave: ${leave.leave_type}`} />
                                   )}
