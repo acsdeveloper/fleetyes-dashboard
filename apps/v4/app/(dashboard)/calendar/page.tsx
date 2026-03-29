@@ -129,7 +129,7 @@ const CHIP = {
 
 const LEGEND = [
   { chip: CHIP.driverLeave,  label: "Driver unavailable" },
-  { chip: CHIP.vehicleLeave, label: "Vehicle unavailable" },
+  { chip: CHIP.vehicleLeave, label: "Veh. off" },
   { chip: CHIP.assigned,     label: "Fully assigned" },
   { chip: CHIP.unassigned,   label: "Unassigned" },
   { chip: CHIP.noVehicle,    label: "No vehicle" },
@@ -523,10 +523,14 @@ export default function CalendarPage() {
   const [assignedOpen,   setAssignedOpen]   = React.useState(true)
   const [unassignedOpen, setUnassignedOpen] = React.useState(true)
 
-  // Filters
-  const [showOrders,      setShowOrders]      = React.useState(true)
-  const [showDriverLeave, setShowDriverLeave] = React.useState(true)
-  const [showVehicleLeave,setShowVehicleLeave]= React.useState(true)
+  // Category visibility filters
+  const [showOrders,       setShowOrders]       = React.useState(true)
+  const [showDriverLeave,  setShowDriverLeave]  = React.useState(true)
+  const [showVehicleLeave, setShowVehicleLeave] = React.useState(true)
+
+  // Entity filters
+  const [filterDriver,  setFilterDriver]  = React.useState("")
+  const [filterVehicle, setFilterVehicle] = React.useState("")
 
   // ─── Data fetch ─────────────────────────────────────────────────────────────
 
@@ -599,13 +603,30 @@ export default function CalendarPage() {
   const hasDriver  = (o: Order) => !!(o.driver_name || o.driver_assigned_uuid || o.driver_assigned)
   const hasVehicle = (o: Order) => !!(o.vehicle_assigned?.plate_number || o.vehicle_assigned_uuid)
 
-  // ─── Filtered data ───────────────────────────────────────────────────────────
+  // ─── Entity filter options ────────────────────────────────────────────────────
+
+  const driverOptions = React.useMemo(() =>
+    [...new Set(orders.map(o => o.driver_name).filter(Boolean) as string[])].sort()
+  , [orders])
+
+  const vehicleOptions = React.useMemo(() =>
+    [...new Set(orders.map(o => o.vehicle_assigned?.plate_number).filter(Boolean) as string[])].sort()
+  , [orders])
+
+  // ─── Filtered data ────────────────────────────────────────────────────────────
+
+  // Orders filtered by entity selects (applies everywhere)
+  const filteredOrders = React.useMemo(() => orders.filter(o => {
+    if (filterDriver  && o.driver_name                    !== filterDriver)  return false
+    if (filterVehicle && o.vehicle_assigned?.plate_number !== filterVehicle) return false
+    return true
+  }), [orders, filterDriver, filterVehicle])
 
   const cells = getCalendarDays(year, month)
 
   function ordersForDay(date: Date) {
     if (!showOrders) return []
-    return orders.filter(o => o.scheduled_at && isSameDay(new Date(o.scheduled_at), date))
+    return filteredOrders.filter(o => o.scheduled_at && isSameDay(new Date(o.scheduled_at), date))
   }
 
   function leaveForDay(date: Date) {
@@ -619,11 +640,11 @@ export default function CalendarPage() {
   const selectedDayOrders = selected ? ordersForDay(selected) : []
   const selectedDayLeave  = selected ? leaveForDay(selected)  : []
 
-  // Sidebar groupings
-  const driverAssigned   = orders.filter(o =>  hasDriver(o))
-  const driverUnassigned = orders.filter(o => !hasDriver(o))
-  const vehicleAssigned  = orders.filter(o =>  hasVehicle(o))
-  const vehicleUnassigned = orders.filter(o => !hasVehicle(o))
+  // Sidebar groupings (reflect entity filter)
+  const driverAssigned    = filteredOrders.filter(o =>  hasDriver(o))
+  const driverUnassigned  = filteredOrders.filter(o => !hasDriver(o))
+  const vehicleAssigned   = filteredOrders.filter(o =>  hasVehicle(o))
+  const vehicleUnassigned = filteredOrders.filter(o => !hasVehicle(o))
 
   // ─── Filter pill helper ──────────────────────────────────────────────────────
   function FilterPill({ label, active, dot, onClick }: { label: string; active: boolean; dot: string; onClick: () => void }) {
@@ -678,21 +699,7 @@ export default function CalendarPage() {
   // ─── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
-
-      {/* ── Toolbar ── */}
-      <div className="flex items-center gap-2 shrink-0 flex-wrap">
-        {error && <span className="text-xs text-red-500">{error}</span>}
-        <div className="flex-1" />
-        <button
-          onClick={() => load(year, month)}
-          disabled={loading}
-          title="Refresh"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-        </button>
-      </div>
+    <div className="flex h-full flex-col gap-2 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
 
       {/* ── Body: sidebar + calendar ── */}
       <div className="flex flex-1 gap-4 min-h-0 flex-col lg:flex-row overflow-hidden">
@@ -756,45 +763,87 @@ export default function CalendarPage() {
           {/* Calendar card */}
           <div className="overflow-hidden rounded-xl border bg-card shadow-sm flex flex-col flex-1 min-h-0">
 
-            {/* Calendar header: nav + view switcher */}
-            <div className="flex flex-col gap-2 border-b px-5 py-3 shrink-0">
+            {/* Calendar header */}
+            <div className="flex flex-col gap-1.5 border-b px-4 py-2.5 shrink-0">
 
-              {/* Row 1: prev / period title / next + view switcher */}
-              <div className="flex items-center gap-3">
-                <button onClick={prevPeriod} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-                  <ChevronLeft className="h-4 w-4" />
+              {/* Row 1: nav + period title + view switcher + refresh */}
+              <div className="flex items-center gap-2">
+                <button onClick={prevPeriod} className="inline-flex h-7 w-7 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+                  <ChevronLeft className="h-3.5 w-3.5" />
                 </button>
                 <span className="flex-1 text-center text-sm font-semibold">{periodTitle()}</span>
-                <button onClick={nextPeriod} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-                  <ChevronRight className="h-4 w-4" />
+                <button onClick={nextPeriod} className="inline-flex h-7 w-7 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+                  <ChevronRight className="h-3.5 w-3.5" />
                 </button>
 
+                <div className="w-px h-5 bg-border mx-0.5" />
+
                 {/* View switcher */}
-                <div className="flex rounded-lg border overflow-hidden text-xs font-medium ml-2">
+                <div className="flex rounded-md border overflow-hidden text-xs font-medium">
                   {(["month","week","day"] as CalView[]).map(v => (
-                    <button
-                      key={v}
-                      onClick={() => setCalView(v)}
-                      className={[
-                        "px-3 py-1.5 transition-colors capitalize",
+                    <button key={v} onClick={() => setCalView(v)}
+                      className={["px-2.5 py-1 transition-colors capitalize",
                         calView === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
-                      ].join(" ")}
-                    >
+                      ].join(" ")}>
                       {v}
                     </button>
                   ))}
                 </div>
+
+                <div className="w-px h-5 bg-border mx-0.5" />
+
+                {/* Refresh */}
+                <button onClick={() => load(year, month)} disabled={loading} title="Refresh"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40">
+                  <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+                </button>
               </div>
 
-              {/* Row 2: Legend + filter pills */}
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-                <LegendBar />
-                <div className="flex-1" />
-                <div className="flex items-center gap-1.5">
-                  <FilterPill label="Orders"       active={showOrders}       dot="bg-foreground"   onClick={() => setShowOrders(v => !v)} />
-                  <FilterPill label="Driver leave"  active={showDriverLeave}  dot="bg-red-500"      onClick={() => setShowDriverLeave(v => !v)} />
-                  <FilterPill label="Vehicle leave" active={showVehicleLeave} dot="bg-neutral-700"  onClick={() => setShowVehicleLeave(v => !v)} />
+              {/* Row 2: Legend (wraps) + entity selects + type pills */}
+              <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
+
+                {/* Compact legend — wraps to 2 lines naturally */}
+                <div className="flex flex-wrap gap-x-2 gap-y-0.5 items-center max-w-xs shrink-0">
+                  {LEGEND.map(({ chip, label }) => (
+                    <div key={label} className="flex items-center gap-1">
+                      <span className={`inline-block h-2.5 w-2.5 rounded-sm ${chip.replace(/text-\S+/g,"").replace(/border-l-2\s/g,"").trim()}`} />
+                      <span className="text-[10px] text-muted-foreground font-medium whitespace-nowrap">{label}</span>
+                    </div>
+                  ))}
                 </div>
+
+                <div className="flex-1" />
+
+                {/* Entity selects */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <select
+                    value={filterDriver}
+                    onChange={e => setFilterDriver(e.target.value)}
+                    className="h-7 rounded-md border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">All drivers</option>
+                    {driverOptions.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                  <select
+                    value={filterVehicle}
+                    onChange={e => setFilterVehicle(e.target.value)}
+                    className="h-7 rounded-md border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">All vehicles</option>
+                    {vehicleOptions.map(v => <option key={v} value={v}>{v}</option>)}
+                  </select>
+                </div>
+
+                <div className="w-px h-5 bg-border self-center" />
+
+                {/* Type visibility pills */}
+                <div className="flex items-center gap-1 shrink-0">
+                  <FilterPill label="Orders"      active={showOrders}       dot="bg-foreground"  onClick={() => setShowOrders(v => !v)} />
+                  <FilterPill label="Driver off"  active={showDriverLeave}  dot="bg-red-500"     onClick={() => setShowDriverLeave(v => !v)} />
+                  <FilterPill label="Veh. off"    active={showVehicleLeave} dot="bg-neutral-700" onClick={() => setShowVehicleLeave(v => !v)} />
+                </div>
+
+                {error && <span className="text-[10px] text-red-500 self-center">{error}</span>}
               </div>
             </div>
 
@@ -856,7 +905,7 @@ export default function CalendarPage() {
             {calView === "week" && (
               <WeekView
                 anchor={anchor} today={today}
-                orders={orders} leaveEvents={leaveEvents}
+                orders={filteredOrders} leaveEvents={leaveEvents}
                 selected={selected} setSelected={setSelected}
                 hd={hasDriver} hv={hasVehicle}
                 showOrders={showOrders} showDriverLeave={showDriverLeave} showVehicleLeave={showVehicleLeave}
@@ -867,7 +916,7 @@ export default function CalendarPage() {
             {calView === "day" && (
               <DayView
                 anchor={anchor} today={today}
-                orders={orders} leaveEvents={leaveEvents}
+                orders={filteredOrders} leaveEvents={leaveEvents}
                 hd={hasDriver} hv={hasVehicle}
                 showOrders={showOrders} showDriverLeave={showDriverLeave} showVehicleLeave={showVehicleLeave}
               />
