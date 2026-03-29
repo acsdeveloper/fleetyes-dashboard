@@ -36,9 +36,10 @@ function isSameDay(a: Date, b: Date) {
 }
 
 function isInRange(date: Date, start: string, end: string) {
-  const d = date.getTime()
-  const s = new Date(start.slice(0, 10)).getTime()
-  const e = new Date(end.slice(0, 10)).getTime()
+  // Compare date-only strings to avoid UTC/local timezone shift issues
+  const d = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`
+  const s = start.slice(0, 10)
+  const e = end.slice(0, 10)
   return d >= s && d <= e
 }
 
@@ -601,12 +602,14 @@ export default function CalendarPage() {
   const load = React.useCallback(async (y: number, m: number) => {
     setLoading(true); setError(null)
     try {
-      const from = new Date(y, m - 1, 1).toISOString().slice(0, 10)
-      const to   = new Date(y, m + 2, 0).toISOString().slice(0, 10)
+      // m is 0-indexed (JS month). Build a window: prev month → next month
+      // to capture multi-day trips/leaves that start before or end after the current month
+      const from = new Date(y, m - 1, 1).toISOString().slice(0, 10)   // 1st of prev month
+      const to   = new Date(y, m + 2, 1).toISOString().slice(0, 10)   // 1st of month+2 (exclusive)
       const [ordersRes, driverRes, vehicleRes] = await Promise.allSettled([
         listOrders({ scheduled_at: from, end_date: to, per_page: 500 }),
-        listDriverLeave({ per_page: 200 }),
-        listVehicleUnavailability({ per_page: 200 }),
+        listDriverLeave({ per_page: 500, sort: "-start_date" }),
+        listVehicleUnavailability({ per_page: 500, sort: "-start_date" }),
       ])
       setOrders(ordersRes.status === "fulfilled" ? (ordersRes.value.orders ?? []) : [])
       const dl = driverRes.status  === "fulfilled" ? (driverRes.value.data  ?? []) : []
