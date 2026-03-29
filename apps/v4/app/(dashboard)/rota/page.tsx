@@ -294,19 +294,20 @@ function TripsDockPanel({
   onDragStart,
   onDragEnd,
   onTripsLoaded,
+  refreshKey,
 }: {
   dates: string[]
   assignedUuids: Set<string>
   onDragStart: (trip: Order) => void
   onDragEnd: () => void
   onTripsLoaded?: (orders: Order[]) => void
+  refreshKey?: number
 }) {
   const [allTrips, setAllTrips] = React.useState<Order[]>([])
   const [loading, setLoading]   = React.useState(false)
   const [activeDay, setActiveDay] = React.useState<string | "all">("all")
 
-  // Fetch trips for this week — add 2 days to be safe with API boundary semantics,
-  // then client-side filter to exactly the 7 dates in view.
+  // Fetch trips for this week. refreshKey forces a re-fetch after reassignments.
   React.useEffect(() => {
     if (dates.length === 0) return
     setLoading(true)
@@ -331,7 +332,7 @@ function TripsDockPanel({
       })
       .catch(() => setAllTrips([]))
       .finally(() => setLoading(false))
-  }, [dates])
+  }, [dates, refreshKey])
 
   // Filter by selected day tab
   const visible = allTrips.filter(o => {
@@ -453,6 +454,16 @@ export default function RotaPage() {
   const [tripIndex, setTripIndex] = React.useState<Map<string, Order>>(new Map())
   // Cells that are mid-save (driverUuid|date key)
   const [savingCells, setSavingCells] = React.useState<Set<string>>(new Set())
+  // Counter bumped after reassignment to force dock refetch
+  const [dockRefreshKey, setDockRefreshKey] = React.useState(0)
+  // Pending reassignment — populated when drop target already has trips
+  const [reassignDialog, setReassignDialog] = React.useState<{
+    driver: Driver
+    date: string
+    existingUuids: string[]
+    newTripUuid: string
+    newTripOrder: Order | null
+  } | null>(null)
 
   // Popover state
   const [popover, setPopover] = React.useState<{
@@ -601,28 +612,72 @@ export default function RotaPage() {
     const currentTrips = existing?.trip_uuids ?? []
     if (currentTrips.includes(tripUuid)) return
 
+    // If the cell already has trips assigned, ask for confirmation before replacing
+    if (currentTrips.length > 0) {
+      setReassignDialog({
+        driver,
+        date,
+        existingUuids: currentTrips,
+        newTripUuid: tripUuid,
+        newTripOrder: draggingTripRef.current,
+      })
+      return
+    }
+
+    // --- No existing trips: proceed directly ---
     const newEntry: RotaEntry = {
       driver_uuid: driver.uuid,
       date,
       status: "WD",
-      trip_uuids: [...currentTrips, tripUuid],
+      trip_uuids: [tripUuid],
       note: existing?.note,
     }
     upsertRota(newEntry)
 
-    // Show saving indicator while API call is in-flight
+    const cellKey = `${driver.uuid}|${date}`
+    setSavingCells(prev => new Set(prev).add(cellKey))
+    await updateOrder(tripUuid, { driver_assigned_uuid: driver.uuid }).catch(() => {})
+    const updated = getWeekRota(dates)
+    setRotas(updated)
+    setAssignedTripUuids(new Set(updated.flatMap(r => r.trip_uuids ?? [])))
+    setSavingCells(prev => { const s = new Set(prev); s.delete(cellKey); return s })
+  }
+
+  /** Called when user confirms the reassignment dialog */
+  const confirmReassign = async () => {
+    if (!reassignDialog) return
+    const { driver, date, existingUuids, newTripUuid } = reassignDialog
+    setReassignDialog(null)
+
     const cellKey = `${driver.uuid}|${date}`
     setSavingCells(prev => new Set(prev).add(cellKey))
 
-    // Assign the driver to the trip via API
-    await updateOrder(tripUuid, { driver_assigned_uuid: driver.uuid }).catch(() => {})
+    // Unassign all existing trips from this driver
+    await Promise.all(
+      existingUuids.map(uuid =>
+        updateOrder(uuid, { driver_assigned_uuid: null }).catch(() => {})
+      )
+    )
+
+    // Replace rota entry with only the new trip
+    const existing = getEntry(driver.uuid, date)
+    upsertRota({
+      driver_uuid: driver.uuid,
+      date,
+      status: "WD",
+      trip_uuids: [newTripUuid],
+      note: existing?.note,
+    })
+
+    // Assign new trip
+    await updateOrder(newTripUuid, { driver_assigned_uuid: driver.uuid }).catch(() => {})
 
     const updated = getWeekRota(dates)
     setRotas(updated)
     setAssignedTripUuids(new Set(updated.flatMap(r => r.trip_uuids ?? [])))
-
-    // Clear saving indicator
     setSavingCells(prev => { const s = new Set(prev); s.delete(cellKey); return s })
+    // Bump key so dock refetches — old trips reappear as unassigned
+    setDockRefreshKey(k => k + 1)
   }
 
   const handlePreference = (pref: DriverPreference) => {
@@ -870,6 +925,7 @@ export default function RotaPage() {
           <TripsDockPanel
             dates={dates}
             assignedUuids={assignedTripUuids}
+            refreshKey={dockRefreshKey}
             onTripsLoaded={(orders) => {
               const m = new Map<string, Order>()
               orders.forEach(o => m.set(o.uuid, o))
@@ -886,6 +942,71 @@ export default function RotaPage() {
           />
         </div>
       </div>
+
+      {/* Reassignment confirmation dialog */}
+      {reassignDialog && ReactDOM.createPortal(
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-background/60 backdrop-blur-sm"
+            style={{ zIndex: 10000 }}
+            onClick={() => setReassignDialog(null)}
+          />
+          {/* Dialog */}
+          <div
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-80 rounded-2xl border bg-card shadow-2xl"
+            style={{ zIndex: 10001 }}
+          >
+            <div className="p-5 flex flex-col gap-4">
+              {/* Header */}
+              <div>
+                <p className="text-sm font-bold">Reassign {reassignDialog.driver.name}?</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{fmtDay(reassignDialog.date)}, {fmtDate(reassignDialog.date)}</p>
+              </div>
+              {/* Current vs new */}
+              <div className="rounded-xl border bg-muted/30 p-3 flex flex-col gap-2 text-xs">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Currently assigned</p>
+                  {reassignDialog.existingUuids.map(uid => {
+                    const t = tripIndex.get(uid)
+                    return (
+                      <span key={uid} className="inline-flex items-center gap-1 rounded-[100px] border border-emerald-300/60 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 text-[11px] font-medium text-emerald-800 dark:text-emerald-300 mr-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
+                        {t ? `${t.scheduled_at?.slice(11,16)} · ${t.public_id}` : uid.slice(0,8)}
+                      </span>
+                    )
+                  })}
+                </div>
+                <div className="border-t pt-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Will be replaced with</p>
+                  {(() => {
+                    const t = reassignDialog.newTripOrder
+                    return (
+                      <span className="inline-flex items-center gap-1 rounded-[100px] border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary mr-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+                        {t ? `${t.scheduled_at?.slice(11,16)} · ${t.public_id}` : reassignDialog.newTripUuid.slice(0,8)}
+                      </span>
+                    )
+                  })()}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">The existing trip{reassignDialog.existingUuids.length !== 1 ? 's' : ''} will be unassigned and returned to the unassigned pool.</p>
+              {/* Actions */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setReassignDialog(null)}
+                  className="flex-1 rounded-lg border px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
+                >Cancel</button>
+                <button
+                  onClick={confirmReassign}
+                  className="flex-1 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                >Reassign</button>
+              </div>
+            </div>
+          </div>
+        </>,
+        document.body
+      )}
 
       {/* Cell popover portal */}
       {popover && ReactDOM.createPortal(
