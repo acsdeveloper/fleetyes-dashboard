@@ -451,6 +451,8 @@ export default function RotaPage() {
   const [dropTarget, setDropTarget] = React.useState<{ driverUuid: string; date: string } | null>(null)
   // Index of all orders fetched for the current week (uuid → Order) for cell labels
   const [tripIndex, setTripIndex] = React.useState<Map<string, Order>>(new Map())
+  // Cells that are mid-save (driverUuid|date key)
+  const [savingCells, setSavingCells] = React.useState<Set<string>>(new Set())
 
   // Popover state
   const [popover, setPopover] = React.useState<{
@@ -608,12 +610,19 @@ export default function RotaPage() {
     }
     upsertRota(newEntry)
 
+    // Show saving indicator while API call is in-flight
+    const cellKey = `${driver.uuid}|${date}`
+    setSavingCells(prev => new Set(prev).add(cellKey))
+
     // Assign the driver to the trip via API
     await updateOrder(tripUuid, { driver_assigned_uuid: driver.uuid }).catch(() => {})
 
     const updated = getWeekRota(dates)
     setRotas(updated)
     setAssignedTripUuids(new Set(updated.flatMap(r => r.trip_uuids ?? [])))
+
+    // Clear saving indicator
+    setSavingCells(prev => { const s = new Set(prev); s.delete(cellKey); return s })
   }
 
   const handlePreference = (pref: DriverPreference) => {
@@ -778,6 +787,7 @@ export default function RotaPage() {
                             const isValidDrop = draggingDate === date && !isBlocked
                             // Collapsed = dragging but not the target column
                             const isCollapsed = !!draggingDate && date !== draggingDate
+                            const isSaving = savingCells.has(`${driver.uuid}|${date}`)
 
                             return (
                               <td
@@ -804,10 +814,16 @@ export default function RotaPage() {
                                     className={`group relative w-full flex items-center justify-center rounded-md min-h-[32px] p-1 transition-all
                                       ${isActive ? "ring-2 ring-primary" : ""}
                                       ${isDrop && isValidDrop ? "ring-2 ring-primary bg-primary/10" : ""}
-                                      ${!effectiveStatus ? "border border-dashed border-border hover:border-muted-foreground/40 hover:bg-muted/20" : ""}
+                                      ${!effectiveStatus && !isSaving ? "border border-dashed border-border hover:border-muted-foreground/40 hover:bg-muted/20" : ""}
                                     `}
                                   >
-                                    {effectiveStatus ? (
+                                    {isSaving ? (
+                                      // Saving skeleton — pulsing pill
+                                      <span className="inline-flex items-center gap-1.5 rounded-[100px] border border-emerald-300/40 bg-emerald-50/60 dark:bg-emerald-900/20 px-2 text-[10px] font-semibold leading-[1.9] animate-pulse">
+                                        <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+                                        <span className="w-10 h-2 rounded bg-emerald-200/80 dark:bg-emerald-700/50" />
+                                      </span>
+                                    ) : effectiveStatus ? (
                                       // WD: show first trip's time + public_id; fall back to short label
                                       <span className={`inline-flex items-center gap-1 rounded-[100px] border px-2 text-[10px] font-semibold leading-[1.9] ${cfg.bg} ${cfg.border} ${cfg.text}`}>
                                         <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dot}`} />
