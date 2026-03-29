@@ -13,7 +13,7 @@ import { listDriverLeave, listVehicleUnavailability, type LeaveRequest } from "@
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"]
 const DAYS   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
-const HOURS  = Array.from({ length: 17 }, (_, i) => i + 6) // 06:00–22:00
+const HOURS  = Array.from({ length: 24 }, (_, i) => i) // 00:00–23:00
 
 function fmtDate(iso?: string | null) {
   if (!iso) return "—"
