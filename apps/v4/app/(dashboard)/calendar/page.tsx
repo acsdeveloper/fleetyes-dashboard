@@ -7,6 +7,7 @@ import {
   ChevronDown, ChevronUp, RefreshCw,
 } from "lucide-react"
 import { listOrders, type Order, type OrderStatus } from "@/lib/orders-api"
+import { listDriverLeave, listVehicleUnavailability, type LeaveRequest } from "@/lib/leave-requests-api"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,21 @@ function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() &&
          a.getMonth()    === b.getMonth()    &&
          a.getDate()     === b.getDate()
+}
+
+/** Returns true if `date` falls on or between start and end (inclusive, date-only comparison) */
+function isInRange(date: Date, start: string, end: string) {
+  const d  = date.getTime()
+  const s  = new Date(start.slice(0, 10)).getTime()
+  const e  = new Date(end.slice(0, 10)).getTime()
+  return d >= s && d <= e
+}
+
+const LEAVE_STYLE: Record<string, { chip: string; label: string }> = {
+  "Off-shift": { chip: "border-l-2 border-slate-400 bg-slate-200/60 text-slate-600 dark:bg-slate-700/40 dark:text-slate-300", label: "Off-shift" },
+  "Holiday":   { chip: "border-l-2 border-blue-400 bg-blue-100/70 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",   label: "Leave" },
+  "vehicle":   { chip: "border-l-2 border-amber-500 bg-amber-100/70 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300", label: "Vehicle off" },
+  "default":   { chip: "border-l-2 border-blue-400 bg-blue-100/70 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",   label: "Leave" },
 }
 
 function getCalendarDays(year: number, month: number) {
@@ -133,21 +149,29 @@ export default function CalendarPage() {
   const [year,     setYear]     = React.useState(today.getFullYear())
   const [month,    setMonth]    = React.useState(today.getMonth())
   const [selected, setSelected] = React.useState<Date | null>(null)
-  const [orders,   setOrders]   = React.useState<Order[]>([])
-  const [loading,  setLoading]  = React.useState(true)
-  const [error,    setError]    = React.useState<string | null>(null)
+  const [orders,       setOrders]       = React.useState<Order[]>([])
+  const [leaveEvents,  setLeaveEvents]  = React.useState<LeaveRequest[]>([])
+  const [loading,      setLoading]      = React.useState(true)
+  const [error,        setError]        = React.useState<string | null>(null)
 
   // Fetch orders for the visible month window (include prev/next month overflow)
   const load = React.useCallback(async (y: number, m: number) => {
     setLoading(true); setError(null)
     try {
-      // Fetch a window that covers the full calendar grid (6 weeks)
       const from = new Date(y, m - 1, 1).toISOString().slice(0, 10)
       const to   = new Date(y, m + 2, 0).toISOString().slice(0, 10)
-      const res  = await listOrders({ scheduled_at: from, end_date: to, per_page: 500 })
-      setOrders(res.orders ?? [])
+      const [ordersRes, driverRes, vehicleRes] = await Promise.allSettled([
+        listOrders({ scheduled_at: from, end_date: to, per_page: 500 }),
+        listDriverLeave({ per_page: 200 }),
+        listVehicleUnavailability({ per_page: 200 }),
+      ])
+      setOrders(ordersRes.status === "fulfilled" ? (ordersRes.value.orders ?? []) : [])
+      const driverLeave  = driverRes.status  === "fulfilled" ? (driverRes.value.data  ?? []) : []
+      const vehicleLeave = vehicleRes.status === "fulfilled" ? (vehicleRes.value.data ?? []) : []
+      setLeaveEvents([...driverLeave, ...vehicleLeave])
+      if (ordersRes.status === "rejected") setError("Orders: " + (ordersRes.reason as Error).message)
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load orders")
+      setError(e instanceof Error ? e.message : "Failed to load")
     } finally {
       setLoading(false)
     }
@@ -169,7 +193,11 @@ export default function CalendarPage() {
   const ordersForDay = (date: Date) =>
     orders.filter(o => o.scheduled_at && isSameDay(new Date(o.scheduled_at), date))
 
+  const leaveForDay = (date: Date) =>
+    leaveEvents.filter(l => isInRange(date, l.start_date, l.end_date))
+
   const selectedDayOrders = selected ? ordersForDay(selected) : []
+  const selectedDayLeave  = selected ? leaveForDay(selected)  : []
 
   const unassigned = orders.filter(o => !o.driver_name)
   const assigned   = orders.filter(o =>  o.driver_name)
@@ -274,7 +302,7 @@ export default function CalendarPage() {
                     </span>
 
                     <div className="flex flex-col gap-0.5 overflow-hidden">
-                      {loading ? null : dayOrders.slice(0, 3).map(o => {
+                      {loading ? null : dayOrders.slice(0, 2).map(o => {
                         const s = statusStyle(o.status)
                         return (
                           <div
@@ -285,9 +313,19 @@ export default function CalendarPage() {
                           </div>
                         )
                       })}
-                      {dayOrders.length > 3 && (
+                      {!loading && leaveForDay(cell.date).slice(0, 2).map(l => {
+                        const key = l.non_availability_type ?? l.unavailability_type ?? "default"
+                        const ls  = LEAVE_STYLE[key] ?? LEAVE_STYLE["default"]
+                        const name = l.vehicle_name ?? l.user?.name ?? "Unknown"
+                        return (
+                          <div key={l.uuid} className={`truncate rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight ${ls.chip}`}>
+                            {ls.label}: {name}
+                          </div>
+                        )
+                      })}
+                      {(dayOrders.length + leaveForDay(cell.date).length) > 4 && (
                         <div className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                          +{dayOrders.length - 3} more
+                          +{dayOrders.length + leaveForDay(cell.date).length - 4} more
                         </div>
                       )}
                     </div>
@@ -305,21 +343,41 @@ export default function CalendarPage() {
                   {selected.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  {selectedDayOrders.length === 0
-                    ? "No orders scheduled"
-                    : `${selectedDayOrders.length} order${selectedDayOrders.length > 1 ? "s" : ""}`
+                  {selectedDayOrders.length === 0 && selectedDayLeave.length === 0
+                    ? "No events"
+                    : [
+                        selectedDayOrders.length > 0 ? `${selectedDayOrders.length} order${selectedDayOrders.length > 1 ? "s" : ""}` : "",
+                        selectedDayLeave.length  > 0 ? `${selectedDayLeave.length} availability event${selectedDayLeave.length > 1 ? "s" : ""}` : "",
+                      ].filter(Boolean).join(" · ")
                   }
                 </p>
               </div>
-              {selectedDayOrders.length > 0 && (
-                <div className="flex flex-wrap gap-3 p-4 max-h-72 overflow-y-auto">
-                  {selectedDayOrders.map(o => (
-                    <div key={o.uuid} className="min-w-[220px] flex-1">
-                      <OrderCard order={o} />
+              <div className="flex flex-wrap gap-3 p-4 max-h-72 overflow-y-auto">
+                {selectedDayOrders.map(o => (
+                  <div key={o.uuid} className="min-w-[220px] flex-1">
+                    <OrderCard order={o} />
+                  </div>
+                ))}
+                {selectedDayLeave.map(l => {
+                  const key = l.non_availability_type ?? l.unavailability_type ?? "default"
+                  const ls  = LEAVE_STYLE[key] ?? LEAVE_STYLE["default"]
+                  const who = l.vehicle_name ?? l.user?.name ?? "Unknown"
+                  return (
+                    <div key={l.uuid} className="min-w-[200px] flex-1 overflow-hidden rounded-lg border bg-card shadow-sm">
+                      <div className={`flex items-center justify-between border-b px-3 py-2 ${ls.chip}`}>
+                        <span className="text-[11px] font-semibold">{ls.label}: {who}</span>
+                        <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-medium">{l.status}</span>
+                      </div>
+                      <div className="space-y-1 p-3 text-xs">
+                        <div className="flex justify-between"><span className="font-medium text-muted-foreground">Type</span><span>{l.leave_type}</span></div>
+                        <div className="flex justify-between"><span className="font-medium text-muted-foreground">Period</span><span>{l.start_date.slice(0,10)} → {l.end_date.slice(0,10)}</span></div>
+                        <div className="flex justify-between"><span className="font-medium text-muted-foreground">Days</span><span>{l.total_days}</span></div>
+                        {l.reason && <div className="pt-1 text-muted-foreground border-t">{l.reason}</div>}
+                      </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>
