@@ -69,6 +69,21 @@ function getCalendarDays(year: number, month: number) {
   return cells
 }
 
+// ─── Time-grid positioning helpers ───────────────────────────────────────────
+
+/** Returns { top, height } in pixels given an hour grid starting at HOURS[0] */
+function eventSlot(startIso: string, endIso: string | null | undefined, pxPerHour: number, firstHour: number) {
+  const s   = new Date(startIso)
+  const top = ((s.getHours() - firstHour) + s.getMinutes() / 60) * pxPerHour
+  let height = pxPerHour  // default 1 hour
+  if (endIso) {
+    const e = new Date(endIso)
+    const dur = (e.getTime() - s.getTime()) / 3_600_000  // hours
+    height = Math.max(24, dur * pxPerHour)
+  }
+  return { top: Math.max(0, top), height }
+}
+
 // ─── 6-category colour system ──────────────────────────────────────────────────
 
 const CHIP = {
@@ -203,8 +218,10 @@ function WeekView({
   hd: (o: Order) => boolean; hv: (o: Order) => boolean
   showOrders: boolean; showDriverLeave: boolean; showVehicleLeave: boolean
 }) {
-  const week = getWeekDays(anchor)
+  const week        = getWeekDays(anchor)
   const PX_PER_HOUR = 56
+  const FIRST_HOUR  = HOURS[0]
+  const GRID_H      = HOURS.length * PX_PER_HOUR
 
   function ordersForDay(d: Date) {
     if (!showOrders) return []
@@ -220,9 +237,10 @@ function WeekView({
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden min-h-0">
+
       {/* Day header row */}
       <div className="flex border-b shrink-0">
-        <div className="w-12 shrink-0 border-r" /> {/* time gutter */}
+        <div className="w-14 shrink-0 border-r" />
         {week.map((d, i) => {
           const isTod = isSameDay(d, today)
           const isSel = !!selected && isSameDay(d, selected)
@@ -245,32 +263,13 @@ function WeekView({
         })}
       </div>
 
-      {/* All-day leave row */}
-      <div className="flex border-b shrink-0 min-h-[28px]">
-        <div className="w-12 shrink-0 border-r flex items-center justify-center">
-          <span className="text-[9px] text-muted-foreground">all day</span>
-        </div>
-        {week.map((d, i) => {
-          const leaves = leaveForDay(d)
-          return (
-            <div key={i} className="flex-1 border-r flex flex-col gap-0.5 px-0.5 py-0.5 overflow-hidden">
-              {leaves.slice(0, 2).map(l => (
-                <div key={l.uuid} className={`truncate rounded px-1 text-[9px] font-medium leading-tight ${leaveChip(l)}`}>
-                  {l.vehicle_name ?? l.user?.name ?? "—"}
-                </div>
-              ))}
-              {leaves.length > 2 && <div className="text-[9px] text-muted-foreground px-1">+{leaves.length - 2}</div>}
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Scrollable time grid */}
+      {/* Scrollable time grid — no separate all-day row; leave events live IN the column */}
       <div className="flex flex-1 overflow-y-auto min-h-0">
+
         {/* Time gutter */}
-        <div className="w-12 shrink-0 border-r relative" style={{ height: HOURS.length * PX_PER_HOUR }}>
+        <div className="w-14 shrink-0 border-r relative" style={{ height: GRID_H }}>
           {HOURS.map(h => (
-            <div key={h} className="absolute w-full border-t" style={{ top: (h - HOURS[0]) * PX_PER_HOUR }}>
+            <div key={h} className="absolute w-full border-t" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }}>
               <span className="text-[9px] text-muted-foreground px-1">{fmtHour(h)}</span>
             </div>
           ))}
@@ -278,32 +277,71 @@ function WeekView({
 
         {/* Day columns */}
         {week.map((d, ci) => {
-          const dayOrds = ordersForDay(d).filter(o => {
-            if (!o.scheduled_at) return false
-            const h = new Date(o.scheduled_at).getHours()
-            return h >= HOURS[0] && h <= HOURS[HOURS.length - 1]
-          })
-          const isSel = !!selected && isSameDay(d, selected)
+          const dayOrds  = ordersForDay(d)
+          const dayLeave = leaveForDay(d)
+          const isSel    = !!selected && isSameDay(d, selected)
+
           return (
             <div
               key={ci}
               className={`flex-1 border-r relative ${isSel ? "bg-primary/5" : ""}`}
-              style={{ height: HOURS.length * PX_PER_HOUR }}
+              style={{ height: GRID_H }}
             >
+              {/* Hour grid lines */}
               {HOURS.map(h => (
-                <div key={h} className="absolute w-full border-t border-muted/30" style={{ top: (h - HOURS[0]) * PX_PER_HOUR }} />
+                <div key={h} className="absolute w-full border-t border-muted/30" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }} />
               ))}
+
+              {/* Leave events — full-height strips side by side */}
+              {dayLeave.map((l, li) => {
+                const isVehicle = l.unavailability_type === "vehicle"
+                const totalLeave = dayLeave.length
+                const stripW = 100 / totalLeave
+                const name   = l.vehicle_name ?? l.user?.name ?? leaveLabel(l)
+                return (
+                  <div
+                    key={l.uuid}
+                    className={`absolute top-0 bottom-0 overflow-hidden ${
+                      isVehicle
+                        ? "bg-neutral-700/15 border-l-2 border-neutral-700"
+                        : "bg-red-500/15 border-l-2 border-red-500"
+                    }`}
+                    style={{ left: `${li * stripW}%`, width: `${stripW}%`, height: GRID_H }}
+                  >
+                    {/* Label pinned at top of strip */}
+                    <div className={`sticky top-1 mx-0.5 rounded px-1 py-0.5 text-[8px] font-semibold leading-tight truncate ${
+                      isVehicle ? "bg-neutral-800 text-white" : "bg-red-500/80 text-white"
+                    }`}>
+                      {name}
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* Orders — positioned by scheduled_at, height from estimated_end_date */}
               {dayOrds.map(o => {
-                const dt  = new Date(o.scheduled_at!)
-                const top = ((dt.getHours() - HOURS[0]) + dt.getMinutes() / 60) * PX_PER_HOUR
+                if (!o.scheduled_at) return null
+                const { top, height } = eventSlot(o.scheduled_at, o.estimated_end_date, PX_PER_HOUR, FIRST_HOUR)
+                // Push orders right if there are leave strips
+                const leftOff = dayLeave.length > 0 ? `${(dayLeave.length * (100 / dayLeave.length)) / dayLeave.length}%` : "1px"
                 return (
                   <div
                     key={o.uuid}
-                    title={`${o.internal_id ?? o.public_id} — ${fmtTime(o.scheduled_at)}`}
-                    className={`absolute left-0.5 right-0.5 rounded px-1 py-0.5 text-[9px] font-medium leading-tight overflow-hidden cursor-default ${orderChip(o, hd, hv)}`}
-                    style={{ top, minHeight: 18 }}
+                    title={`${o.internal_id ?? o.public_id} — ${fmtTime(o.scheduled_at)}${o.estimated_end_date ? ` → ${fmtTime(o.estimated_end_date)}` : ""}`}
+                    className={`absolute right-0.5 rounded px-1 py-0.5 text-[9px] font-medium overflow-hidden cursor-default ${
+                      dayLeave.length > 0 ? "left-[35%]" : "left-0.5"
+                    } ${orderChip(o, hd, hv)}`}
+                    style={{ top, height }}
                   >
-                    {fmtTime(o.scheduled_at)} {o.internal_id ?? o.public_id}
+                    <div className="font-semibold truncate">{fmtTime(o.scheduled_at)} {o.internal_id ?? o.public_id}</div>
+                    {height > 32 && (
+                      <div className="opacity-70 text-[8px] truncate">
+                        {o.driver_name ?? "No driver"} · {o.vehicle_assigned?.plate_number ?? "No vehicle"}
+                      </div>
+                    )}
+                    {height > 48 && o.estimated_end_date && (
+                      <div className="opacity-60 text-[8px]">ends {fmtTime(o.estimated_end_date)}</div>
+                    )}
                   </div>
                 )
               })}
@@ -327,6 +365,8 @@ function DayView({
   showOrders: boolean; showDriverLeave: boolean; showVehicleLeave: boolean
 }) {
   const PX_PER_HOUR = 64
+  const FIRST_HOUR  = HOURS[0]
+  const GRID_H      = HOURS.length * PX_PER_HOUR
 
   const dayOrders = !showOrders ? [] : orders.filter(o => o.scheduled_at && isSameDay(new Date(o.scheduled_at), anchor))
   const dayLeave  = leaveEvents.filter(l => {
@@ -335,50 +375,79 @@ function DayView({
     return isInRange(anchor, l.start_date, l.end_date)
   })
 
+  // Leave events get left strips; orders take the remaining right area
+  const leaveW = dayLeave.length > 0 ? Math.min(dayLeave.length * 60, 180) : 0  // px reserved for leave strips
+
   return (
     <div className="flex flex-col flex-1 overflow-hidden min-h-0">
-      {/* All-day leave section */}
-      {dayLeave.length > 0 && (
-        <div className="shrink-0 border-b px-3 py-2 flex flex-wrap gap-2">
-          {dayLeave.map(l => (
-            <div key={l.uuid} className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium ${leaveChip(l)}`}>
-              {leaveLabel(l)}: {l.vehicle_name ?? l.user?.name ?? "—"}
-              <span className="opacity-70 text-[10px]">({l.status})</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Time grid */}
+      {/* Time grid — leave events and orders live together in the same scroll area */}
       <div className="flex flex-1 overflow-y-auto min-h-0">
+
         {/* Time gutter */}
-        <div className="w-14 shrink-0 border-r relative" style={{ height: HOURS.length * PX_PER_HOUR }}>
+        <div className="w-14 shrink-0 border-r relative" style={{ height: GRID_H }}>
           {HOURS.map(h => (
-            <div key={h} className="absolute w-full border-t" style={{ top: (h - HOURS[0]) * PX_PER_HOUR }}>
+            <div key={h} className="absolute w-full border-t" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }}>
               <span className="text-[10px] text-muted-foreground px-2">{fmtHour(h)}</span>
             </div>
           ))}
         </div>
 
-        {/* Events column */}
-        <div className="flex-1 relative" style={{ height: HOURS.length * PX_PER_HOUR }}>
+        {/* Events area */}
+        <div className="flex-1 relative" style={{ height: GRID_H }}>
+          {/* Hour grid lines */}
           {HOURS.map(h => (
-            <div key={h} className="absolute w-full border-t border-muted/30" style={{ top: (h - HOURS[0]) * PX_PER_HOUR }} />
+            <div key={h} className="absolute w-full border-t border-muted/30" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }} />
           ))}
+
+          {/* Full-day leave strips — left side of the events area */}
+          {dayLeave.map((l, li) => {
+            const isVehicle = l.unavailability_type === "vehicle"
+            const stripPx   = leaveW / dayLeave.length
+            const name      = l.vehicle_name ?? l.user?.name ?? leaveLabel(l)
+            return (
+              <div
+                key={l.uuid}
+                className={`absolute top-0 overflow-hidden rounded-sm ${
+                  isVehicle
+                    ? "bg-neutral-700/15 border-l-2 border-neutral-700"
+                    : "bg-red-500/15 border-l-2 border-red-500"
+                }`}
+                style={{ left: li * stripPx, width: stripPx - 2, height: GRID_H }}
+              >
+                <div className={`sticky top-1 mx-0.5 rounded px-1.5 py-1 text-[10px] font-semibold leading-tight truncate ${
+                  isVehicle ? "bg-neutral-800 text-white" : "bg-red-500/80 text-white"
+                }`}>
+                  {leaveLabel(l)}: {name}
+                  <div className="text-[9px] font-normal opacity-80 mt-0.5">{l.start_date.slice(0,10)} → {l.end_date.slice(0,10)}</div>
+                </div>
+              </div>
+            )
+          })}
+
+          {/* Orders — positioned by scheduled_at, sized by estimated_end_date */}
           {dayOrders.map(o => {
-            const dt  = o.scheduled_at ? new Date(o.scheduled_at) : null
-            if (!dt) return null
-            const top = ((dt.getHours() - HOURS[0]) + dt.getMinutes() / 60) * PX_PER_HOUR
+            if (!o.scheduled_at) return null
+            const { top, height } = eventSlot(o.scheduled_at, o.estimated_end_date, PX_PER_HOUR, FIRST_HOUR)
             return (
               <div
                 key={o.uuid}
-                className={`absolute left-2 right-2 rounded-lg px-2 py-1.5 text-xs font-medium shadow-sm ${orderChip(o, hd, hv)}`}
-                style={{ top, minHeight: 36 }}
+                className={`absolute right-2 rounded-lg px-2 py-1.5 text-xs font-medium shadow-sm overflow-hidden ${orderChip(o, hd, hv)}`}
+                style={{ top, height, left: leaveW + 8 }}
               >
-                <div className="font-semibold">{fmtTime(o.scheduled_at)} · {o.internal_id ?? o.public_id}</div>
-                <div className="opacity-70 text-[10px] mt-0.5">
-                  {o.driver_name ?? "No driver"} · {o.vehicle_assigned?.plate_number ?? "No vehicle"}
+                <div className="font-semibold truncate">
+                  {fmtTime(o.scheduled_at)}{o.estimated_end_date ? ` – ${fmtTime(o.estimated_end_date)}` : ""}
+                  {" · "}{o.internal_id ?? o.public_id}
                 </div>
+                {height > 36 && (
+                  <div className="opacity-70 text-[10px] mt-0.5 truncate">
+                    {o.driver_name ?? "No driver"} · {o.vehicle_assigned?.plate_number ?? "No vehicle"}
+                  </div>
+                )}
+                {height > 56 && (
+                  <div className="opacity-60 text-[10px] truncate">
+                    {o.dropoff_name ?? o.payload?.dropoff?.name ?? ""}
+                  </div>
+                )}
               </div>
             )
           })}
