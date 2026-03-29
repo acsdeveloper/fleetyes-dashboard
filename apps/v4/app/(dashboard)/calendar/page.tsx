@@ -209,6 +209,7 @@ export default function CalendarPage() {
   const [leaveEvents,  setLeaveEvents]  = React.useState<LeaveRequest[]>([])
   const [loading,      setLoading]      = React.useState(true)
   const [error,        setError]        = React.useState<string | null>(null)
+  const [sidebarTab,   setSidebarTab]   = React.useState<"driver" | "vehicle">("driver")
 
   // Fetch orders for the visible month window (include prev/next month overflow)
   const load = React.useCallback(async (y: number, m: number) => {
@@ -259,11 +260,13 @@ export default function CalendarPage() {
   const hasDriver  = (o: Order) => !!(o.driver_name || o.driver_assigned_uuid || o.driver_assigned)
   const hasVehicle = (o: Order) => !!(o.vehicle_assigned?.plate_number || o.vehicle_assigned_uuid)
 
-  // Sidebar groupings
-  const fullyAssigned   = orders.filter(o =>  hasDriver(o) &&  hasVehicle(o))
-  const fullyUnassigned = orders.filter(o => !hasDriver(o) && !hasVehicle(o))
-  const noVehicleOrders = orders.filter(o =>  hasDriver(o) && !hasVehicle(o))
-  const noDriverOrders  = orders.filter(o => !hasDriver(o) &&  hasVehicle(o))
+  // Driver tab
+  const driverAssigned   = orders.filter(o =>  hasDriver(o))
+  const driverUnassigned = orders.filter(o => !hasDriver(o))
+
+  // Vehicle tab
+  const vehicleAssigned   = orders.filter(o =>  hasVehicle(o))
+  const vehicleUnassigned = orders.filter(o => !hasVehicle(o))
 
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
@@ -289,48 +292,101 @@ export default function CalendarPage() {
       <div className="flex flex-1 gap-4 min-h-0 flex-col lg:flex-row overflow-hidden">
 
         {/* ── Left Sidebar ── */}
-        <div className="flex flex-col gap-3 lg:w-80 xl:w-96 shrink-0 min-h-0 overflow-hidden">
+        <div className="flex flex-col lg:w-80 xl:w-96 shrink-0 min-h-0 overflow-hidden rounded-xl border bg-card shadow-sm">
+
+          {/* Tab switcher */}
+          <div className="flex shrink-0 border-b">
+            {(["driver", "vehicle"] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setSidebarTab(tab)}
+                className={[
+                  "flex-1 py-2.5 text-xs font-semibold tracking-wide uppercase transition-colors",
+                  sidebarTab === tab
+                    ? "border-b-2 border-primary text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                ].join(" ")}
+              >
+                {tab === "driver" ? "Driver" : "Vehicle"}
+              </button>
+            ))}
+          </div>
+
           {loading ? (
-            <div className="space-y-2">
+            <div className="space-y-2 p-3">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="animate-pulse h-20 rounded-xl border bg-card" />
+                <div key={i} className="animate-pulse h-16 rounded-lg border bg-muted" />
               ))}
             </div>
           ) : (
-            <>
-              <div className="flex-1 min-h-0 flex flex-col">
-                <Panel title="Fully Assigned" count={fullyAssigned.length} accent="bg-green-500">
-                  {fullyAssigned.length === 0
-                    ? <p className="text-xs text-muted-foreground text-center py-2">None</p>
-                    : fullyAssigned.map(o => <OrderCard key={o.uuid} order={o} />)
-                  }
-                </Panel>
-              </div>
-              <div className="flex-1 min-h-0 flex flex-col">
-                <Panel title="No Driver" count={noDriverOrders.length} accent="bg-amber-500">
-                  {noDriverOrders.length === 0
-                    ? <p className="text-xs text-muted-foreground text-center py-2">None</p>
-                    : noDriverOrders.map(o => <OrderCard key={o.uuid} order={o} />)
-                  }
-                </Panel>
-              </div>
-              <div className="flex-1 min-h-0 flex flex-col">
-                <Panel title="No Vehicle" count={noVehicleOrders.length} accent="bg-yellow-500">
-                  {noVehicleOrders.length === 0
-                    ? <p className="text-xs text-muted-foreground text-center py-2">None</p>
-                    : noVehicleOrders.map(o => <OrderCard key={o.uuid} order={o} />)
-                  }
-                </Panel>
-              </div>
-              <div className="flex-1 min-h-0 flex flex-col">
-                <Panel title="Unassigned" count={fullyUnassigned.length} accent="bg-blue-500">
-                  {fullyUnassigned.length === 0
-                    ? <p className="text-xs text-muted-foreground text-center py-2">None</p>
-                    : fullyUnassigned.map(o => <OrderCard key={o.uuid} order={o} />)
-                  }
-                </Panel>
-              </div>
-            </>
+            <div className="flex flex-col min-h-0 overflow-hidden gap-0">
+
+              {sidebarTab === "driver" ? (
+                <>
+                  {/* Assigned count badges */}
+                  <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-green-500" />
+                      <span className="text-xs font-medium">Assigned</span>
+                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-800 dark:bg-green-900/30 dark:text-green-300">{driverAssigned.length}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-amber-500" />
+                      <span className="text-xs font-medium">Unassigned</span>
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">{driverUnassigned.length}</span>
+                    </div>
+                  </div>
+
+                  {/* Assigned list */}
+                  <div className="flex-1 min-h-0 overflow-y-auto border-b">
+                    {driverAssigned.length === 0
+                      ? <p className="text-xs text-muted-foreground text-center py-6">No assigned orders</p>
+                      : <div className="space-y-2 p-3">{driverAssigned.map(o => <OrderCard key={o.uuid} order={o} />)}</div>
+                    }
+                  </div>
+
+                  {/* Unassigned list */}
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    {driverUnassigned.length === 0
+                      ? <p className="text-xs text-muted-foreground text-center py-6">No unassigned orders</p>
+                      : <div className="space-y-2 p-3">{driverUnassigned.map(o => <OrderCard key={o.uuid} order={o} />)}</div>
+                    }
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Vehicle count badges */}
+                  <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-green-500" />
+                      <span className="text-xs font-medium">Assigned</span>
+                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-800 dark:bg-green-900/30 dark:text-green-300">{vehicleAssigned.length}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-yellow-500" />
+                      <span className="text-xs font-medium">Unassigned</span>
+                      <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-[11px] font-semibold text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">{vehicleUnassigned.length}</span>
+                    </div>
+                  </div>
+
+                  {/* Vehicles assigned list */}
+                  <div className="flex-1 min-h-0 overflow-y-auto border-b">
+                    {vehicleAssigned.length === 0
+                      ? <p className="text-xs text-muted-foreground text-center py-6">No vehicle-assigned orders</p>
+                      : <div className="space-y-2 p-3">{vehicleAssigned.map(o => <OrderCard key={o.uuid} order={o} />)}</div>
+                    }
+                  </div>
+
+                  {/* Vehicles unassigned list */}
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    {vehicleUnassigned.length === 0
+                      ? <p className="text-xs text-muted-foreground text-center py-6">No vehicle-unassigned orders</p>
+                      : <div className="space-y-2 p-3">{vehicleUnassigned.map(o => <OrderCard key={o.uuid} order={o} />)}</div>
+                    }
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </div>
 
