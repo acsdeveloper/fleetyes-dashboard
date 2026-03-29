@@ -3,7 +3,7 @@
 import * as React from "react"
 import {
   ChevronLeft, ChevronRight, Check, X,
-  Sun, Loader2, GripVertical, MapPin,
+  Sun, Loader2, MapPin,
 } from "lucide-react"
 import {
   type RotaStatus, type RotaEntry, type DriverPreference,
@@ -296,11 +296,13 @@ function PreferenceCell({ driver, pref, onChange }: {
 function TripsDockPanel({
   dates,
   assignedUuids,
-  onTripAssigned,
+  onDragStart,
+  onDragEnd,
 }: {
   dates: string[]
   assignedUuids: Set<string>
-  onTripAssigned: (tripUuid: string) => void
+  onDragStart: (trip: Order) => void
+  onDragEnd: () => void
 }) {
   const [allTrips, setAllTrips] = React.useState<Order[]>([])
   const [loading, setLoading]   = React.useState(false)
@@ -311,7 +313,6 @@ function TripsDockPanel({
     if (dates.length === 0) return
     setLoading(true)
     const start = dates[0]
-    // end = day after last date
     const last = new Date(dates[dates.length - 1] + "T00:00:00")
     last.setDate(last.getDate() + 1)
     const end = last.toISOString().slice(0, 10)
@@ -334,7 +335,7 @@ function TripsDockPanel({
     return o.scheduled_at?.slice(0, 10) === activeDay
   })
 
-  // Day tabs — only show days that have trips
+  // Day tabs — only show days that have unassigned trips
   const daysWithTrips = dates.filter(d =>
     allTrips.some(o => o.scheduled_at?.slice(0, 10) === d && !assignedUuids.has(o.uuid))
   )
@@ -374,8 +375,8 @@ function TripsDockPanel({
         </div>
       )}
 
-      {/* Trip list */}
-      <div className="flex-1 overflow-y-auto divide-y">
+      {/* 3-column card grid */}
+      <div className="flex-1 overflow-y-auto p-2">
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-8 text-xs text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -387,33 +388,37 @@ function TripsDockPanel({
             <p className="text-xs">No unassigned trips</p>
           </div>
         ) : (
-          visible.map(trip => {
-            const time = tripTime(trip.scheduled_at)
-            const day  = trip.scheduled_at ? DAYS[new Date(trip.scheduled_at).getDay()] : ""
-            const route = [trip.pickup_name, trip.dropoff_name].filter(Boolean).join(" → ") || trip.public_id
-            return (
-              <div
-                key={trip.uuid}
-                draggable
-                onDragStart={e => {
-                  e.dataTransfer.setData("trip_uuid", trip.uuid)
-                  e.dataTransfer.effectAllowed = "move"
-                }}
-                className="flex items-start gap-2 px-3 py-2.5 cursor-grab active:cursor-grabbing hover:bg-muted/50 transition-colors select-none"
-                title={`Drag to assign: ${route}`}
-              >
-                <GripVertical className="h-3.5 w-3.5 shrink-0 mt-0.5 text-muted-foreground/40" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="text-[10px] font-bold text-primary">{time}</span>
-                    {day && <span className="text-[10px] text-muted-foreground">{day}</span>}
+          <div className="grid grid-cols-3 gap-1.5">
+            {visible.map(trip => {
+              const time  = tripTime(trip.scheduled_at)
+              const day   = trip.scheduled_at ? DAYS[new Date(trip.scheduled_at + (trip.scheduled_at.length === 10 ? "T12:00:00" : "")).getDay()] : ""
+              const pick  = trip.pickup_name  ?? ""
+              const drop  = trip.dropoff_name ?? ""
+              return (
+                <div
+                  key={trip.uuid}
+                  draggable
+                  onDragStart={e => {
+                    e.dataTransfer.setData("trip_uuid", trip.uuid)
+                    e.dataTransfer.setData("trip_date", trip.scheduled_at?.slice(0, 10) ?? "")
+                    e.dataTransfer.effectAllowed = "move"
+                    onDragStart(trip)
+                  }}
+                  onDragEnd={onDragEnd}
+                  title={`${pick} → ${drop}\n${trip.public_id} · ${time} ${day}`}
+                  className="flex flex-col gap-0.5 rounded-lg border bg-background p-1.5 cursor-grab active:cursor-grabbing hover:border-primary/40 hover:bg-primary/5 transition-colors select-none"
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[10px] font-bold text-primary leading-none">{time}</span>
+                    <span className="text-[9px] text-muted-foreground leading-none">{day}</span>
                   </div>
-                  <p className="text-xs font-medium truncate leading-tight">{route}</p>
-                  <p className="text-[10px] text-muted-foreground">{trip.public_id}</p>
+                  {pick && <p className="text-[9px] font-medium text-foreground truncate leading-tight">{pick}</p>}
+                  {drop && <p className="text-[9px] text-muted-foreground truncate leading-tight">{drop}</p>}
+                  <p className="text-[9px] text-muted-foreground/60 leading-none mt-0.5">{trip.public_id}</p>
                 </div>
-              </div>
-            )
-          })
+              )
+            })}
+          </div>
         )}
       </div>
     </div>
@@ -431,6 +436,8 @@ export default function RotaPage() {
   const [leaves, setLeaves] = React.useState<LeaveRequest[]>([])
   // Track which trip UUIDs are already assigned (to hide from dock)
   const [assignedTripUuids, setAssignedTripUuids] = React.useState<Set<string>>(new Set())
+  // The trip currently being dragged (so cells can validate date + status)
+  const [draggingTrip, setDraggingTrip] = React.useState<Order | null>(null)
   // Drop-target highlight
   const [dropTarget, setDropTarget] = React.useState<{ driverUuid: string; date: string } | null>(null)
 
@@ -539,7 +546,21 @@ export default function RotaPage() {
 
   // ── Drag-and-drop onto a cell ──────────────────────────────────────────────
 
-  const handleDragOver = (e: React.DragEvent, driverUuid: string, date: string) => {
+  const handleDragOver = (
+    e: React.DragEvent,
+    driverUuid: string,
+    date: string,
+    effectiveStatus: RotaStatus | undefined
+  ) => {
+    // Only allow drop if: date matches trip date AND cell isn't HOL/UNAVAILABLE
+    const tripDate = e.dataTransfer.getData("trip_date") || draggingTrip?.scheduled_at?.slice(0, 10)
+    const blocked = effectiveStatus === "HOL_REQ" || effectiveStatus === "UNAVAILABLE"
+    const wrongDate = tripDate ? tripDate !== date : false
+    if (blocked || wrongDate) {
+      e.dataTransfer.dropEffect = "none"
+      setDropTarget(null)
+      return
+    }
     e.preventDefault()
     e.dataTransfer.dropEffect = "move"
     setDropTarget({ driverUuid, date })
@@ -667,7 +688,7 @@ export default function RotaPage() {
                   <th className="w-[160px] px-3 py-2 text-left text-[11px] font-bold text-muted-foreground">Driver</th>
                   <th className="w-[86px] px-2 py-2 text-left text-[11px] font-bold text-muted-foreground">Preference</th>
                   {dates.map((d, i) => (
-                    <th key={d} className="px-1 py-2 text-center min-w-[84px]">
+                    <th key={d} className="px-1 py-2 text-center w-[52px] min-w-[52px] max-w-[52px]">
                       <div className="text-[11px] font-bold text-muted-foreground">{DAYS[i]}</div>
                       <div className="text-[10px] font-normal text-muted-foreground/60">{fmtDate(d)}</div>
                     </th>
@@ -711,28 +732,33 @@ export default function RotaPage() {
                             const isActive  = popover?.driver.uuid === driver.uuid && popover.date === date
                             const tripCount = entry?.trip_uuids?.length
                             const isDrop    = dropTarget?.driverUuid === driver.uuid && dropTarget?.date === date
+                            // Is this cell a VALID drop target for the in-flight trip?
+                            const tripDate  = draggingTrip?.scheduled_at?.slice(0, 10)
+                            const isBlocked = effectiveStatus === "HOL_REQ" || effectiveStatus === "UNAVAILABLE"
+                            const isValidDrop = draggingTrip != null && tripDate === date && !isBlocked
 
                             return (
                               <td key={date} className="px-1 py-1">
                                 <button
                                   onClick={(e) => handleCellClick(e, driver, date)}
-                                  onDragOver={(e) => handleDragOver(e, driver.uuid, date)}
+                                  onDragOver={(e) => handleDragOver(e, driver.uuid, date, effectiveStatus)}
                                   onDragLeave={handleDragLeave}
                                   onDrop={(e) => handleDrop(e, driver, date)}
                                   className={`group relative w-full flex items-center justify-center rounded-lg min-h-[32px] p-1 transition-all
                                     ${isActive ? "ring-2 ring-primary ring-offset-1" : ""}
-                                    ${isDrop ? "ring-2 ring-primary/60 ring-offset-1 bg-primary/5" : ""}
+                                    ${isDrop && isValidDrop ? "ring-2 ring-primary/70 ring-offset-1 bg-primary/5" : ""}
+                                    ${draggingTrip && !isValidDrop ? "opacity-40" : ""}
                                     ${effectiveStatus ? "border-0" : "border border-dashed border-border hover:border-muted-foreground/40 hover:bg-muted/20"}
                                   `}
                                 >
                                   {effectiveStatus ? (
-                                    <span className={`inline-flex w-full items-center justify-start gap-1.5 rounded-[100px] border pl-2 pr-3 text-[11px] font-medium capitalize leading-[2] ${cfg.bg} ${cfg.border} ${cfg.text}`}>
-                                      <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${cfg.dot}`} />
+                                    <span className={`inline-flex w-full items-center justify-center gap-1 rounded-[100px] border px-1.5 text-[10px] font-semibold leading-[1.9] ${cfg.bg} ${cfg.border} ${cfg.text}`}>
+                                      <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dot}`} />
                                       {entry?.status === "WD"
-                                        ? `Working Day${tripCount ? ` · ${tripCount}t` : ""}`
+                                        ? (tripCount ? `${tripCount}t` : "WD")
                                         : leave && !entry
-                                          ? (leave.leave_type || leave.non_availability_type || cfg.label)
-                                          : cfg.label}
+                                          ? (leave.leave_type || leave.non_availability_type || cfg.short)
+                                          : cfg.short}
                                     </span>
                                   ) : (
                                     <span className="text-[14px] leading-none text-muted-foreground/20 group-hover:text-muted-foreground/50 transition-colors">+</span>
@@ -756,13 +782,12 @@ export default function RotaPage() {
         </div>
 
         {/* ── Right: unassigned trips dock ──────────────────────────────── */}
-        <div className="w-[210px] shrink-0 flex flex-col gap-2 overflow-y-auto">
+        <div className="w-[360px] shrink-0 flex flex-col min-h-0 overflow-hidden">
           <TripsDockPanel
             dates={dates}
             assignedUuids={assignedTripUuids}
-            onTripAssigned={(uuid) => {
-              setAssignedTripUuids(prev => new Set([...prev, uuid]))
-            }}
+            onDragStart={(trip) => setDraggingTrip(trip)}
+            onDragEnd={() => setDraggingTrip(null)}
           />
         </div>
       </div>
