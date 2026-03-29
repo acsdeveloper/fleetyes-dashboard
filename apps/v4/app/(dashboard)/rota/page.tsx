@@ -446,13 +446,22 @@ export default function RotaPage() {
       .catch(() => {})
   }, [dates, wk])
 
-  /** Returns the leave record for a driver on a given YYYY-MM-DD date string, if any */
-  function leaveForDriverDate(driverUuid: string, date: string): LeaveRequest | undefined {
+  /**
+   * Returns the leave record for a driver on a given YYYY-MM-DD date string.
+   *
+   * NOTE: The leave API's `driver_uuid` comes from a different identity domain
+   * than the drivers API's `uuid` — they almost never match.  The only reliable
+   * cross-reference is `leave.user.name === driver.name`, with a fallback to
+   * `driver_uuid` for the rare cases where both systems share the same UUID.
+   */
+  function leaveForDriverDate(driver: Driver, date: string): LeaveRequest | undefined {
     return leaves.find(l => {
-      if (!l.driver_uuid) return false
-      if (l.driver_uuid !== driverUuid) return false
-      // date-string comparison — avoids timezone issues
-      return date >= l.start_date.slice(0, 10) && date <= l.end_date.slice(0, 10)
+      // Date range check first (cheap)
+      if (date < l.start_date.slice(0, 10) || date > l.end_date.slice(0, 10)) return false
+      // Match by name (primary) or by driver_uuid (fallback)
+      if (l.user?.name && l.user.name === driver.name) return true
+      if (l.driver_uuid && l.driver_uuid === driver.uuid) return true
+      return false
     })
   }
 
@@ -634,7 +643,7 @@ export default function RotaPage() {
                           </td>
                           {dates.map((date) => {
                             const entry    = getEntry(driver.uuid, date)
-                            const leave    = leaveForDriverDate(driver.uuid, date)
+                            const leave    = leaveForDriverDate(driver, date)
                             // Leave-derived status when no manual entry
                             const leaveStatus: typeof entry extends undefined ? "HOL_REQ" | "UNAVAILABLE" | undefined : undefined =
                               !entry && leave
