@@ -642,6 +642,9 @@ export default function RotaPage() {
     ? [{ label: "Drivers", items: drivers }]
     : driverGroups
 
+  // Which date is the in-flight trip scheduled for?
+  const draggingDate = draggingTrip?.scheduled_at?.slice(0, 10)
+
   return (
     <div className="flex h-full flex-col gap-3 p-4 md:p-5 overflow-hidden">
 
@@ -695,16 +698,41 @@ export default function RotaPage() {
           {loading ? (
             <div className="flex justify-center py-20 text-muted-foreground text-sm">Loading drivers…</div>
           ) : (
-            <table className="w-full border-collapse text-sm">
+            <table className="w-full border-collapse table-fixed text-sm">
               <thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-sm">
                 <tr className="border-b">
-                  <th className="w-[120px] min-w-[120px] max-w-[120px] px-2 py-2 text-left text-[11px] font-bold text-muted-foreground">Driver</th>
-                  {dates.map((d, i) => (
-                    <th key={d} className="px-1 py-2 text-center w-[52px] min-w-[52px] max-w-[52px]">
-                      <div className="text-[11px] font-bold text-muted-foreground">{DAYS[i]}</div>
-                      <div className="text-[10px] font-normal text-muted-foreground/60">{fmtDate(d)}</div>
-                    </th>
-                  ))}
+                  <th
+                    className="py-2 text-left text-[11px] font-bold text-muted-foreground px-2 overflow-hidden"
+                    style={{ width: 120, minWidth: 120, maxWidth: 120 }}
+                  >Driver</th>
+                  {dates.map((d, i) => {
+                    const isTarget = draggingDate === d
+                    const isOther  = !!draggingDate && !isTarget
+                    return (
+                      <th
+                        key={d}
+                        className="py-1 text-center overflow-hidden"
+                        style={{
+                          transition: 'width 0.2s ease, min-width 0.2s ease, max-width 0.2s ease',
+                          ...(draggingDate
+                            ? isTarget
+                              ? { width: '65%', minWidth: 140 }
+                              : { width: '5.83%', maxWidth: 28 }
+                            : { width: 52, minWidth: 52, maxWidth: 52 }),
+                        }}
+                      >
+                        {isOther ? null : (
+                          <>
+                            <div className={`text-[11px] font-bold ${isTarget ? 'text-primary' : 'text-muted-foreground'}`}>{DAYS[i]}</div>
+                            <div className={`text-[10px] font-normal ${isTarget ? 'text-primary/70' : 'text-muted-foreground/60'}`}>{fmtDate(d)}</div>
+                            {isTarget && (
+                              <div className="text-[9px] text-primary/60 mt-0.5 font-medium">drop here ↓</div>
+                            )}
+                          </>
+                        )}
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -736,43 +764,57 @@ export default function RotaPage() {
                             const isActive  = popover?.driver.uuid === driver.uuid && popover.date === date
                             const tripCount = entry?.trip_uuids?.length
                             const isDrop    = dropTarget?.driverUuid === driver.uuid && dropTarget?.date === date
-                            // Is this cell a VALID drop target for the in-flight trip?
-                            const tripDate  = draggingTrip?.scheduled_at?.slice(0, 10)
                             const isBlocked = effectiveStatus === "HOL_REQ" || effectiveStatus === "UNAVAILABLE"
-                            const isValidDrop = draggingTrip != null && tripDate === date && !isBlocked
+                            const isValidDrop = draggingDate === date && !isBlocked
+                            // Collapsed = dragging but not the target column
+                            const isCollapsed = !!draggingDate && date !== draggingDate
 
                             return (
-                              <td key={date} className="px-1 py-1 w-[52px] min-w-[52px] max-w-[52px] relative overflow-hidden">
+                              // td inherits width from th in table-fixed mode
+                              <td key={date} className="py-1 relative overflow-hidden">
                                 <button
-                                  onClick={(e) => handleCellClick(e, driver, date)}
+                                  onClick={isCollapsed ? undefined : (e) => handleCellClick(e, driver, date)}
                                   onDragOver={(e) => handleDragOver(e, driver.uuid, date, effectiveStatus)}
                                   onDragLeave={handleDragLeave}
                                   onDrop={(e) => handleDrop(e, driver, date)}
-                                  className={`group relative w-full flex items-center justify-center rounded-lg min-h-[32px] p-1 transition-all
-                                    ${isActive ? "ring-2 ring-primary ring-offset-1" : ""}
-                                    ${isDrop && isValidDrop ? "ring-2 ring-primary ring-offset-1 bg-primary/10" : ""}
-                                    ${effectiveStatus ? "border-0" : "border border-dashed border-border hover:border-muted-foreground/40 hover:bg-muted/20"}
+                                  className={`group relative w-full flex items-center justify-center min-h-[32px] transition-all
+                                    ${isCollapsed ? 'rounded-none p-0' : 'rounded-lg p-1'}
+                                    ${!isCollapsed && isActive ? "ring-2 ring-primary ring-offset-1" : ""}
+                                    ${!isCollapsed && isDrop && isValidDrop ? "ring-2 ring-primary ring-offset-1 bg-primary/10" : ""}
+                                    ${!isCollapsed && !effectiveStatus ? "border border-dashed border-border hover:border-muted-foreground/40 hover:bg-muted/20" : ""}
                                   `}
                                 >
-                                  {effectiveStatus ? (
-                                    <span className={`inline-flex w-full items-center justify-center gap-1 rounded-[100px] border px-1.5 text-[10px] font-semibold leading-[1.9] ${cfg.bg} ${cfg.border} ${cfg.text}`}>
-                                      <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dot}`} />
-                                      {entry?.status === "WD"
-                                        ? (tripCount ? `${tripCount}t` : "WD")
-                                        : leave && !entry
-                                          ? (leave.leave_type || leave.non_availability_type || cfg.short)
-                                          : cfg.short}
-                                    </span>
+                                  {isCollapsed ? (
+                                    // Collapsed view: just a colour strip filling the cell
+                                    effectiveStatus ? (
+                                      <span className={`absolute inset-0 ${cfg.dot} opacity-50`} />
+                                    ) : (
+                                      // Empty cells show faint background
+                                      <span className="absolute inset-0 bg-muted/10" />
+                                    )
                                   ) : (
-                                    <span className="text-[14px] leading-none text-muted-foreground/20 group-hover:text-muted-foreground/50 transition-colors">+</span>
-                                  )}
-                                  {/* Conflict dot */}
-                                  {leave && entry && (
-                                    <span className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-rose-400" title={`Leave: ${leave.leave_type}`} />
-                                  )}
-                                  {/* Dark overlay on invalid drop targets */}
-                                  {draggingTrip && !isValidDrop && (
-                                    <span className="absolute inset-0 rounded-lg bg-background/60 pointer-events-none" />
+                                    <>
+                                      {effectiveStatus ? (
+                                        <span className={`inline-flex w-full items-center justify-center gap-1 rounded-[100px] border px-1.5 text-[10px] font-semibold leading-[1.9] ${cfg.bg} ${cfg.border} ${cfg.text}`}>
+                                          <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dot}`} />
+                                          {entry?.status === "WD"
+                                            ? (tripCount ? `${tripCount}t` : "WD")
+                                            : leave && !entry
+                                              ? (leave.leave_type || leave.non_availability_type || cfg.short)
+                                              : cfg.short}
+                                        </span>
+                                      ) : (
+                                        <span className="text-[14px] leading-none text-muted-foreground/20 group-hover:text-muted-foreground/50 transition-colors">+</span>
+                                      )}
+                                      {/* Conflict dot */}
+                                      {leave && entry && (
+                                        <span className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-rose-400" title={`Leave: ${leave.leave_type}`} />
+                                      )}
+                                      {/* Dark overlay on invalid drop targets */}
+                                      {draggingTrip && !isValidDrop && (
+                                        <span className="absolute inset-0 rounded-lg bg-background/60 pointer-events-none" />
+                                      )}
+                                    </>
                                   )}
                                 </button>
                               </td>
