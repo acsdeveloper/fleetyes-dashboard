@@ -70,13 +70,8 @@ function CellPopover({
   React.useEffect(() => {
     if (status !== "WD") { setTrips([]); return }
     setLoadingTrips(true)
-    const nextDay = new Date(date + "T00:00:00")
-    nextDay.setDate(nextDay.getDate() + 1)
-    const y = nextDay.getFullYear()
-    const mo = String(nextDay.getMonth() + 1).padStart(2, "0")
-    const d = String(nextDay.getDate()).padStart(2, "0")
-    const endDate = `${y}-${mo}-${d}`
-    listOrders({ scheduled_at: date, end_date: endDate, per_page: 100 })
+    // end_date is inclusive on this API — use the same date to scope to one day only
+    listOrders({ scheduled_at: date, end_date: date, per_page: 100 })
       .then((res) => {
         const eligible = (res.orders ?? []).filter((o) => {
           const assignedUuid = o.driver_assigned_uuid || o.driver_assigned?.uuid
@@ -313,9 +308,8 @@ function TripsDockPanel({
     if (dates.length === 0) return
     setLoading(true)
     const start = dates[0]
-    const last = new Date(dates[dates.length - 1] + "T00:00:00")
-    last.setDate(last.getDate() + 1)
-    const end = last.toISOString().slice(0, 10)
+    // end_date is inclusive — use dates[6] (last day of week) directly, no +1
+    const end = dates[dates.length - 1]
     listOrders({ scheduled_at: start, end_date: end, per_page: 200 })
       .then(res => {
         const unassigned = (res.orders ?? []).filter(o => {
