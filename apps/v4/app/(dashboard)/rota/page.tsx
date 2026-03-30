@@ -971,10 +971,11 @@ export default function RotaPage() {
 
   // Column expand/collapse during drag — based on draggingDate (set once, stable)
   // so the layout doesn't reflow on every dragOver and break DnD hit-testing.
-  const COL_TRANSITION = "width 0.18s ease, min-width 0.18s ease, max-width 0.18s ease"
+  // Non-target columns collapse to 0; target takes all remaining width.
+  const COL_TRANSITION = "width 0.25s ease, min-width 0.25s ease, max-width 0.25s ease, opacity 0.15s ease"
   function colW(d: string) {
     if (!draggingDate) return 52
-    return d === draggingDate ? 100 : 30
+    return d === draggingDate ? 9999 : 0
   }
 
   // Preference match: compute once per render so all rows can reference it
