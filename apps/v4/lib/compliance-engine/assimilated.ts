@@ -42,7 +42,7 @@ import {
   longestContinuousRest,
 } from "./utils"
 
-// ─── Rule Constants ──────────────────────────────────────────────────────────
+// ─── Rule Constants ───────────────────────────────────────────────────────────
 
 const DAILY_DRIVE_LIMIT       = hoursToMinutes(9)     // 540 min
 const DAILY_DRIVE_EXTENDED    = hoursToMinutes(10)    // 600 min
@@ -60,6 +60,26 @@ const MAX_CONSECUTIVE_WORKING = 6                     // days
 const DAILY_DRIVE_WARN        = hoursToMinutes(8)     // warn at 8h
 const WEEKLY_DRIVE_WARN       = hoursToMinutes(50)    // warn at 50h
 const FORTNIGHT_DRIVE_WARN    = hoursToMinutes(82)    // warn at 82h
+
+/**
+ * Tramper threshold: trips ≥ 36 hours (2160 min).
+ * On days containing a tramper trip the driver rests in-cab, so the
+ * standard daily rest requirement between adjacent working days does NOT
+ * apply (DVSA tramper / cab-sleeper exemption). Weekly rest and
+ * consecutive-days rules still apply.
+ *
+ * Trips 10h–12h are treated as a full working day (NON_DRIVING_DUTY) by
+ * the adapter, so they naturally consume working-hours budget without
+ * needing special-casing here.
+ */
+const TRAMPER_THRESHOLD_MINS = 36 * 60   // 2160 minutes
+
+/** True if the day contains at least one activity spanning ≥ 36 hours */
+function isTramperDay(day: WorkingDay): boolean {
+  return day.activities.some(
+    a => (a.endTime.getTime() - a.startTime.getTime()) / 60_000 >= TRAMPER_THRESHOLD_MINS
+  )
+}
 
 // ─── Main Validator ──────────────────────────────────────────────────────────
 
@@ -165,6 +185,8 @@ export function validateAssimilated(
     // Only check rest between working days
     if (prev.isRestDay || curr.isRestDay) continue
     if (!prev.hasDriving && !curr.hasDriving) continue
+    // Tramper exemption: driver rests in-cab — daily rest rule does not apply
+    if (isTramperDay(prev) || isTramperDay(curr)) continue
 
     const rest = restBetweenDays(prev, curr)
 

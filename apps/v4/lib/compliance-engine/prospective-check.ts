@@ -65,6 +65,29 @@ function tripEnd(order: Order): Date {
   return new Date(start.getTime() + 2 * 60 * 60_000)
 }
 
+// ─── Trip Duration Classification ────────────────────────────────────────────
+
+/**
+ * Trips lasting 10h–12h are treated as a single working day for compliance
+ * purposes (working hours, not driving). This is already reflected in the
+ * adapter (activityType = NON_DRIVING_DUTY), so no special handling is
+ * needed at the prospective-check level — minutes are measured directly.
+ *
+ * Tramper trips (≥ 36h) are long-haul operations where the driver lives
+ * in the truck cab between legs. The standard daily rest requirement does
+ * NOT apply between a tramper trip and adjacent day's work, because the
+ * driver is taking their rest inside the vehicle (DVSA tramper exemption).
+ * Weekly rest and consecutive-days rules still apply.
+ */
+
+/** 36 hours in minutes — threshold for a tramper (cab-sleeper) trip */
+const TRAMPER_THRESHOLD_MINS = 36 * 60   // 2160 minutes
+
+/** Returns true if the trip duration is ≥ 36 hours (tramper operation) */
+function isTramperTrip(order: Order): boolean {
+  return tripDrivingMinutes(order) >= TRAMPER_THRESHOLD_MINS
+}
+
 /** Get trip driving duration in minutes */
 function tripDrivingMinutes(order: Order): number {
   return Math.max(0, (tripEnd(order).getTime() - tripStart(order).getTime()) / 60_000)
@@ -134,49 +157,56 @@ export function prospectiveComplianceCheck(
   }
 
   // ── 2. Daily Working Hours Limit ────────────────────────────────────
-  // These are working hours, not driving. Max 13h with standard rest.
-  const existingWorkingOnDate = existingTripsOnDate.reduce(
-    (sum, t) => sum + tripDrivingMinutes(t), 0
-  )
-  const totalWorkingAfterDrop = existingWorkingOnDate + newDrivingMins
+  // Tramper trips (≥ 36h) are exempt from the daily working hours limit
+  // since the driver is resting in-cab between legs.
+  if (!isTramperTrip(newTrip)) {
+    const existingWorkingOnDate = existingTripsOnDate.reduce(
+      (sum, t) => sum + tripDrivingMinutes(t), 0
+    )
+    const totalWorkingAfterDrop = existingWorkingOnDate + newDrivingMins
 
-  if (totalWorkingAfterDrop > MAX_DAILY_WORKING_REDUCED) {
-    violations.push({
-      ruleId: "EU_DAILY_WORK_LIMIT",
-      severity: "violation",
-      date: dropDate,
-      driverUuid,
-      message: `Would exceed maximum daily working hours of 15 hours`,
-      calculation: `Existing: ${fmtMinutes(existingWorkingOnDate)} + New trip: ${fmtMinutes(newDrivingMins)} = ${fmtMinutes(totalWorkingAfterDrop)} (absolute max ${fmtMinutes(MAX_DAILY_WORKING_REDUCED)})`,
-      ruleset: "ASSIMILATED",
-    })
-  } else if (totalWorkingAfterDrop > MAX_DAILY_WORKING) {
-    warnings.push({
-      ruleId: "EU_DAILY_WORK_LIMIT",
-      severity: "warning",
-      date: dropDate,
-      driverUuid,
-      message: `Working ${fmtMinutes(totalWorkingAfterDrop)} — requires reduced daily rest (9h min instead of 11h). Only 3 per week allowed.`,
-      calculation: `Existing: ${fmtMinutes(existingWorkingOnDate)} + New trip: ${fmtMinutes(newDrivingMins)} = ${fmtMinutes(totalWorkingAfterDrop)}`,
-      ruleset: "ASSIMILATED",
-    })
+    if (totalWorkingAfterDrop > MAX_DAILY_WORKING_REDUCED) {
+      violations.push({
+        ruleId: "EU_DAILY_WORK_LIMIT",
+        severity: "violation",
+        date: dropDate,
+        driverUuid,
+        message: `Would exceed maximum daily working hours of 15 hours`,
+        calculation: `Existing: ${fmtMinutes(existingWorkingOnDate)} + New trip: ${fmtMinutes(newDrivingMins)} = ${fmtMinutes(totalWorkingAfterDrop)} (absolute max ${fmtMinutes(MAX_DAILY_WORKING_REDUCED)})`,
+        ruleset: "ASSIMILATED",
+      })
+    } else if (totalWorkingAfterDrop > MAX_DAILY_WORKING) {
+      warnings.push({
+        ruleId: "EU_DAILY_WORK_LIMIT",
+        severity: "warning",
+        date: dropDate,
+        driverUuid,
+        message: `Working ${fmtMinutes(totalWorkingAfterDrop)} — requires reduced daily rest (9h min instead of 11h). Only 3 per week allowed.`,
+        calculation: `Existing: ${fmtMinutes(existingWorkingOnDate)} + New trip: ${fmtMinutes(newDrivingMins)} = ${fmtMinutes(totalWorkingAfterDrop)}`,
+        ruleset: "ASSIMILATED",
+      })
+    }
   }
 
   // ── 3. Daily Rest — Check gap with PREVIOUS day's trips ───────────────
+  // Tramper exemption: if the NEW trip OR the previous day's trip is a tramper
+  // (≥ 36h), daily rest rules don't apply — the driver rests in-cab.
   const prevDateStr = prevDate(dropDate)
   const prevEntry = getRotaEntry(driverUuid, prevDateStr)
-  if (prevEntry?.trip_uuids && prevEntry.trip_uuids.length > 0) {
+  if (!isTramperTrip(newTrip) && prevEntry?.trip_uuids && prevEntry.trip_uuids.length > 0) {
     // Find the latest-ending trip on the previous day
     let latestEnd = 0
+    let prevIsTramper = false
     for (const uuid of prevEntry.trip_uuids) {
       const t = tripIndex.get(uuid)
       if (t) {
         const end = tripEnd(t).getTime()
         latestEnd = Math.max(latestEnd, end)
+        if (isTramperTrip(t)) prevIsTramper = true
       }
     }
 
-    if (latestEnd > 0) {
+    if (latestEnd > 0 && !prevIsTramper) {
       // Rest gap = start of new trip - end of previous trip
       const restGap = Math.max(0, (newStart.getTime() - latestEnd) / 60_000)
 
@@ -205,20 +235,23 @@ export function prospectiveComplianceCheck(
   }
 
   // ── 4. Daily Rest — Check gap with NEXT day's trips ───────────────────
+  // Tramper exemption: skip if the new trip OR the next day's trip is a tramper.
   const nextDateStr = nextDate(dropDate)
   const nextEntry = getRotaEntry(driverUuid, nextDateStr)
-  if (nextEntry?.trip_uuids && nextEntry.trip_uuids.length > 0) {
+  if (!isTramperTrip(newTrip) && nextEntry?.trip_uuids && nextEntry.trip_uuids.length > 0) {
     // Find the earliest-starting trip on the next day
     let earliestStart = Infinity
+    let nextIsTramper = false
     for (const uuid of nextEntry.trip_uuids) {
       const t = tripIndex.get(uuid)
       if (t) {
         const start = tripStart(t).getTime()
         earliestStart = Math.min(earliestStart, start)
+        if (isTramperTrip(t)) nextIsTramper = true
       }
     }
 
-    if (earliestStart < Infinity) {
+    if (earliestStart < Infinity && !nextIsTramper) {
       // Rest gap = start of next day's trip - end of new trip
       const restGap = Math.max(0, (earliestStart - newEnd.getTime()) / 60_000)
 
