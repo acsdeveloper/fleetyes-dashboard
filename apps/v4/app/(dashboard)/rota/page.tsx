@@ -936,6 +936,26 @@ export default function RotaPage() {
     rotas.find((r) => r.driver_uuid === driverUuid && r.date === date)
 
   const handleSave = async (entry: RotaEntry, selectedOrders: Order[]) => {
+    // ── Compliance pre-check for newly assigned trips ────────────────────────
+    // Run the same prospective check as drag-and-drop for every new order being
+    // assigned via the popover. Skip orders already assigned to this driver
+    // (re-checking them is harmless but produces no new violations).
+    if (entry.status === "WD" && selectedOrders.length > 0) {
+      const driver = drivers.find(d => d.uuid === entry.driver_uuid)
+      const alreadyHere = getEntry(entry.driver_uuid, entry.date)?.trip_uuids ?? []
+      const newOrders = selectedOrders.filter(o => !alreadyHere.includes(o.uuid))
+      for (const order of newOrders) {
+        const prospective = prospectiveComplianceCheck(
+          entry.driver_uuid, entry.date, order, tripIndex,
+        )
+        if (prospective.violations.length > 0) {
+          if (driver) setComplianceReject({ driver, date: entry.date, violations: prospective.violations })
+          setPopover(null)
+          return
+        }
+      }
+    }
+
     // If changing away from WD, un-assign driver from any API-assigned trips (live source of truth)
     const prev = getEntry(entry.driver_uuid, entry.date)
     if (prev?.status === "WD" && entry.status !== "WD") {
