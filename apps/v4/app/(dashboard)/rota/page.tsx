@@ -711,6 +711,29 @@ export default function RotaPage() {
     })
     setAssignedTripUuids(uuids)
   }, [tripIndex])
+
+  // ── Cleanup stale WD rota entries once tripIndex is populated ──────────────
+  // If a trip was unassigned externally (e.g. via the Trips module), the localStorage
+  // rota entry still has status=WD. Once tripIndex loads we can detect and remove them,
+  // updating BOTH localStorage and the rotas React state so the UI reflects reality.
+  React.useEffect(() => {
+    if (tripIndex.size === 0) return  // tripIndex not yet loaded — don't prune
+    setRotas(prev => {
+      const stale = prev.filter(r => {
+        if (r.status !== "WD") return false
+        // Stale if no order in tripIndex is assigned to this driver on this date
+        return ![...tripIndex.values()].some(o => {
+          const a = o.driver_assigned_uuid || o.driver_assigned?.uuid
+          return a === r.driver_uuid && o.scheduled_at && isoLocalDate(o.scheduled_at) === r.date
+        })
+      })
+      if (stale.length === 0) return prev  // nothing to clean — avoid re-render
+      stale.forEach(r => deleteRota(r.driver_uuid, r.date))  // persist to localStorage
+      return prev.filter(
+        r => !stale.some(s => s.driver_uuid === r.driver_uuid && s.date === r.date)
+      )
+    })
+  }, [tripIndex])
   // Cells that are mid-save (driverUuid|date key)
   const [savingCells, setSavingCells] = React.useState<Set<string>>(new Set())
   // Counter bumped after reassignment to force dock refetch
@@ -1305,17 +1328,10 @@ export default function RotaPage() {
                             </div>
                           </td>
                           {dates.map((date) => {
-                            const rawEntry      = getEntry(driver.uuid, date)
-                            // If localStorage says WD, verify the API actually has trips assigned.
-                            // If not (e.g. unassigned externally via Trips module), the WD status
-                            // is stale — treat the cell as empty and auto-clean localStorage.
-                            const hasApiTrips = rawEntry?.status === "WD" && [...tripIndex.values()].some(o => {
-                              const a = o.driver_assigned_uuid || o.driver_assigned?.uuid
-                              return a === driver.uuid && o.scheduled_at && isoLocalDate(o.scheduled_at) === date
-                            })
-                            const entry = rawEntry?.status === "WD" && !hasApiTrips
-                              ? (() => { deleteRota(driver.uuid, date); return undefined })()
-                              : rawEntry
+                            const entry         = getEntry(driver.uuid, date)
+                            // After the cleanup effect runs, stale WD entries are removed from
+                            // rotas state, so entry will be undefined. This guard handles the
+                            // brief window before tripIndex is populated (avoids flicker).
                             const leave         = leaveForDriverDate(driver, date)
                             const leaveStatus: "HOL_REQ" | "UNAVAILABLE" | undefined =
                               !entry && leave
