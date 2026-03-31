@@ -1414,10 +1414,41 @@ export default function RotaPage() {
                                           return (
                                             <span
                                               key={t.uuid}
-                                              className={`inline-flex w-full items-center gap-1 rounded-[100px] border px-1.5 text-[9px] font-semibold leading-[1.9] ${cfg.bg} ${cfg.border} ${cfg.text}`}
+                                              className={`group/pill relative inline-flex w-full items-center gap-1 rounded-[100px] border px-1.5 text-[9px] font-semibold leading-[1.9] ${cfg.bg} ${cfg.border} ${cfg.text}`}
                                             >
                                               <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dot}`} />
-                                              <span className="truncate">{time || pid}</span>
+                                              <span className="truncate flex-1">{time || pid}</span>
+                                              {/* Quick-unassign button — visible on hover only */}
+                                              <button
+                                                type="button"
+                                                title="Unassign trip"
+                                                onClick={async (e) => {
+                                                  e.stopPropagation()
+                                                  const cellKey = `${driver.uuid}|${date}`
+                                                  setSavingCells(prev => new Set(prev).add(cellKey))
+                                                  await updateOrder(t.uuid, { driver_assigned_uuid: null }).catch(() => {})
+                                                  // Remove this uuid from the rota entry; if empty, delete entry
+                                                  setRotas(prev => {
+                                                    const idx = prev.findIndex(r => r.driver_uuid === driver.uuid && r.date === date)
+                                                    if (idx === -1) return prev
+                                                    const entry = prev[idx]
+                                                    const remaining = (entry.trip_uuids ?? []).filter(u => u !== t.uuid)
+                                                    if (remaining.length === 0) {
+                                                      deleteRota(driver.uuid, date)
+                                                      return prev.filter((_, i) => i !== idx)
+                                                    }
+                                                    const updated = { ...entry, trip_uuids: remaining }
+                                                    upsertRota(updated)
+                                                    return [...prev.slice(0, idx), updated, ...prev.slice(idx + 1)]
+                                                  })
+                                                  setSavingCells(prev => { const s = new Set(prev); s.delete(cellKey); return s })
+                                                  setDockRefreshKey(k => k + 1)
+                                                  runComplianceChecks()
+                                                }}
+                                                className="ml-auto opacity-0 group-hover/pill:opacity-100 transition-opacity rounded-full hover:bg-black/10 p-px -mr-0.5 flex-shrink-0"
+                                              >
+                                                <X className="h-2 w-2" />
+                                              </button>
                                             </span>
                                           )
                                         })
