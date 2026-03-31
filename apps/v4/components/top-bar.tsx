@@ -153,6 +153,8 @@ const PATH_KEYS: Record<string, keyof ReturnType<typeof useLang>["t"]["nav"] | n
   "/maintenance-trips":"maintenanceTrips",
   "/maintenance":      "maintenance",
   "/fuel-receipts":    "fuelReceipts",
+  "/fuel-tracking":    "fuelTracking",
+  "/toll-expenses":    "tollExpenses",
   "/toll-receipts":    "tollReceipts",
   "/parking":          "parkingMonitoring",
   "/inventory":        "inventory",

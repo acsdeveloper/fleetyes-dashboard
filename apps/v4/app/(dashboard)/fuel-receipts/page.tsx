@@ -423,9 +423,6 @@ export default function FuelReceiptsPage() {
   return (
     <div className="flex flex-1 flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
 
-      {/* Page title */}
-      <PageHeader pageKey="fuelReceipts" />
-
       {/* KPI Cards — toggled by Stats button */}
       {showCards && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
