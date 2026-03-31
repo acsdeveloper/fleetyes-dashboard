@@ -700,6 +700,16 @@ export default function RotaPage() {
   const [dropTarget, setDropTarget] = React.useState<{ driverUuid: string; date: string } | null>(null)
   // Index of all orders fetched for the current week (uuid → Order) for cell labels
   const [tripIndex, setTripIndex] = React.useState<Map<string, Order>>(new Map())
+
+  // ── Single source of truth: derive assignedTripUuids from the live API (tripIndex) ──
+  // This means external unassignments (via the Trips module) are always reflected here.
+  React.useEffect(() => {
+    const uuids = new Set<string>()
+    tripIndex.forEach((o) => {
+      if (o.driver_assigned_uuid || o.driver_assigned?.uuid) uuids.add(o.uuid)
+    })
+    setAssignedTripUuids(uuids)
+  }, [tripIndex])
   // Cells that are mid-save (driverUuid|date key)
   const [savingCells, setSavingCells] = React.useState<Set<string>>(new Set())
   // Counter bumped after reassignment to force dock refetch
@@ -768,9 +778,8 @@ export default function RotaPage() {
     const weekRotas = getWeekRota(dates)
     setRotas(weekRotas)
     setPreferences(getAllPreferences())
-    // Build set of already-assigned trip UUIDs
-    const uuids = new Set(weekRotas.flatMap(r => r.trip_uuids ?? []))
-    setAssignedTripUuids(uuids)
+    // Note: assignedTripUuids is now derived from the live tripIndex (below),
+    // NOT from localStorage, so external API unassignments are always reflected.
 
     listDriverLeave({ per_page: 500, sort: "-start_date" })
       .then(res => setLeaves(res.data ?? []))
@@ -883,12 +892,16 @@ export default function RotaPage() {
     rotas.find((r) => r.driver_uuid === driverUuid && r.date === date)
 
   const handleSave = async (entry: RotaEntry, selectedOrders: Order[]) => {
-    // If changing away from WD, un-assign driver from previous trips
+    // If changing away from WD, un-assign driver from any API-assigned trips (live source of truth)
     const prev = getEntry(entry.driver_uuid, entry.date)
-    if (prev?.status === "WD" && prev.trip_uuids && entry.status !== "WD") {
+    if (prev?.status === "WD" && entry.status !== "WD") {
+      const prevApiTrips = [...tripIndex.values()].filter(o => {
+        const a = o.driver_assigned_uuid || o.driver_assigned?.uuid
+        return a === entry.driver_uuid && o.scheduled_at && isoLocalDate(o.scheduled_at) === entry.date
+      })
       await Promise.all(
-        prev.trip_uuids.map((uuid) =>
-          updateOrder(uuid, { driver_assigned_uuid: null } as Parameters<typeof updateOrder>[1]).catch(() => {})
+        prevApiTrips.map((o) =>
+          updateOrder(o.uuid, { driver_assigned_uuid: null } as Parameters<typeof updateOrder>[1]).catch(() => {})
         )
       )
     }
@@ -902,28 +915,31 @@ export default function RotaPage() {
     }
     const updated = getWeekRota(dates)
     setRotas(updated)
-    setAssignedTripUuids(new Set(updated.flatMap(r => r.trip_uuids ?? [])))
+    // Bump dock refresh — re-fetch from API updates tripIndex → assignedTripUuids (single source of truth)
+    setDockRefreshKey(k => k + 1)
     setPopover(null)
     // Re-run compliance checks after allocation change
     runComplianceChecks()
   }
 
   const handleClear = async (driverUuid: string, date: string) => {
-    // Un-assign the driver from any trips linked to this rota entry
-    const prev = getEntry(driverUuid, date)
-    if (prev?.trip_uuids && prev.trip_uuids.length > 0) {
+    // Un-assign the driver from any API-assigned trips (live source of truth, not stale localStorage)
+    const assignedTrips = [...tripIndex.values()].filter(o => {
+      const a = o.driver_assigned_uuid || o.driver_assigned?.uuid
+      return a === driverUuid && o.scheduled_at && isoLocalDate(o.scheduled_at) === date
+    })
+    if (assignedTrips.length > 0) {
       await Promise.all(
-        prev.trip_uuids.map((uuid) =>
-          updateOrder(uuid, { driver_assigned_uuid: null } as Parameters<typeof updateOrder>[1]).catch(() => {})
+        assignedTrips.map((o) =>
+          updateOrder(o.uuid, { driver_assigned_uuid: null } as Parameters<typeof updateOrder>[1]).catch(() => {})
         )
       )
     }
     deleteRota(driverUuid, date)
     const updated = getWeekRota(dates)
     setRotas(updated)
-    setAssignedTripUuids(new Set(updated.flatMap(r => r.trip_uuids ?? [])))
     setPopover(null)
-    // Bump dock so un-assigned trips reappear
+    // Bump dock so un-assigned trips reappear; tripIndex update will rebuild assignedTripUuids
     setDockRefreshKey(k => k + 1)
     // Re-run compliance checks after clearing
     runComplianceChecks()
@@ -1025,8 +1041,9 @@ export default function RotaPage() {
     await updateOrder(tripUuid, { driver_assigned_uuid: driver.uuid }).catch(() => {})
     const updated = getWeekRota(dates)
     setRotas(updated)
-    setAssignedTripUuids(new Set(updated.flatMap(r => r.trip_uuids ?? [])))
     setSavingCells(prev => { const s = new Set(prev); s.delete(cellKey); return s })
+    // Bump dock refresh — re-fetch from API updates tripIndex → assignedTripUuids
+    setDockRefreshKey(k => k + 1)
     // Re-run compliance after allocation
     runComplianceChecks()
   }
@@ -1074,9 +1091,8 @@ export default function RotaPage() {
 
     const updated = getWeekRota(dates)
     setRotas(updated)
-    setAssignedTripUuids(new Set(updated.flatMap(r => r.trip_uuids ?? [])))
     setSavingCells(prev => { const s = new Set(prev); s.delete(cellKey); return s })
-    // Bump key so dock refetches — old trips reappear as unassigned
+    // Bump dock so old trips reappear; tripIndex update will rebuild assignedTripUuids
     setDockRefreshKey(k => k + 1)
     // Re-run compliance after reassignment
     runComplianceChecks()
@@ -1338,29 +1354,38 @@ export default function RotaPage() {
                                       <span className="w-10 h-2 rounded bg-emerald-200/80 dark:bg-emerald-700/50" />
                                     </span>
                                   ) : effectiveStatus ? (
-                                    entry?.status === "WD" && entry.trip_uuids?.length ? (
-                                      // One capsule per trip — sorted by time, stacked vertically
-                                      [...entry.trip_uuids]
-                                        .sort((a, b) => {
-                                          const ta = tripIndex.get(a)?.scheduled_at ?? ""
-                                          const tb = tripIndex.get(b)?.scheduled_at ?? ""
-                                          return ta.localeCompare(tb)
+                                    entry?.status === "WD" ? (() => {
+                                      // Derive assigned trips from the live API (tripIndex) — single source of truth.
+                                      // This reflects external unassignments (e.g. via Trips module) immediately.
+                                      const cellTrips = [...tripIndex.values()]
+                                        .filter(o => {
+                                          const a = o.driver_assigned_uuid || o.driver_assigned?.uuid
+                                          return a === driver.uuid && o.scheduled_at && isoLocalDate(o.scheduled_at) === date
                                         })
-                                        .map((uuid) => {
-                                        const t    = tripIndex.get(uuid)
-                                        const time = t?.scheduled_at?.slice(11, 16) ?? ""
-                                        const pid  = t?.public_id ?? uuid.slice(0, 6)
-                                        return (
-                                          <span
-                                            key={uuid}
-                                            className={`inline-flex w-full items-center gap-1 rounded-[100px] border px-1.5 text-[9px] font-semibold leading-[1.9] ${cfg.bg} ${cfg.border} ${cfg.text}`}
-                                          >
-                                            <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dot}`} />
-                                            <span className="truncate">{time ? `${time}` : pid}</span>
-                                          </span>
-                                        )
-                                      })
-                                    ) : (
+                                        .sort((a, b) => (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? ""))
+                                      if (cellTrips.length > 0) {
+                                        return cellTrips.map((t) => {
+                                          const time = t.scheduled_at ? isoLocalTime(t.scheduled_at) : ""
+                                          const pid  = t.public_id ?? t.uuid.slice(0, 6)
+                                          return (
+                                            <span
+                                              key={t.uuid}
+                                              className={`inline-flex w-full items-center gap-1 rounded-[100px] border px-1.5 text-[9px] font-semibold leading-[1.9] ${cfg.bg} ${cfg.border} ${cfg.text}`}
+                                            >
+                                              <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dot}`} />
+                                              <span className="truncate">{time || pid}</span>
+                                            </span>
+                                          )
+                                        })
+                                      }
+                                      // WD status but no API-assigned trips — show WD pill
+                                      return (
+                                        <span className={`inline-flex items-center gap-1 rounded-[100px] border px-2 text-[10px] font-semibold leading-[1.9] ${cfg.bg} ${cfg.border} ${cfg.text}`}>
+                                          <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dot}`} />
+                                          {cfg.short}
+                                        </span>
+                                      )
+                                    })() : (
                                       // Leave / RD / OFF / UNAVAILABLE — single status pill
                                       <span className={`inline-flex items-center gap-1 rounded-[100px] border px-2 text-[10px] font-semibold leading-[1.9] ${cfg.bg} ${cfg.border} ${cfg.text}`}>
                                         <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dot}`} />
