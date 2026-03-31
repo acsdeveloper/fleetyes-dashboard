@@ -5,7 +5,7 @@ import * as React from "react"
 import {
   Search, Download, Plus, RefreshCw, X, Loader2,
   AlertCircle, Trash2, Upload, CheckCircle2, XCircle, FileText,
-  ChevronLeft, ChevronRight, Filter, Send,
+  ChevronLeft, ChevronRight, Filter, Send, Pencil,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
 import {
@@ -675,6 +675,9 @@ export default function TollExpensesPage() {
   return (
     <div className="flex flex-1 flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
 
+      {/* Page title */}
+      <PageHeader pageKey="tollExpenses" />
+
       {/* KPI Cards — toggled by Stats button */}
       {showCards && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -701,8 +704,6 @@ export default function TollExpensesPage() {
       {/* Toolbar */}
       <div data-help="toolbar" className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          <PageHeader pageKey="tollExpenses" />
-
           <div className="flex-1" />
 
           {selected.size > 0 && (
@@ -779,7 +780,7 @@ export default function TollExpensesPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/40">
-                  <th className="px-4 py-2.5"><input type="checkbox" checked={selected.size === records.length && records.length > 0} onChange={toggleAll} className="rounded" /></th>
+                  <th className="w-10 px-3 py-2.5 text-center"><input type="checkbox" checked={selected.size === records.length && records.length > 0} onChange={toggleAll} className="rounded" /></th>
                   {["ID","Date","Vehicle","Driver","VRID","Direction","Amount","Incl. VAT","Amazon",""].map(h => (
                     <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                   ))}
@@ -788,7 +789,7 @@ export default function TollExpensesPage() {
               <tbody>
                 {records.map(r => (
                   <tr key={r.uuid} className="border-b last:border-0 transition-colors hover:bg-muted/20">
-                    <td className="px-4 py-2.5"><input type="checkbox" checked={selected.has(r.uuid)} onChange={() => toggleSelect(r.uuid)} className="rounded" /></td>
+                    <td className="w-10 px-3 py-2.5 text-center"><input type="checkbox" checked={selected.has(r.uuid)} onChange={() => toggleSelect(r.uuid)} className="rounded" /></td>
                     <td className="px-4 py-2.5 font-mono text-xs text-primary whitespace-nowrap">{r.public_id}</td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{fmt(r.crossing_date || r.created_at)}</td>
                     <td className="px-4 py-2.5 font-mono font-bold whitespace-nowrap">{r.vehicle?.plate_number ?? "—"}</td>
@@ -805,11 +806,16 @@ export default function TollExpensesPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => setSlideOver(r)} className="text-xs text-primary hover:underline">Edit</button>
-                        <button onClick={() => handleDelete(r.uuid)} disabled={deleting === r.uuid}
-                          className="text-xs text-red-500 hover:underline disabled:opacity-50">{deleting === r.uuid ? "…" : "Del"}</button>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => setSlideOver(r)} title="Edit"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button onClick={() => handleDelete(r.uuid)} disabled={deleting === r.uuid} title="Delete"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border bg-background text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 hover:border-red-200 disabled:opacity-40">
+                          {deleting === r.uuid ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                        </button>
                       </div>
                     </td>
                   </tr>
