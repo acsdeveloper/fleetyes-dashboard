@@ -6,7 +6,7 @@ import {
   Search, RefreshCw, X, Loader2, AlertCircle,
   Upload, CheckCircle2, XCircle, FileText,
   ChevronLeft, ChevronRight, Filter, Eye,
-  Cpu, ImageIcon,
+  Cpu, ImageIcon, Pencil,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
 import {
@@ -26,10 +26,17 @@ function fmt(iso?: string | null) {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  pending:   "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
-  processed: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-  failed:    "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-  duplicate: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  pending:   "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-700",
+  processed: "bg-green-50 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-700",
+  failed:    "bg-red-50 text-red-800 border-red-200 dark:bg-red-900/10 dark:text-red-400 dark:border-red-700",
+  duplicate: "bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
+}
+
+const STATUS_DOT: Record<string, string> = {
+  pending:   "bg-amber-500",
+  processed: "bg-green-500",
+  failed:    "bg-red-500",
+  duplicate: "bg-slate-400",
 }
 
 // ─── Receipt Detail Modal ─────────────────────────────────────────────────────
@@ -363,6 +370,9 @@ export default function FuelReceiptsPage() {
   const [showUpload, setShowUpload] = React.useState(false)
   const [showProcess, setShowProcess] = React.useState(false)
   const [showFilter, setShowFilter] = React.useState(false)
+  const [showCards, setShowCards] = React.useState(false)
+  const [searchFocused, setSearchFocused] = React.useState(false)
+  const [search, setSearch] = React.useState("")
 
   const [drivers, setDrivers] = React.useState<Driver[]>([])
 
@@ -400,128 +410,183 @@ export default function FuelReceiptsPage() {
   const processedCount = records.filter(r => r.status === "processed").length
   const failedCount = records.filter(r => r.status === "failed").length
 
+  const filtered = React.useMemo(() => {
+    if (!search) return records
+    const q = search.toLowerCase()
+    return records.filter(r =>
+      (r.driver?.name ?? r.driver_name ?? "").toLowerCase().includes(q) ||
+      (r.extracted_data?.supplier_name ?? "").toLowerCase().includes(q) ||
+      (r.extracted_data?.vehicle_vrn ?? "").toLowerCase().includes(q)
+    )
+  }, [records, search])
+
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6 md:p-8 lg:p-10">
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <PageHeader pageKey="fuelReceipts" />
-          <p className="mt-1 text-sm text-muted-foreground">{t.pages.fuelReceipts.subtitle}</p>
+    <div className="flex flex-1 flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
+
+      {/* Page title */}
+      <PageHeader pageKey="fuelReceipts" />
+
+      {/* KPI Cards — toggled by Stats button */}
+      {showCards && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[
+            { label: "Total Receipts", value: meta.total, sub: "all time", colour: "text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/20", icon: <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg> },
+            { label: "Pending OCR", value: pendingCount, sub: "awaiting processing", alert: pendingCount > 0, colour: "text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-900/20", icon: <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+            { label: "Processed", value: processedCount, sub: "extraction complete", colour: "text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-900/20", icon: <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+            { label: "Failed", value: failedCount, sub: "needs attention", alert: failedCount > 0, colour: "text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-900/20", icon: <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg> },
+          ].map(k => (
+            <div key={k.label} className={`relative flex flex-col gap-2 rounded-xl border bg-card px-4 py-3 shadow-sm transition-shadow hover:shadow-md ${"alert" in k && k.alert ? "border-amber-300 dark:border-amber-700" : ""}`}>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium text-muted-foreground">{k.label}</span>
+                <span className={`rounded-lg p-1.5 ${k.colour}`}>{k.icon}</span>
+              </div>
+              <p className="text-2xl font-bold tabular-nums leading-none">
+                {loading ? <span className="inline-block h-7 w-10 animate-pulse rounded bg-muted" /> : k.value}
+              </p>
+              <p className="text-[11px] text-muted-foreground">{k.sub}</p>
+            </div>
+          ))}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button onClick={() => setShowProcess(true)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border bg-background px-3 text-sm text-muted-foreground hover:bg-muted">
-            <Cpu className="h-3.5 w-3.5" /> Process Receipts
+      )}
+
+      {/* Toolbar */}
+      <div data-help="toolbar" className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <div className="flex-1" />
+
+          {/* Search — expands on focus */}
+          <div className={`relative transition-all duration-200 ${searchFocused ? "w-72" : "w-40"}`}>
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input type="text" placeholder="Search driver, supplier…" value={search}
+              onChange={e => setSearch(e.target.value)}
+              onFocus={() => setSearchFocused(true)} onBlur={() => setSearchFocused(false)}
+              className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+          </div>
+
+          {/* Pill toggles */}
+          <div className="flex items-center gap-0.5 rounded-lg border bg-muted/30 p-0.5">
+            <button onClick={() => setShowFilter(v => !v)}
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${activeFilters > 0 || showFilter ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
+              <Filter className="h-3 w-3" /> Filters{activeFilters > 0 ? ` (${activeFilters})` : ""}
+            </button>
+            <button onClick={() => setShowCards(v => !v)}
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showCards ? "bg-blue-500 text-white shadow-sm" : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
+              <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M2 13V8M6 13V5M10 13V7M14 13V3" /></svg>
+              Stats
+            </button>
+          </div>
+
+          <span className="h-6 w-px bg-border" />
+
+          {/* Utility icon buttons */}
+          <button onClick={() => fetchData(page)} title="Refresh"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+            <RefreshCw className="h-3.5 w-3.5" />
           </button>
+          <button onClick={() => setShowProcess(true)} title="Process Receipts (OCR)"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+            <Cpu className="h-3.5 w-3.5" />
+          </button>
+
+          <span className="h-6 w-px bg-border" />
+
+          {/* Primary CTA */}
           <button onClick={() => setShowUpload(true)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
             <Upload className="h-3.5 w-3.5" /> Upload ZIP
           </button>
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-4">
-        {[
-          { label: "Total Receipts", value: meta.total },
-          { label: "Pending OCR", value: pendingCount, highlight: pendingCount > 0 },
-          { label: "Processed", value: processedCount },
-          { label: "Failed / Error", value: failedCount, highlight: failedCount > 0, warn: true },
-        ].map(k => (
-          <div key={k.label} className={`rounded-xl border bg-card p-4 shadow-sm ${k.highlight ? (k.warn ? "border-red-200 dark:border-red-800" : "border-amber-200 dark:border-amber-800") : ""}`}>
-            <p className={`text-2xl font-bold ${k.highlight ? (k.warn ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400") : ""}`}>{k.value}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{k.label}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap gap-3 items-center">
-        <button onClick={() => setShowFilter(true)}
-          className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors ${activeFilters > 0 ? "border-primary bg-primary/10 text-primary" : "bg-background text-muted-foreground hover:bg-muted"}`}>
-          <Filter className="h-3.5 w-3.5" /> Filters{activeFilters > 0 ? ` (${activeFilters})` : ""}
-        </button>
-        <button onClick={() => fetchData(page)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border bg-background text-muted-foreground hover:bg-muted">
-          <RefreshCw className="h-3.5 w-3.5" />
-        </button>
-        <p className="ml-auto text-xs text-muted-foreground">{meta.total} receipts</p>
-      </div>
-
+      {/* Error banner */}
       {error && (
-        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/20 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20 px-4 py-3 text-sm text-red-600 dark:text-red-400">
           <AlertCircle className="h-4 w-4 shrink-0" /> {error}
+          <button onClick={() => fetchData(page)} className="ml-auto underline text-xs">Retry</button>
         </div>
       )}
 
-      <div className="overflow-auto rounded-xl border bg-card shadow-sm">
+      {/* Table */}
+      <div className="flex flex-1 flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
         {loading ? (
-          <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-        ) : records.length === 0 ? (
-          <div className="py-16 text-center">
-            <FileText className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">No fuel receipts found</p>
-            <p className="mt-1 text-xs text-muted-foreground">Receipts sync from the driver app, or upload a ZIP above</p>
+          <div className="flex flex-1 items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+            <FileText className="h-8 w-8 opacity-40" />
+            <p>No fuel receipts found</p>
+            <p className="text-xs">Receipts sync from the driver app, or upload a ZIP above</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/40">
-                {["Driver","Captured","Supplier","Amount","Volume","Product","Status","Duplicate","Action"].map(h => (
-                  <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {records.map(r => {
-                const ext = r.extracted_data
-                return (
-                  <tr key={r.uuid} className="border-b last:border-0 hover:bg-muted/20">
-                    <td className="px-4 py-2.5 whitespace-nowrap">{r.driver?.name ?? r.driver_name ?? "—"}</td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{fmt(r.captured_at ?? r.created_at)}</td>
-                    <td className="px-4 py-2.5 whitespace-nowrap">{ext?.supplier_name ?? "—"}</td>
-                    <td className="px-4 py-2.5 font-semibold whitespace-nowrap">
-                      {ext?.total_amount ? `${ext.currency ?? ""} ${ext.total_amount}` : r.amount ?? "—"}
-                    </td>
-                    <td className="px-4 py-2.5 text-xs whitespace-nowrap">
-                      {ext?.volume ? `${ext.volume} ${ext.volume_measurement ?? ""}` : r.product_volume ?? "—"}
-                    </td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{ext?.product_type ?? r.product ?? "—"}</td>
-                    <td className="px-4 py-2.5 whitespace-nowrap">
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold capitalize ${STATUS_STYLES[r.status] ?? ""}`}>{r.status}</span>
-                    </td>
-                    <td className="px-4 py-2.5 whitespace-nowrap">
-                      {r.is_duplicate && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold dark:bg-slate-800">Yes</span>}
-                    </td>
-                    <td className="px-4 py-2.5 whitespace-nowrap">
-                      <button onClick={() => setDetailRecord(r)} className="inline-flex items-center gap-1 text-xs text-indigo-500 hover:underline">
-                        <Eye className="h-3 w-3" /> View
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="border-t bg-muted/20">
-                <td colSpan={9} className="px-4 py-2 text-xs text-muted-foreground">{meta.total} total receipts</td>
-              </tr>
-            </tfoot>
-          </table>
+          <div className="overflow-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/40">
+                  {["Driver","Captured","Supplier","Amount","Volume","Product","Status","Dup",""].map(h => (
+                    <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(r => {
+                  const ext = r.extracted_data
+                  return (
+                    <tr key={r.uuid} className="border-b last:border-0 transition-colors hover:bg-muted/20">
+                      <td className="px-4 py-2.5 whitespace-nowrap">{r.driver?.name ?? r.driver_name ?? "—"}</td>
+                      <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{fmt(r.captured_at ?? r.created_at)}</td>
+                      <td className="px-4 py-2.5 whitespace-nowrap">{ext?.supplier_name ?? "—"}</td>
+                      <td className="px-4 py-2.5 font-semibold whitespace-nowrap">
+                        {ext?.total_amount ? `${ext.currency ?? ""} ${ext.total_amount}` : r.amount ?? "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs whitespace-nowrap">
+                        {ext?.volume ? `${ext.volume} ${ext.volume_measurement ?? ""}` : r.product_volume ?? "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{ext?.product_type ?? r.product ?? "—"}</td>
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        <span className={`inline-flex items-center rounded-[100px] border pl-1 pr-3 text-[11px] font-medium capitalize leading-[2] ${STATUS_STYLES[r.status] ?? ""}`}>
+                          <span className={`mr-2 ml-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[r.status] ?? "bg-gray-400"}`} />
+                          {r.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        {r.is_duplicate && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold dark:bg-slate-800">Yes</span>}
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <button onClick={() => setDetailRecord(r)} title="View detail"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                          <Eye className="h-3 w-3" />
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t bg-muted/20">
+                  <td colSpan={9} className="px-4 py-2 text-xs text-muted-foreground">
+                    <div className="flex items-center justify-between">
+                      <span>{meta.total} receipts · Page {meta.current_page} of {meta.last_page}</span>
+                      {meta.last_page > 1 && (
+                        <span className="flex items-center gap-1">
+                          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                            className="h-6 w-6 rounded border bg-background text-muted-foreground hover:bg-muted disabled:opacity-40 flex items-center justify-center">
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                          </button>
+                          <button onClick={() => setPage(p => Math.min(meta.last_page, p + 1))} disabled={page === meta.last_page}
+                            className="h-6 w-6 rounded border bg-background text-muted-foreground hover:bg-muted disabled:opacity-40 flex items-center justify-center">
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </button>
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         )}
       </div>
-
-      {meta.last_page > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">Page {meta.current_page} of {meta.last_page}</p>
-          <div className="flex gap-2">
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-              className="h-8 w-8 rounded-lg border bg-background text-muted-foreground hover:bg-muted disabled:opacity-40 flex items-center justify-center">
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <button onClick={() => setPage(p => Math.min(meta.last_page, p + 1))} disabled={page === meta.last_page}
-              className="h-8 w-8 rounded-lg border bg-background text-muted-foreground hover:bg-muted disabled:opacity-40 flex items-center justify-center">
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
 
       {detailRecord && <ReceiptDetailModal receipt={detailRecord} onClose={() => setDetailRecord(null)} />}
       {showUpload && <UploadWizard onClose={() => setShowUpload(false)} onDone={() => fetchData(1)} />}
