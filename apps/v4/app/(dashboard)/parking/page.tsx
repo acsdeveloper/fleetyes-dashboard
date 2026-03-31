@@ -25,9 +25,15 @@ function fmt(iso?: string | null) {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  pending:  "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
-  approved: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-  rejected: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+  pending:  "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-700",
+  approved: "bg-green-50 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-700",
+  rejected: "bg-red-50 text-red-800 border-red-200 dark:bg-red-900/10 dark:text-red-400 dark:border-red-700",
+}
+
+const STATUS_DOT: Record<string, string> = {
+  pending:  "bg-amber-500",
+  approved: "bg-green-500",
+  rejected: "bg-red-500",
 }
 
 // ─── Add/Edit Slide-Over ──────────────────────────────────────────────────────
@@ -240,6 +246,8 @@ export default function ParkingPage() {
   const [selected, setSelected] = React.useState<Set<string>>(new Set())
   const [slideOver, setSlideOver] = React.useState<ParkingReport | null | "new">(null)
   const [showFilter, setShowFilter] = React.useState(false)
+  const [showCards, setShowCards] = React.useState(false)
+  const [searchFocused, setSearchFocused] = React.useState(false)
   const [deleting, setDeleting] = React.useState<string | null>(null)
   const [exporting, setExporting] = React.useState(false)
 
@@ -325,57 +333,80 @@ export default function ParkingPage() {
   const freeCount = records.filter(r => r.amount === 0).length
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6 md:p-8 lg:p-10">
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <PageHeader pageKey="parkingMonitoring" />
-          <p className="mt-1 text-sm text-muted-foreground">{t.pages.parkingMonitoring.subtitle}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button onClick={handleExport} disabled={exporting}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border bg-background px-3 text-sm text-muted-foreground hover:bg-muted disabled:opacity-50">
-            {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} {c.export}
-          </button>
-          <button onClick={() => setSlideOver("new")}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-            <Plus className="h-3.5 w-3.5" /> {c.addNew}
-          </button>
-        </div>
-      </div>
+    <div className="flex flex-1 flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
 
-      <div className="grid gap-4 sm:grid-cols-4">
-        {[
-          { label: "Total Records", value: meta.total },
-          { label: "Total Cost (page)", value: `£${totalCost.toFixed(2)}` },
-          { label: "Pending Approval", value: pendingCount },
-          { label: "Free / Depot Nights", value: freeCount },
-        ].map(k => (
-          <div key={k.label} className="rounded-xl border bg-card p-4 shadow-sm">
-            <p className="text-2xl font-bold">{k.value}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{k.label}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap gap-3 items-center">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search vehicle, driver…"
-            className="h-9 w-full rounded-lg border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
+      {/* KPI Cards — toggled by Stats button */}
+      {showCards && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[
+            { label: "Total Records",    value: meta.total,       sub: "all time",        colour: "text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/20",           icon: <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg> },
+            { label: "Cost (this page)", value: `£${totalCost.toFixed(2)}`,              sub: "excl. VAT",        colour: "text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-900/20", icon: <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+            { label: "Pending Approval", value: pendingCount,     sub: "awaiting review", colour: "text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-900/20",       icon: <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+            { label: "Free Nights",      value: freeCount,        sub: "no charge",        colour: "text-violet-600 bg-violet-50 dark:text-violet-400 dark:bg-violet-900/20",  icon: <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg> },
+          ].map(k => (
+            <div key={k.label} className="relative flex flex-col gap-2 rounded-xl border bg-card px-4 py-3 shadow-sm transition-shadow hover:shadow-md">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium text-muted-foreground">{k.label}</span>
+                <span className={`rounded-lg p-1.5 ${k.colour}`}>{k.icon}</span>
+              </div>
+              <p className="text-2xl font-bold tabular-nums leading-none">
+                {loading ? <span className="inline-block h-7 w-10 animate-pulse rounded bg-muted" /> : k.value}
+              </p>
+              <p className="text-[11px] text-muted-foreground">{k.sub}</p>
+            </div>
+          ))}
         </div>
-        <button onClick={() => setShowFilter(true)}
-          className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors ${activeFilters > 0 ? "border-primary bg-primary/10 text-primary" : "bg-background text-muted-foreground hover:bg-muted"}`}>
-          <Filter className="h-3.5 w-3.5" /> Filters{activeFilters > 0 ? ` (${activeFilters})` : ""}
-        </button>
-        <button onClick={() => fetchData(page)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border bg-background text-muted-foreground hover:bg-muted">
-          <RefreshCw className="h-3.5 w-3.5" />
-        </button>
+      )}
+
+      {/* Toolbar */}
+      <div className="flex items-center gap-2">
+        <PageHeader pageKey="parkingMonitoring" />
+        <div className="flex-1" />
+
         {selected.size > 0 && (
           <button onClick={handleBulkDelete}
-            className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-3 text-sm text-red-700 hover:bg-red-100 dark:bg-red-950/20 dark:border-red-800 dark:text-red-400">
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-red-500 px-3 text-xs font-semibold text-white shadow-sm transition-all hover:bg-red-600">
             <Trash2 className="h-3.5 w-3.5" /> Delete {selected.size}
           </button>
         )}
+
+        <div className={`relative transition-all duration-200 ${searchFocused ? "w-72" : "w-44"}`}>
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <input type="text" placeholder="Search vehicle, driver…" value={search}
+            onChange={e => setSearch(e.target.value)}
+            onFocus={() => setSearchFocused(true)} onBlur={() => setSearchFocused(false)}
+            className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+        </div>
+
+        <div className="flex items-center gap-0.5 rounded-lg border bg-muted/30 p-0.5">
+          <button onClick={() => setShowFilter(v => !v)}
+            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${activeFilters > 0 || showFilter ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
+            <Filter className="h-3 w-3" /> Filters{activeFilters > 0 ? ` (${activeFilters})` : ""}
+          </button>
+          <button onClick={() => setShowCards(v => !v)}
+            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showCards ? "bg-blue-500 text-white shadow-sm" : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
+            <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M2 13V8M6 13V5M10 13V7M14 13V3" /></svg>
+            Stats
+          </button>
+        </div>
+
+        <span className="h-6 w-px bg-border" />
+
+        <button onClick={() => fetchData(page)} title="Refresh"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+          <RefreshCw className="h-3.5 w-3.5" />
+        </button>
+        <button onClick={handleExport} disabled={exporting} title="Export"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40">
+          {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+        </button>
+
+        <span className="h-6 w-px bg-border" />
+
+        <button onClick={() => setSlideOver("new")}
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90">
+          <Plus className="h-3.5 w-3.5" /> {c.addNew}
+        </button>
       </div>
 
       {error && (
@@ -384,84 +415,88 @@ export default function ParkingPage() {
         </div>
       )}
 
-      <div className="overflow-auto rounded-xl border bg-card shadow-sm">
+      {/* Table */}
+      <div className="flex flex-1 flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
         {loading ? (
-          <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          <div className="flex flex-1 items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
         ) : records.length === 0 ? (
-          <div className="py-16 text-center text-sm text-muted-foreground">No parking records found</div>
+          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">No parking records found</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/40">
-                <th className="px-4 py-2.5"><input type="checkbox" checked={selected.size === records.length && records.length > 0} onChange={toggleAll} className="rounded" /></th>
-                {[c.ref, c.date, c.vehicle, c.driver, c.amount, "Payment", "Odometer", "Notes", c.status, c.action].map(h => (
-                  <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+          <div className="overflow-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/40">
+                  <th className="px-4 py-2.5"><input type="checkbox" checked={selected.size === records.length && records.length > 0} onChange={toggleAll} className="rounded" /></th>
+                  {[c.ref, c.date, c.vehicle, c.driver, c.amount, "Payment", "Odometer", "Notes", c.status, ""].map(h => (
+                    <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {records.map(r => (
+                  <tr key={r.uuid} className="border-b last:border-0 transition-colors hover:bg-muted/20">
+                    <td className="px-4 py-2.5"><input type="checkbox" checked={selected.has(r.uuid)} onChange={() => toggleSelect(r.uuid)} className="rounded" /></td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-primary whitespace-nowrap">{r.public_id}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{fmt(r.created_at)}</td>
+                    <td className="px-4 py-2.5 font-mono font-bold whitespace-nowrap">{r.vehicle?.plate_number ?? "—"}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">{r.driver?.name ?? "—"}</td>
+                    <td className="px-4 py-2.5 font-semibold whitespace-nowrap">
+                      {Number(r.amount ?? 0) === 0 ? <span className="text-green-600 dark:text-green-400">Free</span> : `${r.currency} ${Number(r.amount ?? 0).toFixed(2)}`}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{r.payment_method ?? "—"}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{r.odometer ?? "—"}</td>
+                    <td className="px-4 py-2.5 max-w-[180px]"><p className="truncate text-xs text-muted-foreground">{r.report ?? "—"}</p></td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      <span className={`inline-flex items-center rounded-[100px] border pl-1 pr-3 text-[11px] font-medium capitalize leading-[2] ${STATUS_STYLES[r.status] ?? ""}`}>
+                        <span className={`mr-2 ml-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[r.status] ?? "bg-gray-400"}`} />
+                        {r.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      {r.status === "pending" ? (
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => handleApprove(r.uuid, "approved")} className="text-xs text-green-600 hover:underline">{c.approve}</button>
+                          <button onClick={() => handleApprove(r.uuid, "rejected")} className="text-xs text-red-500 hover:underline">{c.reject}</button>
+                          <button onClick={() => setSlideOver(r)} className="text-xs text-primary hover:underline">Edit</button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setSlideOver(r)} className="text-xs text-primary hover:underline">{c.view}</button>
+                          <button onClick={() => handleDelete(r.uuid)} disabled={deleting === r.uuid}
+                            className="text-xs text-red-500 hover:underline disabled:opacity-50">{deleting === r.uuid ? "…" : "Del"}</button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {records.map(r => (
-                <tr key={r.uuid} className="border-b last:border-0 hover:bg-muted/20">
-                  <td className="px-4 py-2.5"><input type="checkbox" checked={selected.has(r.uuid)} onChange={() => toggleSelect(r.uuid)} className="rounded" /></td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-indigo-600 dark:text-indigo-400 whitespace-nowrap">{r.public_id}</td>
-                  <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{fmt(r.created_at)}</td>
-                  <td className="px-4 py-2.5 font-mono font-bold whitespace-nowrap">{r.vehicle?.plate_number ?? "—"}</td>
-                  <td className="px-4 py-2.5 whitespace-nowrap">{r.driver?.name ?? "—"}</td>
-                  <td className="px-4 py-2.5 font-semibold whitespace-nowrap">
-                    {Number(r.amount ?? 0) === 0 ? <span className="text-green-600 dark:text-green-400">Free</span> : `${r.currency} ${Number(r.amount ?? 0).toFixed(2)}`}
-                  </td>
-                  <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{r.payment_method ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{r.odometer ?? "—"}</td>
-                  <td className="px-4 py-2.5 max-w-[180px]">
-                    <p className="truncate text-xs text-muted-foreground">{r.report ?? "—"}</p>
-                  </td>
-                  <td className="px-4 py-2.5 whitespace-nowrap">
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold capitalize ${STATUS_STYLES[r.status] ?? ""}`}>{r.status}</span>
-                  </td>
-                  <td className="px-4 py-2.5 whitespace-nowrap">
-                    {r.status === "pending" ? (
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => handleApprove(r.uuid, "approved")} className="text-xs text-green-600 hover:underline">{c.approve}</button>
-                        <button onClick={() => handleApprove(r.uuid, "rejected")} className="text-xs text-red-500 hover:underline">{c.reject}</button>
-                        <button onClick={() => setSlideOver(r)} className="text-xs text-muted-foreground hover:underline">Edit</button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => setSlideOver(r)} className="text-xs text-indigo-500 hover:underline">{c.view}</button>
-                        <button onClick={() => handleDelete(r.uuid)} disabled={deleting === r.uuid}
-                          className="text-xs text-red-500 hover:underline disabled:opacity-50">{deleting === r.uuid ? "…" : "Del"}</button>
-                      </div>
-                    )}
+              </tbody>
+              <tfoot>
+                <tr className="border-t bg-muted/20">
+                  <td colSpan={11} className="px-4 py-2 text-xs text-muted-foreground">
+                    <div className="flex items-center justify-between">
+                      <span>{meta.total} records · Page {meta.current_page} of {meta.last_page}</span>
+                      {meta.last_page > 1 && (
+                        <span className="flex items-center gap-1">
+                          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                            className="h-6 w-6 rounded border bg-background text-muted-foreground hover:bg-muted disabled:opacity-40 flex items-center justify-center">
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                          </button>
+                          <button onClick={() => setPage(p => Math.min(meta.last_page, p + 1))} disabled={page === meta.last_page}
+                            className="h-6 w-6 rounded border bg-background text-muted-foreground hover:bg-muted disabled:opacity-40 flex items-center justify-center">
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </button>
+                        </span>
+                      )}
+                    </div>
                   </td>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t bg-muted/20">
-                <td colSpan={11} className="px-4 py-2 text-xs text-muted-foreground">
-                  {meta.total} {c.records} · {c.totalCost}: £{totalCost.toFixed(2)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
+              </tfoot>
+            </table>
+          </div>
         )}
       </div>
-
-      {meta.last_page > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">Page {meta.current_page} of {meta.last_page}</p>
-          <div className="flex gap-2">
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-              className="h-8 w-8 rounded-lg border bg-background text-muted-foreground hover:bg-muted disabled:opacity-40 flex items-center justify-center">
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <button onClick={() => setPage(p => Math.min(meta.last_page, p + 1))} disabled={page === meta.last_page}
-              className="h-8 w-8 rounded-lg border bg-background text-muted-foreground hover:bg-muted disabled:opacity-40 flex items-center justify-center">
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
 
       {slideOver !== null && (
         <ParkingSlideOver
