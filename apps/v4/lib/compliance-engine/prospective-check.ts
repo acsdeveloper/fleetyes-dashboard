@@ -1,25 +1,23 @@
 /**
- * Prospective Compliance Check
- * ─────────────────────────────
+ * Compliance Engine — Prospective (Pre-Assignment) Check
+ * ───────────────────────────────────────────────────────
  *
- * A fast, synchronous pre-allocation checker that evaluates whether
- * assigning a trip to a driver on a given date would violate any
- * hard compliance rules.
+ * Runs synchronously at drag-and-drop time to block hard violations before
+ * they are committed to the API.
  *
- * Unlike the full compliance engine (which fetches API data and runs
- * all validators), this module works with in-memory data only:
- *   - The tripIndex (Map<uuid, Order>) already loaded in the rota page
- *   - The rota entries from localStorage
- *   - The proposed new trip being dropped
+ * Algorithm (simple, correct):
+ *   1. Collect ALL the driver's current trips from two sources:
+ *      a. tripIndex filtered by driver_assigned_uuid  (API-confirmed)
+ *      b. localStorage rota entries trip_uuids        (locally-pending)
+ *   2. Add the new trip being dropped
+ *   3. Sort all trips chronologically by start time
+ *   4. Walk consecutive pairs that INVOLVE the new trip and check:
+ *      - Rest gap < 9h (reduced minimum) → hard violation
+ *      - Rest gap < 11h → warning
+ *      - Overlap (restGap < 0) → hard violation (trip starts before prev ends)
  *
- * It checks:
- *   1. Daily rest gap: Is there at least 11h (standard) or 9h (reduced)
- *      rest between the proposed trip and trips on adjacent days?
- *   2. Daily driving limit: Would adding this trip exceed 9h/10h driving?
- *   3. Cross-day trip awareness: If a trip spans midnight (e.g. 10PM-6AM),
- *      both days are impacted.
- *
- * Returns a list of violations that should BLOCK the allocation.
+ * No date arithmetic, no day bucketing, no prevDate/nextDate lookups.
+ * Trips crossing midnight are handled naturally by their actual timestamps.
  */
 
 import { type ComplianceViolation } from "./types"
@@ -29,18 +27,20 @@ import { fmtMinutes } from "./utils"
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-/** Minimum daily rest (standard): 11 hours = 660 minutes */
-const MIN_DAILY_REST_STANDARD = 11 * 60
-/** Minimum daily rest (reduced, max 3x/week): 9 hours = 540 minutes */
-const MIN_DAILY_REST_REDUCED = 9 * 60
-/** Maximum daily working hours: 13h (24h - 11h standard rest) */
-const MAX_DAILY_WORKING = 13 * 60
-/** Maximum daily working hours with reduced rest: 15h (24h - 9h reduced rest) */
-const MAX_DAILY_WORKING_REDUCED = 15 * 60
+/** Minimum daily rest — reduced (allowed up to 3×/week): 9 hours */
+const MIN_DAILY_REST_REDUCED  = 9  * 60   // 540 minutes
+/** Standard daily rest: 11 hours */
+const MIN_DAILY_REST_STANDARD = 11 * 60   // 660 minutes
+/** Max daily working hours (standard 13h rest leaves 11h duty). Hard: 15h (reduced rest) */
+const MAX_DAILY_WORKING       = 13 * 60   // 780 minutes
+const MAX_DAILY_WORKING_REDUCED = 15 * 60 // 900 minutes
+
+/** 36 hours in minutes — threshold for a tramper (cab-sleeper) trip */
+const TRAMPER_THRESHOLD_MINS = 36 * 60   // 2160 minutes
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Parse an ISO datetime string into a Date, or null if missing */
+/** Parse an ISO datetime string into a Date, or null if missing/invalid */
 function parseTime(str: string | null | undefined): Date | null {
   if (!str) return null
   const d = new Date(str)
@@ -52,68 +52,40 @@ function tripStart(order: Order): Date {
   return parseTime(order.scheduled_at) ?? parseTime(order.started_at) ?? new Date(order.created_at)
 }
 
-/** Get trip end time as Date (estimated) */
+/**
+ * Get trip end time as Date.
+ * Priority: estimated_end_date → time (seconds) → 2h fallback
+ * Each step validates the result to avoid NaN propagation.
+ */
 function tripEnd(order: Order): Date {
   const start = tripStart(order)
+
+  // Priority 1: estimated_end_date (validated)
   if (order.estimated_end_date) {
     const end = parseTime(order.estimated_end_date)
-    if (end) return end
+    if (end && end.getTime() > start.getTime()) return end
   }
+
+  // Priority 2: time field in seconds
   if (order.time && order.time > 0) {
     return new Date(start.getTime() + order.time * 1000)
   }
-  // Fallback: assume 2 hours
+
+  // Priority 3: fallback — 2 hours
   return new Date(start.getTime() + 2 * 60 * 60_000)
 }
 
-// ─── Trip Duration Classification ────────────────────────────────────────────
-
-/**
- * Trips lasting 10h–12h are treated as a single working day for compliance
- * purposes (working hours, not driving). This is already reflected in the
- * adapter (activityType = NON_DRIVING_DUTY), so no special handling is
- * needed at the prospective-check level — minutes are measured directly.
- *
- * Tramper trips (≥ 36h) are long-haul operations where the driver lives
- * in the truck cab between legs. The standard daily rest requirement does
- * NOT apply between a tramper trip and adjacent day's work, because the
- * driver is taking their rest inside the vehicle (DVSA tramper exemption).
- * Weekly rest and consecutive-days rules still apply.
- */
-
-/** 36 hours in minutes — threshold for a tramper (cab-sleeper) trip */
-const TRAMPER_THRESHOLD_MINS = 36 * 60   // 2160 minutes
-
-/** Returns true if the trip duration is ≥ 36 hours (tramper operation) */
-function isTramperTrip(order: Order): boolean {
-  return tripDrivingMinutes(order) >= TRAMPER_THRESHOLD_MINS
-}
-
-/** Get trip driving duration in minutes */
+/** Trip duration in minutes (start → end) */
 function tripDrivingMinutes(order: Order): number {
   return Math.max(0, (tripEnd(order).getTime() - tripStart(order).getTime()) / 60_000)
 }
 
-/** Get YYYY-MM-DD for a date */
-function toDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+/** Returns true if the trip duration is ≥ 36 hours (tramper cab-sleeper operation) */
+function isTramperTrip(order: Order): boolean {
+  return tripDrivingMinutes(order) >= TRAMPER_THRESHOLD_MINS
 }
 
-/** Get the date string for the previous day */
-function prevDate(dateStr: string): string {
-  const d = new Date(dateStr + "T12:00:00")
-  d.setDate(d.getDate() - 1)
-  return toDateStr(d)
-}
-
-/** Get the date string for the next day */
-function nextDate(dateStr: string): string {
-  const d = new Date(dateStr + "T12:00:00")
-  d.setDate(d.getDate() + 1)
-  return toDateStr(d)
-}
-
-// ─── Main Prospective Check ──────────────────────────────────────────────────
+// ─── Public Interface ─────────────────────────────────────────────────────────
 
 export interface ProspectiveCheckResult {
   /** Hard violations that should BLOCK the allocation */
@@ -123,21 +95,20 @@ export interface ProspectiveCheckResult {
 }
 
 /**
- * Check whether assigning a trip to a driver on a date would violate rules.
+ * Check whether assigning `newTrip` to `driverUuid` would create a
+ * compliance violation.
  *
- * This is a FAST, SYNCHRONOUS check using in-memory data only.
+ * Combines two sources to build the full current schedule:
+ *   1. tripIndex filtered by driver_assigned_uuid  (API-confirmed)
+ *   2. localStorage rota entries trip_uuids        (pending API sync)
  *
- * Adjacent-day trips are resolved from a UNION of two sources:
- *   1. `tripIndex` filtered by `driver_assigned_uuid` (API-confirmed assignments)
- *   2. `rotaEntries` trip_uuids (locally-saved assignments pending API sync)
- * This prevents a race condition where a freshly-assigned trip hasn't yet been
- * reflected in tripIndex (dock re-fetch is async), causing the rest-gap check
- * to miss an adjacent trip and silently allow a compliance violation.
+ * Then sorts ALL trips (existing + new) chronologically and checks every
+ * consecutive pair that involves the new trip for rest-period violations.
  *
- * @param driverUuid     The driver being assigned
- * @param dropDate       The date the trip is being dropped onto (YYYY-MM-DD)
- * @param newTrip        The Order being dropped
- * @param tripIndex      Map of uuid → Order for all loaded trips this week
+ * @param driverUuid  The driver being assigned
+ * @param dropDate    The date cell the trip is being dropped onto (YYYY-MM-DD)
+ * @param newTrip     The Order being dropped
+ * @param tripIndex   Map of uuid → Order for all loaded trips this week
  */
 export function prospectiveComplianceCheck(
   driverUuid: string,
@@ -146,218 +117,140 @@ export function prospectiveComplianceCheck(
   tripIndex: Map<string, Order>,
 ): ProspectiveCheckResult {
   const violations: ComplianceViolation[] = []
-  const warnings: ComplianceViolation[] = []
+  const warnings:   ComplianceViolation[] = []
 
-  const newStart = tripStart(newTrip)
-  const newEnd = tripEnd(newTrip)
-  const newDrivingMins = tripDrivingMinutes(newTrip)
+  // ── Step 1: Collect ALL current trips for this driver ──────────────────────
+  // We need to find every trip the driver already has, regardless of what day
+  // it falls on. Both sources are merged (localStorage wins on overlap since
+  // it's written synchronously before the async API update).
+  const driverTripMap = new Map<string, Order>()
 
-  // ── Dual-source adjacent-day trip lookup ─────────────────────────────────
-  // Source 1: tripIndex by driver_assigned_uuid (API-confirmed, may lag after drop)
-  // Source 2: getAllRota() localStorage (synchronous, always current after upsertRota)
-  // This prevents the race window between upsertRota() and setRotas().
-  function getDriverTripsOnDate(date: string): Order[] {
-    const result = new Map<string, Order>()
-
-    // Source 1: tripIndex by driver_assigned_uuid (API-confirmed)
-    for (const o of tripIndex.values()) {
-      const a = o.driver_assigned_uuid || o.driver_assigned?.uuid
-      if (a !== driverUuid) continue
-      const start = o.scheduled_at || o.started_at || o.created_at
-      if (start && toDateStr(new Date(start)) === date) result.set(o.uuid, o)
+  // Source A: API-confirmed assignments in tripIndex
+  for (const o of tripIndex.values()) {
+    if (o.uuid === newTrip.uuid) continue  // don't count the trip being dropped as "existing"
+    const assigned = o.driver_assigned_uuid || o.driver_assigned?.uuid
+    if (assigned === driverUuid) {
+      driverTripMap.set(o.uuid, o)
     }
-
-    // Source 2: localStorage rota entries (synchronous, always up-to-date)
-    // upsertRota() writes here synchronously — guaranteed current even during
-    // the async window between upsertRota() and the subsequent setRotas() call.
-    const allRota = getAllRota()
-    const entry = allRota.find(r => r.driver_uuid === driverUuid && r.date === date)
-    if (entry?.trip_uuids) {
-      for (const uuid of entry.trip_uuids) {
-        if (!result.has(uuid)) {
-          const o = tripIndex.get(uuid)
-          if (o) result.set(uuid, o)  // schedule data from tripIndex
-        }
-      }
-    }
-
-    return [...result.values()]
   }
 
-  // ── 1. Collect existing trips on the drop date ──────────────────────────
-  const existingTripsOnDate = getDriverTripsOnDate(dropDate)
-    .filter(o => o.uuid !== newTrip.uuid)  // exclude the trip being dropped
+  // Source B: localStorage rota entries (synchronous — written by upsertRota
+  // BEFORE the async updateOrder API call, so always current at drop time)
+  const allRota = getAllRota().filter(r => r.driver_uuid === driverUuid)
+  for (const entry of allRota) {
+    for (const uuid of entry.trip_uuids ?? []) {
+      if (uuid === newTrip.uuid) continue
+      if (!driverTripMap.has(uuid)) {
+        const o = tripIndex.get(uuid)
+        if (o) driverTripMap.set(uuid, o)
+      }
+    }
+  }
 
-  // ── 2. Daily Working Hours Limit ────────────────────────────────────
-  // Tramper trips (≥ 36h) are exempt from the daily working hours limit
-  // since the driver is resting in-cab between legs.
+  const existingTrips = [...driverTripMap.values()]
+
+  // ── Step 2: Sort all trips (existing + new) chronologically ───────────────
+  const allTrips = [...existingTrips, newTrip].sort(
+    (a, b) => tripStart(a).getTime() - tripStart(b).getTime()
+  )
+
+  // ── Step 3: Check rest gap between the new trip and its neighbours ─────────
+  // Only check pairs that INVOLVE the new trip. Other existing-to-existing
+  // pairs are not affected by this drop.
+  const newIdx = allTrips.findIndex(t => t.uuid === newTrip.uuid)
+
+  for (let i = 1; i < allTrips.length; i++) {
+    const prev = allTrips[i - 1]
+    const curr = allTrips[i]
+
+    // Only evaluate pairs adjacent to the new trip
+    if (prev.uuid !== newTrip.uuid && curr.uuid !== newTrip.uuid) continue
+
+    // Tramper exemption: cab-sleeper trips don't apply daily rest rules
+    if (isTramperTrip(prev) || isTramperTrip(curr)) continue
+
+    const prevEndMs   = tripEnd(prev).getTime()
+    const currStartMs = tripStart(curr).getTime()
+    const restMins    = (currStartMs - prevEndMs) / 60_000  // can be negative (overlap)
+
+    const prevEndFmt   = new Date(prevEndMs).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })
+    const currStartFmt = new Date(currStartMs).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })
+
+    if (restMins < 0) {
+      // Overlap — the trips run at the same time
+      violations.push({
+        ruleId: "TRIP_OVERLAP",
+        severity: "violation",
+        date: dropDate,
+        driverUuid,
+        message: `Trip overlaps with another trip — ${curr.uuid === newTrip.uuid ? "new" : "existing"} trip starts before previous trip ends`,
+        calculation: `Previous trip ends ${prevEndFmt}. This trip starts ${currStartFmt}. Overlap: ${fmtMinutes(Math.abs(restMins))}.`,
+        ruleset: "ASSIMILATED",
+      })
+    } else if (restMins < MIN_DAILY_REST_REDUCED) {
+      // Hard violation — less than minimum 9h rest
+      violations.push({
+        ruleId: "EU_DAILY_REST",
+        severity: "violation",
+        date: dropDate,
+        driverUuid,
+        message: `Insufficient rest between trips — only ${fmtMinutes(restMins)} rest (minimum 9h required)`,
+        calculation: `Previous trip ends ${prevEndFmt}. Next trip starts ${currStartFmt}. Gap: ${fmtMinutes(restMins)} vs 9h minimum.`,
+        ruleset: "ASSIMILATED",
+      })
+    } else if (restMins < MIN_DAILY_REST_STANDARD) {
+      // Warning — reduced rest (9h–11h, only 3 allowed per week)
+      warnings.push({
+        ruleId: "EU_DAILY_REST",
+        severity: "warning",
+        date: dropDate,
+        driverUuid,
+        message: `Reduced daily rest — ${fmtMinutes(restMins)} between trips (standard is 11h). Uses 1 of 3 allowed reduced rests per week.`,
+        calculation: `Previous trip ends ${prevEndFmt}. Next trip starts ${currStartFmt}. Gap: ${fmtMinutes(restMins)}.`,
+        ruleset: "ASSIMILATED",
+      })
+    }
+  }
+
+  // ── Step 4: Daily working hours limit for the drop date ───────────────────
+  // Sum all trips on the same drop date + the new trip
   if (!isTramperTrip(newTrip)) {
-    const existingWorkingOnDate = existingTripsOnDate.reduce(
-      (sum, t) => sum + tripDrivingMinutes(t), 0
-    )
-    const totalWorkingAfterDrop = existingWorkingOnDate + newDrivingMins
+    const sameDayMins = existingTrips
+      .filter(t => {
+        const s = tripStart(t)
+        const y = s.getFullYear(), m = s.getMonth(), d = s.getDate()
+        const [dy, dm, dd] = dropDate.split("-").map(Number)
+        return y === dy && m === dm - 1 && d === dd
+      })
+      .reduce((sum, t) => sum + tripDrivingMinutes(t), 0)
 
-    if (totalWorkingAfterDrop > MAX_DAILY_WORKING_REDUCED) {
+    const newMins = tripDrivingMinutes(newTrip)
+    const totalMins = sameDayMins + newMins
+
+    if (totalMins > MAX_DAILY_WORKING_REDUCED) {
       violations.push({
         ruleId: "EU_DAILY_WORK_LIMIT",
         severity: "violation",
         date: dropDate,
         driverUuid,
         message: `Would exceed maximum daily working hours of 15 hours`,
-        calculation: `Existing: ${fmtMinutes(existingWorkingOnDate)} + New trip: ${fmtMinutes(newDrivingMins)} = ${fmtMinutes(totalWorkingAfterDrop)} (absolute max ${fmtMinutes(MAX_DAILY_WORKING_REDUCED)})`,
+        calculation: `Existing: ${fmtMinutes(sameDayMins)} + New trip: ${fmtMinutes(newMins)} = ${fmtMinutes(totalMins)} (max ${fmtMinutes(MAX_DAILY_WORKING_REDUCED)})`,
         ruleset: "ASSIMILATED",
       })
-    } else if (totalWorkingAfterDrop > MAX_DAILY_WORKING) {
+    } else if (totalMins > MAX_DAILY_WORKING) {
       warnings.push({
         ruleId: "EU_DAILY_WORK_LIMIT",
         severity: "warning",
         date: dropDate,
         driverUuid,
-        message: `Working ${fmtMinutes(totalWorkingAfterDrop)} — requires reduced daily rest (9h min instead of 11h). Only 3 per week allowed.`,
-        calculation: `Existing: ${fmtMinutes(existingWorkingOnDate)} + New trip: ${fmtMinutes(newDrivingMins)} = ${fmtMinutes(totalWorkingAfterDrop)}`,
+        message: `Working ${fmtMinutes(totalMins)} — requires reduced daily rest (9h min instead of 11h). Only 3 per week allowed.`,
+        calculation: `Existing: ${fmtMinutes(sameDayMins)} + New trip: ${fmtMinutes(newMins)} = ${fmtMinutes(totalMins)}`,
         ruleset: "ASSIMILATED",
       })
     }
   }
 
-  // ── 3. Daily Rest — Check gap with PREVIOUS day's trips ───────────────
-  // Tramper exemption: if the NEW trip OR the previous day's trip is a tramper
-  // (≥ 36h), daily rest rules don't apply — the driver rests in-cab.
-  const prevDateStr = prevDate(dropDate)
-  const prevDayTrips = getDriverTripsOnDate(prevDateStr)
-  if (!isTramperTrip(newTrip) && prevDayTrips.length > 0) {
-    // Find the latest-ending trip on the previous day
-    let latestEnd = 0
-    let prevIsTramper = false
-    for (const t of prevDayTrips) {
-      const end = tripEnd(t).getTime()
-      latestEnd = Math.max(latestEnd, end)
-      if (isTramperTrip(t)) prevIsTramper = true
-    }
-
-    if (latestEnd > 0 && !prevIsTramper) {
-      // Rest gap = start of new trip - end of previous trip
-      const restGap = Math.max(0, (newStart.getTime() - latestEnd) / 60_000)
-
-      if (restGap < MIN_DAILY_REST_REDUCED) {
-        violations.push({
-          ruleId: "EU_DAILY_REST",
-          severity: "violation",
-          date: dropDate,
-          driverUuid,
-          message: `Insufficient rest after previous day's work — only ${fmtMinutes(restGap)} rest (minimum 9h required)`,
-          calculation: `Previous day ends ${new Date(latestEnd).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. New trip starts ${newStart.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. Gap: ${fmtMinutes(restGap)} vs 9h minimum.`,
-          ruleset: "ASSIMILATED",
-        })
-      } else if (restGap < MIN_DAILY_REST_STANDARD) {
-        warnings.push({
-          ruleId: "EU_DAILY_REST",
-          severity: "warning",
-          date: dropDate,
-          driverUuid,
-          message: `Reduced daily rest — ${fmtMinutes(restGap)} between work periods (standard is 11h). Uses 1 of 3 allowed reduced rests per week.`,
-          calculation: `Previous day ends ${new Date(latestEnd).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}, new starts ${newStart.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. Gap: ${fmtMinutes(restGap)}.`,
-          ruleset: "ASSIMILATED",
-        })
-      }
-    }
-  }
-
-  // ── 4. Daily Rest — Check gap with NEXT day's trips ───────────────────
-  // Tramper exemption: skip if the new trip OR the next day's trip is a tramper.
-  const nextDateStr = nextDate(dropDate)
-  const nextDayTrips = getDriverTripsOnDate(nextDateStr)
-  if (!isTramperTrip(newTrip) && nextDayTrips.length > 0) {
-    // Find the earliest-starting trip on the next day
-    let earliestStart = Infinity
-    let nextIsTramper = false
-    for (const t of nextDayTrips) {
-      const start = tripStart(t).getTime()
-      earliestStart = Math.min(earliestStart, start)
-      if (isTramperTrip(t)) nextIsTramper = true
-    }
-
-    if (earliestStart < Infinity && !nextIsTramper) {
-      // Rest gap = start of next day's trip - end of new trip
-      const restGap = Math.max(0, (earliestStart - newEnd.getTime()) / 60_000)
-
-      if (restGap < MIN_DAILY_REST_REDUCED) {
-        violations.push({
-          ruleId: "EU_DAILY_REST",
-          severity: "violation",
-          date: dropDate,
-          driverUuid,
-          message: `Insufficient rest before next day's work — only ${fmtMinutes(restGap)} rest (minimum 9h required)`,
-          calculation: `New trip ends ${newEnd.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. Next day starts ${new Date(earliestStart).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. Gap: ${fmtMinutes(restGap)} vs 9h minimum.`,
-          ruleset: "ASSIMILATED",
-        })
-      } else if (restGap < MIN_DAILY_REST_STANDARD) {
-        warnings.push({
-          ruleId: "EU_DAILY_REST",
-          severity: "warning",
-          date: dropDate,
-          driverUuid,
-          message: `Reduced daily rest before next day — ${fmtMinutes(restGap)} between work periods (standard is 11h). Uses 1 of 3 allowed reduced rests.`,
-          calculation: `New trip ends ${newEnd.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}, next day starts ${new Date(earliestStart).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. Gap: ${fmtMinutes(restGap)}.`,
-          ruleset: "ASSIMILATED",
-        })
-      }
-    }
-  }
-
-  // ── 5. Check gap between existing trips on the SAME day ─────────────────
-  // If the driver already has a trip on this date, check the gap.
-  // Tramper trips on the same day are skip-eligible but we still flag overlaps.
-  for (const existing of existingTripsOnDate) {
-    const existStart = tripStart(existing)
-    const existEnd = tripEnd(existing)
-
-    // Check gap: new trip ends before existing starts
-    if (newEnd.getTime() < existStart.getTime()) {
-      const gap = (existStart.getTime() - newEnd.getTime()) / 60_000
-      // Within the same day, no rest requirement between trips — but warn if less than 45min break
-      if (gap < 45) {
-        warnings.push({
-          ruleId: "EU_BREAK_REQUIREMENT",
-          severity: "warning",
-          date: dropDate,
-          driverUuid,
-          message: `Only ${fmtMinutes(gap)} gap between trips on same day (45 min break required after 4.5h driving)`,
-          calculation: `New trip ends ${newEnd.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}, existing starts ${existStart.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`,
-          ruleset: "ASSIMILATED",
-        })
-      }
-    }
-
-    // Check gap: existing trip ends before new starts
-    if (existEnd.getTime() < newStart.getTime()) {
-      const gap = (newStart.getTime() - existEnd.getTime()) / 60_000
-      if (gap < 45) {
-        warnings.push({
-          ruleId: "EU_BREAK_REQUIREMENT",
-          severity: "warning",
-          date: dropDate,
-          driverUuid,
-          message: `Only ${fmtMinutes(gap)} gap between trips on same day (45 min break required after 4.5h driving)`,
-          calculation: `Existing trip ends ${existEnd.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}, new starts ${newStart.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`,
-          ruleset: "ASSIMILATED",
-        })
-      }
-    }
-
-    // Check overlap
-    if (newStart.getTime() < existEnd.getTime() && newEnd.getTime() > existStart.getTime()) {
-      violations.push({
-        ruleId: "TRIP_OVERLAP",
-        severity: "violation",
-        date: dropDate,
-        driverUuid,
-        message: `Trip overlaps with existing trip (${existStart.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} - ${existEnd.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })})`,
-        calculation: `New: ${newStart.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} - ${newEnd.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} overlaps with existing trip`,
-        ruleset: "ASSIMILATED",
-      })
-    }
-  }
+  void newIdx  // suppress unused-var lint — used implicitly via uuid comparison above
 
   return { violations, warnings }
 }
