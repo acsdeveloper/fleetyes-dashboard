@@ -277,6 +277,7 @@ export async function buildDriverRecord(
 
   // Index orders by local date
   const ordersByDate = new Map<string, Order[]>()
+  const knownUuids = new Set<string>()
   for (const o of orders) {
     const dateStr = o.scheduled_at
       ? toLocalDateStr(new Date(o.scheduled_at))
@@ -284,9 +285,34 @@ export async function buildDriverRecord(
       ? toLocalDateStr(new Date(o.created_at))
       : null
     if (!dateStr) continue
+    knownUuids.add(o.uuid)
     const existing = ordersByDate.get(dateStr) ?? []
     existing.push(o)
     ordersByDate.set(dateStr, existing)
+  }
+
+  // Merge localStorage trip_data for trips NOT yet in the API response.
+  // This handles the async lag: a trip was assigned via rota/trips page
+  // (upsertRota writes trip_data synchronously) but the API hasn't been
+  // re-fetched or the assignment hasn't propagated yet.
+  for (const entry of allRota) {
+    if (!entry.trip_data) continue
+    for (const item of entry.trip_data) {
+      if (knownUuids.has(item.uuid)) continue // already from API
+      if (!item.scheduled_at) continue
+      const dateStr = toLocalDateStr(new Date(item.scheduled_at))
+      const syntheticOrder = {
+        uuid: item.uuid,
+        created_at: item.scheduled_at,
+        scheduled_at: item.scheduled_at,
+        estimated_end_date: item.estimated_end_date,
+        time: item.time,
+      } as unknown as Order
+      knownUuids.add(item.uuid)
+      const existing = ordersByDate.get(dateStr) ?? []
+      existing.push(syntheticOrder)
+      ordersByDate.set(dateStr, existing)
+    }
   }
 
   // Build working days for every date in the window

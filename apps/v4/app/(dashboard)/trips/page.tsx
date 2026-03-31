@@ -20,8 +20,9 @@ import { listFleets, type Fleet } from "@/lib/fleets-api"
 import { listPlaces, type Place } from "@/lib/places-api"
 import { listVehicles, type Vehicle } from "@/lib/vehicles-api"
 import { dedupBy } from "@/lib/utils"
-import { getDriverAvailability } from "@/lib/rota-store"
+import { getDriverAvailability, upsertRota, getRotaEntry, type RotaEntry } from "@/lib/rota-store"
 import { ontrackFetch } from "@/lib/ontrack-api"
+import { prospectiveComplianceCheck } from "@/lib/compliance-engine"
 
 import { AgGridReact } from "ag-grid-react"
 import {
@@ -226,14 +227,17 @@ function PlaceSearchSelect({
 function AssignDriverDropdown({
   order,
   drivers,
+  allOrders,
   onAssigned,
 }: {
   order: Order
   drivers: Driver[]
+  allOrders: Order[]
   onAssigned: (driverUuid: string) => void
 }) {
   const [open, setOpen] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
+  const [complianceReject, setComplianceReject] = React.useState<string | null>(null)
   const btnRef = React.useRef<HTMLButtonElement>(null)
   const [dropRect, setDropRect] = React.useState<DOMRect | null>(null)
 
@@ -274,9 +278,40 @@ function AssignDriverDropdown({
   }, [open, driverAvail, drivers])
 
   const handleSelect = async (driver: Driver) => {
+    setComplianceReject(null)
     setLoading(true)
     setOpen(false)
     try {
+      // ── Prospective compliance check ──
+      const dropDate = order.scheduled_at?.slice(0, 10) ?? localDateStr()
+      const tripIndex = new Map<string, Order>()
+      allOrders.forEach(o => tripIndex.set(o.uuid, o))
+      const result = prospectiveComplianceCheck(driver.uuid, dropDate, order, tripIndex)
+      if (result.violations.length > 0) {
+        setComplianceReject(result.violations[0].message ?? "Compliance violation")
+        return
+      }
+
+      // ── Write trip_data to rota store (synchronous, before async API call) ──
+      // This ensures the batch compliance check can find this trip even if
+      // the API hasn't propagated the assignment yet.
+      const existing = getRotaEntry(driver.uuid, dropDate)
+      const tripData = {
+        uuid: order.uuid,
+        scheduled_at: order.scheduled_at ?? undefined,
+        estimated_end_date: order.estimated_end_date ?? undefined,
+        time: order.time,
+      }
+      const updatedEntry: RotaEntry = {
+        driver_uuid: driver.uuid,
+        date: dropDate,
+        status: existing?.status ?? "WD",
+        trip_uuids: [...(existing?.trip_uuids ?? []).filter(u => u !== order.uuid), order.uuid],
+        note: existing?.note,
+        trip_data: [...(existing?.trip_data ?? []).filter(t => t.uuid !== order.uuid), tripData],
+      }
+      upsertRota(updatedEntry)
+
       await updateOrder(order.uuid, { driver_assigned_uuid: driver.uuid })
       onAssigned(driver.uuid)
     } finally {
@@ -321,6 +356,22 @@ function AssignDriverDropdown({
         {loading ? "Saving…" : current ? current.name : "Assign Driver"}
         <ChevronDown className="h-3 w-3 opacity-60" />
       </button>
+
+      {/* Compliance rejection badge */}
+      {complianceReject && (
+        <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-lg border border-rose-300 bg-rose-50 p-2.5 shadow-lg dark:border-rose-700 dark:bg-rose-950/40">
+          <div className="flex items-start gap-1.5">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-500" />
+            <div>
+              <p className="text-[10px] font-semibold text-rose-700 dark:text-rose-400">Assignment Blocked</p>
+              <p className="text-[10px] text-rose-600 dark:text-rose-400">{complianceReject}</p>
+            </div>
+            <button onClick={() => setComplianceReject(null)} className="ml-auto shrink-0 text-rose-400 hover:text-rose-600">
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {open && dropRect && ReactDOM.createPortal(
         <>
@@ -1206,6 +1257,7 @@ function DriverCellRenderer({ data, context }: ICellRendererParams<Order> & { co
       <AssignDriverDropdown
         order={data}
         drivers={context?.drivers ?? []}
+        allOrders={context?.allOrders ?? []}
         onAssigned={(uuid) => context?.onAssigned(data, uuid)}
       />
     )
@@ -1284,6 +1336,7 @@ type RowCallbacks = {
   onVehicleAssigned: (o: Order, vehicleUuid: string) => void
   drivers:           Driver[]
   vehicles:          Vehicle[]
+  allOrders:         Order[]
 }
 
 // ─── Page ────────────────────────────────────────────────────────────────────
@@ -1509,9 +1562,10 @@ export default function TripsPage() {
     onVehicleAssigned: handleVehicleAssigned,
     drivers,
     vehicles,
+    allOrders: orders,
     expandedRowsRef, // stable ref, not reactive state
     toggleRow,
-  }), [handleDelete, handleDispatch, handleDriverAssigned, handleVehicleAssigned, drivers, vehicles, toggleRow])
+  }), [handleDelete, handleDispatch, handleDriverAssigned, handleVehicleAssigned, drivers, vehicles, toggleRow, orders])
 
 
   // Filtered orders
