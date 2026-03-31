@@ -612,8 +612,11 @@ export default function TollExpensesPage() {
         start_date: filters.start_date || undefined,
         end_date: filters.end_date || undefined,
       })
-      setRecords(res.toll_reports)
-      setMeta({ total: res.meta.total, last_page: res.meta.last_page, current_page: res.meta.current_page })
+      const raw = res as unknown as Record<string, unknown>
+      const rows = (raw.toll_reports ?? raw.data ?? []) as TollReport[]
+      setRecords(rows)
+      const m = res.meta ?? { total: 0, last_page: 1, current_page: 1 }
+      setMeta({ total: m.total, last_page: m.last_page, current_page: m.current_page })
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load")
     } finally {
@@ -752,8 +755,8 @@ export default function TollExpensesPage() {
                   <td className="px-4 py-2.5 whitespace-nowrap">{r.driver?.name ?? "—"}</td>
                   <td className="px-4 py-2.5 font-mono text-xs whitespace-nowrap">{r.vr_id ?? "—"}</td>
                   <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{r.direction ?? "—"}</td>
-                  <td className="px-4 py-2.5 font-semibold whitespace-nowrap">{r.currency ?? "GBP"} {r.amount?.toFixed(2) ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{r.amount_incl_tax ? `${r.currency} ${r.amount_incl_tax.toFixed(2)}` : "—"}</td>
+                  <td className="px-4 py-2.5 font-semibold whitespace-nowrap">{r.currency ?? "GBP"} {Number(r.amount ?? 0).toFixed(2)}</td>
+                  <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{r.amount_incl_tax ? `${r.currency} ${Number(r.amount_incl_tax).toFixed(2)}` : "—"}</td>
                   <td className="px-4 py-2.5 whitespace-nowrap">
                     {r.seen_status_of_amazon && (
                       <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${AMAZON_STYLES[r.seen_status_of_amazon] ?? ""}`}>

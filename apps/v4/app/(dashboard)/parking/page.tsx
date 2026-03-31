@@ -266,8 +266,11 @@ export default function ParkingPage() {
         start_date: filters.start_date || undefined,
         end_date: filters.end_date || undefined,
       })
-      setRecords(res.fuel_reports)
-      setMeta({ total: res.meta.total, last_page: res.meta.last_page, current_page: res.meta.current_page })
+      const raw = res as unknown as Record<string, unknown>
+      const rows = (raw.fuel_reports ?? raw.data ?? []) as ParkingReport[]
+      setRecords(rows)
+      const m = res.meta ?? { total: 0, last_page: 1, current_page: 1 }
+      setMeta({ total: m.total, last_page: m.last_page, current_page: m.current_page })
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load")
     } finally {
@@ -405,7 +408,7 @@ export default function ParkingPage() {
                   <td className="px-4 py-2.5 font-mono font-bold whitespace-nowrap">{r.vehicle?.plate_number ?? "—"}</td>
                   <td className="px-4 py-2.5 whitespace-nowrap">{r.driver?.name ?? "—"}</td>
                   <td className="px-4 py-2.5 font-semibold whitespace-nowrap">
-                    {r.amount === 0 ? <span className="text-green-600 dark:text-green-400">Free</span> : `${r.currency} ${r.amount?.toFixed(2)}`}
+                    {Number(r.amount ?? 0) === 0 ? <span className="text-green-600 dark:text-green-400">Free</span> : `${r.currency} ${Number(r.amount ?? 0).toFixed(2)}`}
                   </td>
                   <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{r.payment_method ?? "—"}</td>
                   <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{r.odometer ?? "—"}</td>

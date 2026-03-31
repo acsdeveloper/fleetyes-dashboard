@@ -479,8 +479,11 @@ export default function FuelTrackingPage() {
         from_date: filters.from_date || undefined,
         to_date: filters.to_date || undefined,
       })
-      setRecords(res.fuel_expenses)
-      setMeta({ total: res.meta.total, last_page: res.meta.last_page, current_page: res.meta.current_page })
+      const raw = res as unknown as Record<string, unknown>
+      const rows = (raw.fuel_expenses ?? raw.data ?? []) as FuelExpense[]
+      setRecords(rows)
+      const m = res.meta ?? { total: 0, last_page: 1, current_page: 1 }
+      setMeta({ total: m.total, last_page: m.last_page, current_page: m.current_page })
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load")
     } finally {
@@ -627,8 +630,8 @@ export default function FuelTrackingPage() {
                   <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{fmt(r.crossing_date || r.created_at)}</td>
                   <td className="px-4 py-2.5 font-mono font-bold whitespace-nowrap">{r.vehicle_name ?? r.vehicle?.plate_number ?? "—"}</td>
                   <td className="px-4 py-2.5 whitespace-nowrap">{r.driver_name ?? r.driver?.name ?? "—"}</td>
-                  <td className="px-4 py-2.5 font-semibold whitespace-nowrap">{r.currency} {r.amount?.toFixed(2)}</td>
-                  <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{r.amount_incl_tax ? `${r.currency} ${r.amount_incl_tax.toFixed(2)}` : "—"}</td>
+                  <td className="px-4 py-2.5 font-semibold whitespace-nowrap">{r.currency} {Number(r.amount ?? 0).toFixed(2)}</td>
+                  <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{r.amount_incl_tax ? `${r.currency} ${Number(r.amount_incl_tax).toFixed(2)}` : "—"}</td>
                   <td className="px-4 py-2.5 text-xs whitespace-nowrap">{r.volume && r.metric_unit ? `${r.volume} ${r.metric_unit}` : "—"}</td>
                   <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{r.payment_method}</td>
                   <td className="px-4 py-2.5 whitespace-nowrap">
