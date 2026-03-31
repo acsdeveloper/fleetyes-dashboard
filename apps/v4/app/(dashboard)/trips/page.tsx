@@ -116,6 +116,22 @@ function formatDate(iso?: string | null): string {
   return iso.length > 10 ? `${day} ${month} ${year} ${time}` : `${day} ${month} ${year}`
 }
 
+/**
+ * Format the current date (or a given date) as "YYYY-MM-DD" in LOCAL time.
+ *
+ * IMPORTANT: Do NOT use `new Date().toISOString().slice(0, 10)` — that
+ * converts to UTC first, which gives the wrong date when the browser's
+ * local clock is past midnight UTC (e.g. 23:30 BST → 2026-04-02 UTC).
+ *
+ * The API stores and returns local time, so all date strings must stay local.
+ */
+function localDateStr(d: Date = new Date()): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}
+
 // ─── Place Search Combobox ────────────────────────────────────────────────────
 
 function PlaceSearchSelect({
@@ -224,7 +240,7 @@ function AssignDriverDropdown({
   // Trip date for rota lookup (from scheduled_at or today)
   const tripDate = React.useMemo(() => {
     if (order.scheduled_at) return order.scheduled_at.slice(0, 10)
-    return new Date().toISOString().slice(0, 10)
+    return localDateStr()
   }, [order.scheduled_at])
 
   // Trip start time for preference conflict check
@@ -1101,7 +1117,7 @@ function NewTripDrawer({
                 <input
                   type="datetime-local"
                   value={form.scheduled_at?.slice(0, 16) ?? ""}
-                  onChange={(e) => set("scheduled_at", e.target.value ? new Date(e.target.value).toISOString() : null as never)}
+                  onChange={(e) => set("scheduled_at", e.target.value || null as never)}
                   className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
@@ -1110,7 +1126,7 @@ function NewTripDrawer({
                 <input
                   type="datetime-local"
                   value={form.estimated_end_date?.slice(0, 16) ?? ""}
-                  onChange={(e) => set("estimated_end_date", e.target.value ? new Date(e.target.value).toISOString() : null as never)}
+                  onChange={(e) => set("estimated_end_date", e.target.value || null as never)}
                   className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
@@ -1320,7 +1336,7 @@ export default function TripsPage() {
   }, [])
 
   // History date range
-  const todayStr = new Date().toISOString().slice(0, 10)
+  const todayStr = localDateStr()
   const [dateFrom, setDateFrom] = React.useState(todayStr)
   const [dateTo, setDateTo] = React.useState(todayStr)
   const [dateError, setDateError] = React.useState<string | null>(null)
@@ -1793,7 +1809,7 @@ export default function TripsPage() {
                   type="date"
                   value={dateTo}
                   min={dateFrom || "2025-01-01"}
-                  max={new Date().toISOString().slice(0, 10)}
+                  max={localDateStr()}
                   onChange={(e) => {
                     setDateTo(e.target.value)
                     setDateError(validateDates(dateFrom, e.target.value))
