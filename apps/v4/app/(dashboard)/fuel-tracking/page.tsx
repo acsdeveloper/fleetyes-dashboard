@@ -494,7 +494,9 @@ export default function FuelTrackingPage() {
     listDrivers({ limit: 999 }).then(r => setDrivers(r.drivers ?? [])).catch(() => {})
   }, [])
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => { setPage(1); fetchData(1) }, [debouncedSearch, filters])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => { fetchData(page) }, [page])
 
   const handleDelete = async (uuid: string) => {
@@ -553,7 +555,7 @@ export default function FuelTrackingPage() {
       <div className="grid gap-4 sm:grid-cols-4">
         {[
           { label: "Total Records", value: meta.total },
-          { label: "Total Cost (page)", value: `£${records.reduce((a, r) => a + (r.amount ?? 0), 0).toFixed(2)}` },
+          { label: "Total Cost (page)", value: `£${records.reduce((a, r) => a + Number(r.amount ?? 0), 0).toFixed(2)}` },
           { label: "Pending Approval", value: records.filter(r => r.status === "pending").length },
           { label: "Approved (page)", value: records.filter(r => r.status === "approved").length },
         ].map(k => (

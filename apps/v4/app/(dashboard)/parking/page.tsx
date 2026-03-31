@@ -317,7 +317,7 @@ export default function ParkingPage() {
     setSelected(s => s.size === records.length ? new Set() : new Set(records.map(r => r.uuid)))
 
   const activeFilters = Object.values(filters).filter(Boolean).length
-  const totalCost = records.reduce((a, r) => a + (r.amount ?? 0), 0)
+  const totalCost = records.reduce((a, r) => a + Number(r.amount ?? 0), 0)
   const pendingCount = records.filter(r => r.status === "pending").length
   const freeCount = records.filter(r => r.amount === 0).length
 

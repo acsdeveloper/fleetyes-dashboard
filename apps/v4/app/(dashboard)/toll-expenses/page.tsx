@@ -309,7 +309,7 @@ function SendToAmazonModal({ onClose, onSent }: { onClose: () => void; onSent: (
         end_date: toDate || undefined,
       })
       const records = res.toll_reports
-      const amount = records.reduce((a, r) => a + (r.amount ?? 0), 0)
+      const amount = records.reduce((a, r) => a + Number(r.amount ?? 0), 0)
       setPreview({ total: res.meta.total, amount, currency: records[0]?.currency ?? "GBP" })
       setStep("preview")
     } catch (e: unknown) {
@@ -658,7 +658,7 @@ export default function TollExpensesPage() {
     setSelected(s => s.size === records.length ? new Set() : new Set(records.map(r => r.uuid)))
 
   const activeFilters = Object.values(filters).filter(Boolean).length
-  const totalAmount = records.reduce((a, r) => a + (r.amount ?? 0), 0)
+  const totalAmount = records.reduce((a, r) => a + Number(r.amount ?? 0), 0)
   const pendingCount = records.filter(r => r.status === "pending").length
   const newCount = records.filter(r => r.seen_status_of_amazon === "new").length
 
