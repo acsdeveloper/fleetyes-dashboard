@@ -35,6 +35,7 @@ import {
   sumRest,
   spreadover,
   toDateStr,
+  mergedDutyMinutes,
 } from "./utils"
 
 import { type Order, listOrders } from "../orders-api"
@@ -198,7 +199,7 @@ function computeWorkingDay(
   }
 
   day.totalDrivingMinutes     = sumDriving(day)
-  day.totalDutyMinutes        = sumDuty(day)
+  day.totalDutyMinutes        = mergedDutyMinutes(day.activities)
   day.totalRestMinutes        = sumRest(day)
   day.totalBreakMinutes       = sumBreaks(day)
   day.spreadoverMinutes       = spreadover(day)

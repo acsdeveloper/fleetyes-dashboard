@@ -1167,6 +1167,13 @@ export default function RotaPage() {
       status: "WD",
       trip_uuids: [newTripUuid],
       note: existing?.note,
+      // Embed timing data so prospective check doesn't depend on async tripIndex
+      trip_data: tripOrder ? [{
+        uuid: newTripUuid,
+        scheduled_at: tripOrder.scheduled_at ?? undefined,
+        estimated_end_date: tripOrder.estimated_end_date ?? undefined,
+        time: tripOrder.time,
+      }] : undefined,
     })
 
     // Assign new trip

@@ -120,9 +120,11 @@ export function prospectiveComplianceCheck(
   const warnings:   ComplianceViolation[] = []
 
   // ── Step 1: Collect ALL current trips for this driver ──────────────────────
-  // We need to find every trip the driver already has, regardless of what day
-  // it falls on. Both sources are merged (localStorage wins on overlap since
-  // it's written synchronously before the async API update).
+  // Priority: localStorage trip_data (synchronous, always current) > tripIndex (async React state).
+  // This ordering is critical for race-condition safety: two rapid drops both write trip_data
+  // synchronously via upsertRota() BEFORE either's async updateOrder() completes, so the
+  // second drop's prospective check always sees the first drop's data via localStorage.
+  // tripIndex is only used as fallback for older entries that don't have embedded trip_data.
   const driverTripMap = new Map<string, Order>()
 
   // Source A: API-confirmed assignments in tripIndex

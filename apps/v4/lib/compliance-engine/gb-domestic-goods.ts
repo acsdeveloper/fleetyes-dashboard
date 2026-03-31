@@ -30,12 +30,15 @@ import {
   type ComplianceViolation,
   type WorkingDay,
   UsageType,
+  ActivityType,
 } from "./types"
 
 import {
   sumCountableDriving,
   hoursToMinutes,
   fmtMinutes,
+  detectOverlaps,
+  toDateStr,
 } from "./utils"
 
 // ─── Rule Constants ──────────────────────────────────────────────────────────
@@ -101,6 +104,31 @@ export function validateGBDomesticGoods(
   record: DriverRecord,
 ): ComplianceViolation[] {
   const issues: ComplianceViolation[] = []
+
+  // ═══════════════════════════════════════════════════════════════
+  // TRIP OVERLAP DETECTION
+  // ═══════════════════════════════════════════════════════════════
+
+  const allDutyActivities = record.workingDays.flatMap(d =>
+    d.activities.filter(a =>
+      a.activityType === ActivityType.DRIVING ||
+      a.activityType === ActivityType.NON_DRIVING_DUTY
+    )
+  )
+
+  const overlaps = detectOverlaps(allDutyActivities)
+  for (const overlap of overlaps) {
+    const date = toDateStr(overlap.activityA.startTime)
+    issues.push({
+      ruleId:      "TRIP_OVERLAP",
+      severity:    "violation",
+      date,
+      driverUuid:  record.driverUuid,
+      message:     `Trip overlap detected — two activities run at the same time`,
+      calculation: `Overlap of ${fmtMinutes(overlap.overlapMinutes)} between concurrent activities.`,
+      ruleset:     "GB_DOMESTIC_GOODS",
+    })
+  }
 
   for (const day of record.workingDays) {
     // Skip rest days — no rules apply

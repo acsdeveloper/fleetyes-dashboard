@@ -40,7 +40,12 @@ import {
   daysInRange,
   checkAssimilatedBreaks,
   longestContinuousRest,
+  detectOverlaps,
 } from "./utils"
+
+import {
+  ActivityType,
+} from "./types"
 
 // ─── Rule Constants ───────────────────────────────────────────────────────────
 
@@ -92,6 +97,31 @@ export function validateAssimilated(
   )
 
   if (days.length === 0) return issues
+
+  // ═══════════════════════════════════════════════════════════════
+  // TRIP OVERLAP DETECTION (across all working days)
+  // ═══════════════════════════════════════════════════════════════
+
+  const allDutyActivities = days.flatMap(d =>
+    d.activities.filter(a =>
+      a.activityType === ActivityType.DRIVING ||
+      a.activityType === ActivityType.NON_DRIVING_DUTY
+    )
+  )
+
+  const overlaps = detectOverlaps(allDutyActivities)
+  for (const overlap of overlaps) {
+    const date = toDateStr(overlap.activityA.startTime)
+    issues.push({
+      ruleId:      "TRIP_OVERLAP",
+      severity:    "violation",
+      date,
+      driverUuid:  record.driverUuid,
+      message:     `Trip overlap detected — two activities run at the same time`,
+      calculation: `Activity ${overlap.activityA.startTime.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}–${overlap.activityA.endTime.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} overlaps with ${overlap.activityB.startTime.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}–${overlap.activityB.endTime.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. Overlap: ${fmtMinutes(overlap.overlapMinutes)}.`,
+      ruleset:     "ASSIMILATED",
+    })
+  }
 
   // ═══════════════════════════════════════════════════════════════
   // PER-DAY RULES

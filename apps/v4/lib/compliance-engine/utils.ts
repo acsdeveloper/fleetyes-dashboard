@@ -417,3 +417,91 @@ export function checkPassengerBreaks(day: WorkingDay): BreakPatternResult {
     description: `Long duty day (${fmtMinutes(totalDuty)}): break requirements not met. Need 30min break after 5h30m driving, or 45min non-driving in first 8h30m.`,
   }
 }
+
+// ─── Overlap Detection ───────────────────────────────────────────────────────
+
+/**
+ * Result of an overlap detection between two activities.
+ */
+export interface OverlapResult {
+  activityA:      Activity
+  activityB:      Activity
+  overlapMinutes: number
+}
+
+/**
+ * Detect overlapping duty activities within a set of activities.
+ *
+ * Two activities overlap when: a.startTime < b.endTime && b.startTime < a.endTime
+ * Rest and break activities are excluded — only DRIVING and NON_DRIVING_DUTY
+ * are checked since those represent assigned trips.
+ *
+ * @returns Array of overlapping pairs with their overlap duration in minutes
+ */
+export function detectOverlaps(activities: Activity[]): OverlapResult[] {
+  const sorted = [...activities]
+    .filter(a =>
+      a.activityType === ActivityType.DRIVING ||
+      a.activityType === ActivityType.NON_DRIVING_DUTY
+    )
+    .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
+
+  const overlaps: OverlapResult[] = []
+
+  for (let i = 0; i < sorted.length; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      const a = sorted[i]
+      const b = sorted[j]
+      // If b starts at or after a ends, no overlap (and no further overlaps
+      // possible for a since the array is sorted by startTime)
+      if (b.startTime.getTime() >= a.endTime.getTime()) break
+      // Overlap exists
+      const overlapEnd   = Math.min(a.endTime.getTime(), b.endTime.getTime())
+      const overlapStart = Math.max(a.startTime.getTime(), b.startTime.getTime())
+      const overlapMinutes = (overlapEnd - overlapStart) / 60_000
+      overlaps.push({ activityA: a, activityB: b, overlapMinutes })
+    }
+  }
+
+  return overlaps
+}
+
+/**
+ * Calculate total non-overlapping duty minutes from a set of activities.
+ *
+ * Instead of naively summing activity durations (which double-counts when
+ * activities overlap), this merges overlapping time spans and returns the
+ * union duration.
+ *
+ * Example: two activities 09:00-11:00 and 10:00-12:00 → 180 min (not 240).
+ */
+export function mergedDutyMinutes(activities: Activity[]): number {
+  const duty = activities
+    .filter(a =>
+      a.activityType === ActivityType.DRIVING ||
+      a.activityType === ActivityType.NON_DRIVING_DUTY
+    )
+    .map(a => ({ start: a.startTime.getTime(), end: a.endTime.getTime() }))
+    .sort((a, b) => a.start - b.start)
+
+  if (duty.length === 0) return 0
+
+  let totalMs  = 0
+  let curStart = duty[0].start
+  let curEnd   = duty[0].end
+
+  for (let i = 1; i < duty.length; i++) {
+    if (duty[i].start < curEnd) {
+      // Overlapping — extend current span
+      curEnd = Math.max(curEnd, duty[i].end)
+    } else {
+      // Gap — flush current span
+      totalMs += curEnd - curStart
+      curStart = duty[i].start
+      curEnd   = duty[i].end
+    }
+  }
+  totalMs += curEnd - curStart
+
+  return totalMs / 60_000
+}
