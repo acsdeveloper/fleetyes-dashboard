@@ -32,10 +32,10 @@ import { fmtMinutes } from "./utils"
 const MIN_DAILY_REST_STANDARD = 11 * 60
 /** Minimum daily rest (reduced, max 3x/week): 9 hours = 540 minutes */
 const MIN_DAILY_REST_REDUCED = 9 * 60
-/** Maximum daily driving: 9 hours = 540 minutes */
-const MAX_DAILY_DRIVING = 9 * 60
-/** Maximum daily driving extended (2x/week): 10 hours = 600 minutes */
-const MAX_DAILY_DRIVING_EXTENDED = 10 * 60
+/** Maximum daily working hours: 13h (24h - 11h standard rest) */
+const MAX_DAILY_WORKING = 13 * 60
+/** Maximum daily working hours with reduced rest: 15h (24h - 9h reduced rest) */
+const MAX_DAILY_WORKING_REDUCED = 15 * 60
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -133,30 +133,31 @@ export function prospectiveComplianceCheck(
     }
   }
 
-  // ── 2. Daily Driving Limit ────────────────────────────────────────────
-  const existingDrivingOnDate = existingTripsOnDate.reduce(
+  // ── 2. Daily Working Hours Limit ────────────────────────────────────
+  // These are working hours, not driving. Max 13h with standard rest.
+  const existingWorkingOnDate = existingTripsOnDate.reduce(
     (sum, t) => sum + tripDrivingMinutes(t), 0
   )
-  const totalDrivingAfterDrop = existingDrivingOnDate + newDrivingMins
+  const totalWorkingAfterDrop = existingWorkingOnDate + newDrivingMins
 
-  if (totalDrivingAfterDrop > MAX_DAILY_DRIVING_EXTENDED) {
+  if (totalWorkingAfterDrop > MAX_DAILY_WORKING_REDUCED) {
     violations.push({
-      ruleId: "EU_DAILY_DRIVE_LIMIT",
+      ruleId: "EU_DAILY_WORK_LIMIT",
       severity: "violation",
       date: dropDate,
       driverUuid,
-      message: `Would exceed daily driving limit of 10 hours`,
-      calculation: `Existing: ${fmtMinutes(existingDrivingOnDate)} + New trip: ${fmtMinutes(newDrivingMins)} = ${fmtMinutes(totalDrivingAfterDrop)} (max ${fmtMinutes(MAX_DAILY_DRIVING_EXTENDED)})`,
+      message: `Would exceed maximum daily working hours of 15 hours`,
+      calculation: `Existing: ${fmtMinutes(existingWorkingOnDate)} + New trip: ${fmtMinutes(newDrivingMins)} = ${fmtMinutes(totalWorkingAfterDrop)} (absolute max ${fmtMinutes(MAX_DAILY_WORKING_REDUCED)})`,
       ruleset: "ASSIMILATED",
     })
-  } else if (totalDrivingAfterDrop > MAX_DAILY_DRIVING) {
+  } else if (totalWorkingAfterDrop > MAX_DAILY_WORKING) {
     warnings.push({
-      ruleId: "EU_DAILY_DRIVE_LIMIT",
+      ruleId: "EU_DAILY_WORK_LIMIT",
       severity: "warning",
       date: dropDate,
       driverUuid,
-      message: `Would use an extended driving day (${fmtMinutes(totalDrivingAfterDrop)} of max 10h). Only 2 per week allowed.`,
-      calculation: `Existing: ${fmtMinutes(existingDrivingOnDate)} + New trip: ${fmtMinutes(newDrivingMins)} = ${fmtMinutes(totalDrivingAfterDrop)}`,
+      message: `Working ${fmtMinutes(totalWorkingAfterDrop)} — requires reduced daily rest (9h min instead of 11h). Only 3 per week allowed.`,
+      calculation: `Existing: ${fmtMinutes(existingWorkingOnDate)} + New trip: ${fmtMinutes(newDrivingMins)} = ${fmtMinutes(totalWorkingAfterDrop)}`,
       ruleset: "ASSIMILATED",
     })
   }
@@ -171,15 +172,13 @@ export function prospectiveComplianceCheck(
       const t = tripIndex.get(uuid)
       if (t) {
         const end = tripEnd(t).getTime()
-        // Add 15 min post-trip buffer (non-driving duty)
-        latestEnd = Math.max(latestEnd, end + 15 * 60_000)
+        latestEnd = Math.max(latestEnd, end)
       }
     }
 
     if (latestEnd > 0) {
-      // Rest gap = start of new trip (minus 15min pre-trip buffer) - end of previous trip
-      const effectiveStart = newStart.getTime() - 15 * 60_000
-      const restGap = Math.max(0, (effectiveStart - latestEnd) / 60_000)
+      // Rest gap = start of new trip - end of previous trip
+      const restGap = Math.max(0, (newStart.getTime() - latestEnd) / 60_000)
 
       if (restGap < MIN_DAILY_REST_REDUCED) {
         violations.push({
@@ -187,8 +186,8 @@ export function prospectiveComplianceCheck(
           severity: "violation",
           date: dropDate,
           driverUuid,
-          message: `Insufficient rest after previous day's trip — only ${fmtMinutes(restGap)} rest (minimum 9h required)`,
-          calculation: `Previous day's last trip ends with buffer → ${new Date(latestEnd).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. New trip starts at ${newStart.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. Gap: ${fmtMinutes(restGap)} vs 9h minimum.`,
+          message: `Insufficient rest after previous day's work — only ${fmtMinutes(restGap)} rest (minimum 9h required)`,
+          calculation: `Previous day ends ${new Date(latestEnd).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. New trip starts ${newStart.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. Gap: ${fmtMinutes(restGap)} vs 9h minimum.`,
           ruleset: "ASSIMILATED",
         })
       } else if (restGap < MIN_DAILY_REST_STANDARD) {
@@ -197,8 +196,8 @@ export function prospectiveComplianceCheck(
           severity: "warning",
           date: dropDate,
           driverUuid,
-          message: `Reduced daily rest — ${fmtMinutes(restGap)} between trips (standard is 11h). Uses 1 of 3 allowed reduced rests per week.`,
-          calculation: `Previous trip ends ${new Date(latestEnd).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}, new starts ${newStart.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. Gap: ${fmtMinutes(restGap)}.`,
+          message: `Reduced daily rest — ${fmtMinutes(restGap)} between work periods (standard is 11h). Uses 1 of 3 allowed reduced rests per week.`,
+          calculation: `Previous day ends ${new Date(latestEnd).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}, new starts ${newStart.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. Gap: ${fmtMinutes(restGap)}.`,
           ruleset: "ASSIMILATED",
         })
       }
@@ -215,15 +214,13 @@ export function prospectiveComplianceCheck(
       const t = tripIndex.get(uuid)
       if (t) {
         const start = tripStart(t).getTime()
-        // Subtract 15 min pre-trip buffer
-        earliestStart = Math.min(earliestStart, start - 15 * 60_000)
+        earliestStart = Math.min(earliestStart, start)
       }
     }
 
     if (earliestStart < Infinity) {
-      // Rest gap = start of next day's trip - end of new trip (plus post-trip buffer)
-      const effectiveEnd = newEnd.getTime() + 15 * 60_000
-      const restGap = Math.max(0, (earliestStart - effectiveEnd) / 60_000)
+      // Rest gap = start of next day's trip - end of new trip
+      const restGap = Math.max(0, (earliestStart - newEnd.getTime()) / 60_000)
 
       if (restGap < MIN_DAILY_REST_REDUCED) {
         violations.push({
@@ -231,8 +228,8 @@ export function prospectiveComplianceCheck(
           severity: "violation",
           date: dropDate,
           driverUuid,
-          message: `Insufficient rest before next day's trip — only ${fmtMinutes(restGap)} rest (minimum 9h required)`,
-          calculation: `New trip ends with buffer → ${new Date(effectiveEnd).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. Next day's trip starts at ${new Date(earliestStart + 15 * 60_000).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. Gap: ${fmtMinutes(restGap)} vs 9h minimum.`,
+          message: `Insufficient rest before next day's work — only ${fmtMinutes(restGap)} rest (minimum 9h required)`,
+          calculation: `New trip ends ${newEnd.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. Next day starts ${new Date(earliestStart).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. Gap: ${fmtMinutes(restGap)} vs 9h minimum.`,
           ruleset: "ASSIMILATED",
         })
       } else if (restGap < MIN_DAILY_REST_STANDARD) {
@@ -241,8 +238,8 @@ export function prospectiveComplianceCheck(
           severity: "warning",
           date: dropDate,
           driverUuid,
-          message: `Reduced daily rest before next day — ${fmtMinutes(restGap)} between trips (standard is 11h). Uses 1 of 3 allowed reduced rests.`,
-          calculation: `New trip ends ${new Date(effectiveEnd).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}, next day starts ${new Date(earliestStart + 15 * 60_000).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. Gap: ${fmtMinutes(restGap)}.`,
+          message: `Reduced daily rest before next day — ${fmtMinutes(restGap)} between work periods (standard is 11h). Uses 1 of 3 allowed reduced rests.`,
+          calculation: `New trip ends ${newEnd.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}, next day starts ${new Date(earliestStart).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. Gap: ${fmtMinutes(restGap)}.`,
           ruleset: "ASSIMILATED",
         })
       }

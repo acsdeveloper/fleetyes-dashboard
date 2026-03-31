@@ -908,12 +908,23 @@ export default function RotaPage() {
     runComplianceChecks()
   }
 
-  const handleClear = (driverUuid: string, date: string) => {
+  const handleClear = async (driverUuid: string, date: string) => {
+    // Un-assign the driver from any trips linked to this rota entry
+    const prev = getEntry(driverUuid, date)
+    if (prev?.trip_uuids && prev.trip_uuids.length > 0) {
+      await Promise.all(
+        prev.trip_uuids.map((uuid) =>
+          updateOrder(uuid, { driver_assigned_uuid: null } as Parameters<typeof updateOrder>[1]).catch(() => {})
+        )
+      )
+    }
     deleteRota(driverUuid, date)
     const updated = getWeekRota(dates)
     setRotas(updated)
     setAssignedTripUuids(new Set(updated.flatMap(r => r.trip_uuids ?? [])))
     setPopover(null)
+    // Bump dock so un-assigned trips reappear
+    setDockRefreshKey(k => k + 1)
     // Re-run compliance checks after clearing
     runComplianceChecks()
   }

@@ -72,20 +72,20 @@ export {
 
 export const COMPLIANCE_RULES = [
   {
-    id: "EU_DAILY_DRIVE_LIMIT",
+    id: "EU_DAILY_WORK_LIMIT",
     category: "Daily Limits",
-    title: "Daily Driving Limit",
-    description: "Maximum 9 hours driving per day. Can extend to 10 hours up to twice per week.",
-    limit: "9h (10h extended, 2×/week)",
+    title: "Daily Working Hours Limit",
+    description: "Maximum working hours per day are derived from the rest requirement: 13 hours with standard 11h rest, or 15 hours with reduced 9h rest (max 3 per week). When driving hours are tracked separately, a 9h/10h driving limit also applies.",
+    limit: "13h (15h reduced rest)",
     severity: "hard" as const,
   },
   {
     id: "EU_BREAK_REQUIREMENT",
     category: "Daily Limits",
-    title: "Break After 4.5h Driving",
-    description: "After 4 hours 30 minutes of driving, must take at least 45 minutes break. Break can be split into 15min + 30min (in that order).",
-    limit: "45min break per 4.5h",
-    severity: "hard" as const,
+    title: "Intra-Shift Breaks",
+    description: "Breaks must be taken as per law during the work shift. Currently assumed to be compliant — will be enforced when driving hours are tracked separately.",
+    limit: "Assumed compliant",
+    severity: "soft" as const,
   },
   {
     id: "EU_DAILY_REST",

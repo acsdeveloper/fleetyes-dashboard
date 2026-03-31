@@ -49,18 +49,19 @@ const ROLLING_WINDOW_DAYS = 29
 /** Default assumed working day length when no trip data is available (minutes) */
 const DEFAULT_DUTY_MINUTES = 480  // 8 hours
 
-/** Default assumed driving portion of a working day (minutes) */
-const DEFAULT_DRIVING_MINUTES = 360  // 6 hours
-
-/** Minutes of non-driving duty assumed around a trip (pre-trip checks, loading) */
-const NON_DRIVING_BUFFER_MINUTES = 30
-
 // ─── Trip → Activity Conversion ──────────────────────────────────────────────
 
 /**
- * Convert a single Order (trip) into a DRIVING activity.
+ * Convert a single Order (trip) into a NON_DRIVING_DUTY (working hours) activity.
  *
- * Driving duration is derived from:
+ * IMPORTANT: For now, we treat all trip time as WORKING HOURS, not driving.
+ * This means driving-specific limits (9h/10h daily driving, break after 4.5h)
+ * will NOT trigger. The daily rest rules (11h between days) still apply
+ * because those are based on when work ends/starts, regardless of type.
+ *
+ * We also assume intra-shift breaks are taken as per law.
+ *
+ * Duration is derived from:
  *   1. scheduled_at → estimated_end_date (most accurate)
  *   2. scheduled_at + time field (seconds)
  *   3. Fallback: 2 hours estimated
@@ -82,46 +83,9 @@ function orderToActivity(order: Order): Activity {
   }
 
   return {
-    activityType: ActivityType.DRIVING,
-    startTime:    start,
-    endTime:      end,
-    isOffRoad:    false,
-    isInternational: false,
-  }
-}
-
-/**
- * Create a NON_DRIVING_DUTY activity for pre/post-trip work
- * (walk-around checks, loading/unloading, paperwork).
- */
-function createNonDrivingBuffer(
-  referenceTime: Date,
-  before: boolean,
-  durationMinutes: number = NON_DRIVING_BUFFER_MINUTES,
-): Activity {
-  const start = before
-    ? new Date(referenceTime.getTime() - durationMinutes * 60_000)
-    : referenceTime
-  const end = before
-    ? referenceTime
-    : new Date(referenceTime.getTime() + durationMinutes * 60_000)
-
-  return {
     activityType: ActivityType.NON_DRIVING_DUTY,
     startTime:    start,
     endTime:      end,
-  }
-}
-
-/**
- * Create a BREAK activity (e.g. 45-minute break for Assimilated compliance).
- * Inserted after each driving activity by default.
- */
-function createBreak(afterTime: Date, durationMinutes: number = 45): Activity {
-  return {
-    activityType: ActivityType.BREAK,
-    startTime:    afterTime,
-    endTime:      new Date(afterTime.getTime() + durationMinutes * 60_000),
   }
 }
 
@@ -129,6 +93,10 @@ function createBreak(afterTime: Date, durationMinutes: number = 45): Activity {
 
 /**
  * Build a WorkingDay from a set of orders (trips) for a specific date.
+ *
+ * Since we treat trip time as working hours (not driving), and assume
+ * intra-shift breaks are taken as per law, we only add the work
+ * activity itself — no artificial pre/post buffers or forced breaks.
  */
 function buildWorkingDayFromTrips(
   driverUuid: string,
@@ -139,19 +107,8 @@ function buildWorkingDayFromTrips(
   const activities: Activity[] = []
 
   for (const order of orders) {
-    const driving = orderToActivity(order)
-
-    // Add pre-trip non-driving duty
-    activities.push(createNonDrivingBuffer(driving.startTime, true, 15))
-    // Add driving activity
-    activities.push(driving)
-    // Add post-trip non-driving duty
-    activities.push(createNonDrivingBuffer(driving.endTime, false, 15))
-    // Add a 45-minute break after each trip (conservative assumption)
-    activities.push(createBreak(
-      new Date(driving.endTime.getTime() + 15 * 60_000),
-      45,
-    ))
+    const workActivity = orderToActivity(order)
+    activities.push(workActivity)
   }
 
   return computeWorkingDay(driverUuid, date, activities, config)
@@ -159,7 +116,8 @@ function buildWorkingDayFromTrips(
 
 /**
  * Build a WorkingDay for a day marked as WD but with no trip data.
- * Uses conservative defaults (8h duty, 6h driving).
+ * Uses conservative defaults (8h duty as working hours).
+ * Breaks are assumed compliant.
  */
 function buildDefaultWorkingDay(
   driverUuid: string,
@@ -171,21 +129,6 @@ function buildDefaultWorkingDay(
     {
       activityType: ActivityType.NON_DRIVING_DUTY,
       startTime:    dayStart,
-      endTime:      new Date(dayStart.getTime() + 30 * 60_000),  // 30min pre-trip
-    },
-    {
-      activityType: ActivityType.DRIVING,
-      startTime:    new Date(dayStart.getTime() + 30 * 60_000),
-      endTime:      new Date(dayStart.getTime() + (30 + DEFAULT_DRIVING_MINUTES) * 60_000),
-    },
-    {
-      activityType: ActivityType.BREAK,
-      startTime:    new Date(dayStart.getTime() + (30 + DEFAULT_DRIVING_MINUTES) * 60_000),
-      endTime:      new Date(dayStart.getTime() + (30 + DEFAULT_DRIVING_MINUTES + 45) * 60_000),
-    },
-    {
-      activityType: ActivityType.NON_DRIVING_DUTY,
-      startTime:    new Date(dayStart.getTime() + (30 + DEFAULT_DRIVING_MINUTES + 45) * 60_000),
       endTime:      new Date(dayStart.getTime() + DEFAULT_DUTY_MINUTES * 60_000),
     },
   ]
