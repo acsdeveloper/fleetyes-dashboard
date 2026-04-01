@@ -62,9 +62,10 @@ describe("prospectiveComplianceCheck — rest gap detection", () => {
     expect(result.violations[0].calculation).toContain("2h")
   })
 
-  it("blocks assignment when estimated_end_date is NULL and time is 0 (missing end time)", () => {
+  it("uses 2h fallback when existing trip has no end time — does not block assignment", () => {
     // Trip A: overnight BUT API returns estimated_end_date: null, time: 0
-    // Engine cannot calculate real end time → MUST block with MISSING_END_TIME
+    // Engine uses 2h fallback: trip-a end = 18:00 + 2h = 20:00
+    // Gap from 20:00 Day 1 → 07:31 Day 2 = 11h31m ≥ 9h min → no violation
     const existingTrip = fakeOrder({
       uuid: "trip-a",
       scheduled_at: "2026-04-01 18:00:00",
@@ -85,13 +86,11 @@ describe("prospectiveComplianceCheck — rest gap detection", () => {
 
     const result = prospectiveComplianceCheck("driver-1", "2026-04-02", newTrip, tripIndex)
 
-    // The NEW trip (trip-b) has a valid end time, so MISSING_END_TIME won't fire for it.
-    // But the rest gap check still uses the 2h fallback for trip-a, so the gap appears
-    // as 11h31m (> 11h). The engine is unable to detect the real 2h gap.
-    // This is acceptable because in production estimated_end_date IS provided.
-    // The MISSING_END_TIME check only fires for the newTrip, not existing trips.
+    // After D-04: MISSING_END_TIME block removed. Assignment is not blocked.
+    // The 2h fallback approximates trip-a end as 20:00 → gap = 11h31m → no rest violation.
     expect(result.violations.length).toBe(0) // correctly: no violation for newTrip with valid end time
   })
+
 
   it("catches gap when estimated_end_date is null BUT time field is accurate", () => {
     // Trip A: no estimated_end_date but time = 41340 seconds (11h29m)
