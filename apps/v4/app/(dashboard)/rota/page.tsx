@@ -1398,7 +1398,17 @@ export default function RotaPage() {
                                     ? "HOL_REQ" as const
                                     : "UNAVAILABLE" as const)
                                 : undefined
-                            const effectiveStatus = entry?.status ?? leaveStatus
+                            const effectiveStatus: typeof leaveStatus | "WD" | "RD" | "OFF" | "HOL_REQ" | "UNAVAILABLE" | undefined = (() => {
+                              if (entry?.status) return entry.status
+                              // Trips assigned from the Trips module update only the API — no localStorage
+                              // rota entry is written. Detect those here and promote the cell to "WD".
+                              const hasApiTrip = [...tripIndex.values()].some(o => {
+                                const a = o.driver_assigned_uuid || o.driver_assigned?.uuid
+                                return a === driver.uuid && o.scheduled_at && isoLocalDate(o.scheduled_at) === date
+                              })
+                              if (hasApiTrip) return "WD" as const
+                              return leaveStatus
+                            })()
                             const cfg       = STATUS_CONFIG[effectiveStatus ?? "NOT_ON_ROTA"]
                             const isActive  = popover?.driver.uuid === driver.uuid && popover.date === date
                             const isDrop    = dropTarget?.driverUuid === driver.uuid && dropTarget?.date === date
