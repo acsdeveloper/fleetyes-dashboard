@@ -259,10 +259,10 @@ export async function buildDriverRecord(
       driver:       driver.uuid,
       scheduled_at: startStr,
       end_date:     evaluationDate,
-      per_page:     500,
-      sort:         "scheduled_at",
+      limit:        500,
+      sort:         "scheduled_at:asc",
     })
-    orders = res.orders ?? []
+    orders = res.data ?? []
   } catch {
     // If API fails, proceed with empty orders — record-keeping will flag gaps
     orders = []

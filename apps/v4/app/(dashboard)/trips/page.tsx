@@ -97,6 +97,7 @@ const ALL_STATUSES: OrderStatus[] = ["created", "dispatched", "started", "comple
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
 function fleetLabel(order: Order): string {
+  if (order.fleet?.name) return order.fleet.name
   if (order.fleet_name) return order.fleet_name
   if (order.fleet_uuid) return order.fleet_uuid.slice(0, 8) + "…"
   return "—"
@@ -300,7 +301,7 @@ function AssignDriverDropdown({
         uuid: order.uuid,
         scheduled_at: order.scheduled_at ?? undefined,
         estimated_end_date: order.estimated_end_date ?? undefined,
-        time: order.time,
+        time: order.time ?? undefined,
       }
       const updatedEntry: RotaEntry = {
         driver_uuid: driver.uuid,
@@ -1274,7 +1275,7 @@ function DriverCellRenderer({ data, context }: ICellRendererParams<Order> & { co
 
 function VehicleCellRenderer({ data, context }: ICellRendererParams<Order> & { context: RowCallbacks }) {
   if (!data) return null
-  const plate = data.vehicle_assigned?.plate_number
+  const plate = data.vehicle_assigned?.plate_number ?? data.vehicle_assigned?.name
   if (!plate) {
     return (
       <AssignVehicleDropdown
@@ -1410,10 +1411,11 @@ export default function TripsPage() {
 
 
   // Resolve fleet_name onto orders from in-memory fleet map
+  // New API returns fleet: {uuid, name} inline so this is mostly a fallback
   const patchFleetNames = React.useCallback(
     (rawOrders: Order[], fleetMap: Map<string, string>) =>
       rawOrders.map((o) =>
-        o.fleet_uuid && !o.fleet_name && fleetMap.has(o.fleet_uuid)
+        o.fleet_uuid && !o.fleet?.name && !o.fleet_name && fleetMap.has(o.fleet_uuid)
           ? { ...o, fleet_name: fleetMap.get(o.fleet_uuid) }
           : o
       ),
@@ -1426,13 +1428,13 @@ export default function TripsPage() {
     try {
       const res = await listOrders({
         page,
-        per_page: 200,
-        sort: "-created_at",
+        limit: 200,
+        sort: "created_at:desc",
         ...(opts?.from ? { scheduled_at: opts.from } : {}),
         ...(opts?.to   ? { end_date: opts.to }        : {}),
       })
       const fleetMap = new Map(fleetsRef.current.map((f) => [f.uuid, f.name]))
-      setOrders(patchFleetNames(res.orders ?? [], fleetMap))
+      setOrders(patchFleetNames(res.data ?? [], fleetMap))
       setTotalPages(res.meta?.last_page ?? 1)
       setTotal(res.meta?.total ?? 0)
     } catch (err: unknown) {
@@ -1614,7 +1616,7 @@ export default function TripsPage() {
     },
     {
       headerName: c.vehicle,
-      valueGetter: ({ data }) => data?.vehicle_assigned?.plate_number ?? "",
+      valueGetter: ({ data }) => data?.vehicle_assigned?.plate_number ?? data?.vehicle_assigned?.name ?? "",
       filter: "agTextColumnFilter",
       width: 140,
       minWidth: 120,

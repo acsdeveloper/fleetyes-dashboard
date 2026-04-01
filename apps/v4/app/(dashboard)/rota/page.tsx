@@ -103,9 +103,9 @@ function CellPopover({
     if (status !== "WD") { setTrips([]); return }
     setLoadingTrips(true)
     // end_date is inclusive on this API — use the same date to scope to one day only
-    listOrders({ scheduled_at: date, end_date: date, per_page: 100 })
+    listOrders({ scheduled_at: date, end_date: date, limit: 100 })
       .then((res) => {
-        const eligible = (res.orders ?? []).filter((o) => {
+        const eligible = (res.data ?? []).filter((o) => {
           const assignedUuid = o.driver_assigned_uuid || o.driver_assigned?.uuid
           return !assignedUuid || assignedUuid === driver.uuid
         })
@@ -204,7 +204,7 @@ function CellPopover({
               {trips.map((trip) => {
                 const isSel = selected.has(trip.uuid)
                 const time = tripTime(trip.scheduled_at)
-                const route = [trip.pickup_name, trip.dropoff_name]
+                const route = [trip.payload?.pickup?.name ?? trip.pickup_name, trip.payload?.dropoff?.name ?? trip.dropoff_name]
                   .filter(Boolean).join(" → ") || trip.public_id
                 return (
                   <button
@@ -356,9 +356,9 @@ function TripsDockPanel({
     const start = dates[0]
     const end   = dates[dates.length - 1]
 
-    listOrders({ scheduled_at: start, end_date: end, per_page: 200 })
+    listOrders({ scheduled_at: start, end_date: end, limit: 200 })
       .then(res => {
-        const unassigned = (res.orders ?? []).filter(o => {
+        const unassigned = (res.data ?? []).filter(o => {
           const a = o.driver_assigned_uuid || o.driver_assigned?.uuid
           if (a) return false
           // Keep only trips that actually fall in this week (using local date)
@@ -367,7 +367,7 @@ function TripsDockPanel({
         })
         setAllTrips(unassigned)
         // Bubble all fetched orders (not just unassigned) up to parent for cell labels
-        onTripsLoaded?.(res.orders ?? [])
+        onTripsLoaded?.(res.data ?? [])
       })
       .catch(() => setAllTrips([]))
       .finally(() => setLoading(false))
@@ -438,8 +438,8 @@ function TripsDockPanel({
               const time  = tripTime(trip.scheduled_at)
               const localDate = trip.scheduled_at ? isoLocalDate(trip.scheduled_at) : ""
               const day   = localDate ? DAYS[new Date(localDate + "T12:00:00").getDay()] : ""
-              const pick  = trip.pickup_name  ?? ""
-              const drop  = trip.dropoff_name ?? ""
+              const pick  = trip.payload?.pickup?.name  ?? trip.pickup_name  ?? ""
+              const drop  = trip.payload?.dropoff?.name ?? trip.dropoff_name ?? ""
               return (
                 <div
                   key={trip.uuid}
@@ -978,7 +978,7 @@ export default function RotaPage() {
           uuid: o.uuid,
           scheduled_at: o.scheduled_at ?? undefined,
           estimated_end_date: o.estimated_end_date ?? undefined,
-          time: o.time,
+          time: o.time ?? undefined,
         })),
       }
     }
@@ -1114,7 +1114,7 @@ export default function RotaPage() {
         uuid: tripUuid,
         scheduled_at: tripOrder.scheduled_at ?? undefined,
         estimated_end_date: tripOrder.estimated_end_date ?? undefined,
-        time: tripOrder.time,
+        time: tripOrder.time ?? undefined,
       }] : undefined,
     }
     upsertRota(newEntry)
@@ -1172,7 +1172,7 @@ export default function RotaPage() {
         uuid: newTripUuid,
         scheduled_at: tripOrder.scheduled_at ?? undefined,
         estimated_end_date: tripOrder.estimated_end_date ?? undefined,
-        time: tripOrder.time,
+        time: tripOrder.time ?? undefined,
       }] : undefined,
     })
 

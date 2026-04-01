@@ -1,0 +1,47 @@
+﻿node.exe : npm warn Unknown 
+project config 
+"auto-install-peers". This will 
+stop working in the next major 
+version of npm.
+At line:1 char:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Program Files\nodejs/node_mo 
+...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~
+    + CategoryInfo          : Not 
+   Specified: (npm warn Unknow..  
+  .version of npm.:String) [],    
+ RemoteException
+    + FullyQualifiedErrorId : Nat 
+   iveCommandError
+ 
+npm warn Unknown project config 
+"link-workspace-packages". This 
+will stop working in the next 
+major version of npm.
+apps/v4/app/(create)/components/icon-placeholder.tsx(21,19): error TS2352: Conversion of type 'typeof import("C:/Projects/Maintenance/ui/node_modules/.pnpm/lucide-react@0.474.0_react@19.2.3/node_modules/lucide-react/dist/lucide-react")' to type 'Record<string, ComponentType<{ className?: string | undefined; }>>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Property 'Icon' is incompatible with index signature.
+    Type 'ForwardRefExoticComponent<Omit<IconComponentProps, "ref"> & RefAttributes<SVGSVGElement>>' is not comparable to type 'ComponentType<{ className?: string | undefined; }>'.
+      Type 'ForwardRefExoticComponent<Omit<IconComponentProps, "ref"> & RefAttributes<SVGSVGElement>>' is not comparable to type 'FunctionComponent<{ className?: string | undefined; }>'.
+        Types of parameters 'props' and 'props' are incompatible.
+          Type '{ className?: string | undefined; }' is not comparable to type 'Omit<IconComponentProps, "ref"> & RefAttributes<SVGSVGElement>'.
+            Property 'iconNode' is missing in type '{ className?: string | undefined; }' but required in type 'Omit<IconComponentProps, "ref">'.
+apps/v4/app/(dashboard)/compliance/walkaround-templates-tab.tsx(341,15): error TS2322: Type '{ className: string; title: string; }' is not assignable to type 'IntrinsicAttributes & Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+  Property 'title' does not exist on type 'IntrinsicAttributes & Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+apps/v4/app/(dashboard)/compliance/walkaround-templates-tab.tsx(343,75): error TS2322: Type '{ className: string; title: string; }' is not assignable to type 'IntrinsicAttributes & Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+  Property 'title' does not exist on type 'IntrinsicAttributes & Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+apps/v4/components/site-footer.tsx(11,38): error TS2339: Property 'twitter' does not exist on type '{ github: string; }'.
+apps/v4/components/site-header.tsx(17,29): error TS2307: Cannot find module '@/app/(create)/components/project-form' or its corresponding type declarations.
+apps/v4/components/site-header.tsx(18,26): error TS2307: Cannot find module '@/app/(create)/components/v0-button' or its corresponding type declarations.
+apps/v4/components/site-header.tsx(30,31): error TS2339: Property 'navItems' does not exist on type '{ name: string; url: string; ogImage: string; description: string; links: { github: string; }; }'.
+apps/v4/components/site-header.tsx(44,38): error TS2339: Property 'navItems' does not exist on type '{ name: string; url: string; ogImage: string; description: string; links: { github: string; }; }'.
+apps/v4/components/site-header.tsx(50,38): error TS2339: Property 'navItems' does not exist on type '{ name: string; url: string; ogImage: string; description: string; links: { github: string; }; }'.
+apps/v4/registry/bases/base/blocks/preview/cards/style-overview.tsx(7,23): error TS2307: Cannot find module '@/app/(create)/lib/fonts' or its corresponding type declarations.
+apps/v4/registry/bases/base/blocks/preview/cards/style-overview.tsx(8,45): error TS2307: Cannot find module '@/app/(create)/lib/search-params' or its corresponding type declarations.
+apps/v4/registry/bases/base/blocks/preview/cards/style-overview.tsx(14,23): error TS7006: Parameter 'font' implicitly has an 'any' type.
+apps/v4/registry/bases/radix/blocks/preview/cards/style-overview.tsx(7,23): error TS2307: Cannot find module '@/app/(create)/lib/fonts' or its corresponding type declarations.
+apps/v4/registry/bases/radix/blocks/preview/cards/style-overview.tsx(8,45): error TS2307: Cannot find module '@/app/(create)/lib/search-params' or its corresponding type declarations.
+apps/v4/registry/bases/radix/blocks/preview/cards/style-overview.tsx(14,23): error TS7006: Parameter 'font' implicitly has an 'any' type.

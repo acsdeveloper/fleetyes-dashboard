@@ -626,11 +626,11 @@ export default function CalendarPage() {
       const from = new Date(y, m - 1, 1).toISOString().slice(0, 10)   // 1st of prev month
       const to   = new Date(y, m + 2, 1).toISOString().slice(0, 10)   // 1st of month+2 (exclusive)
       const [ordersRes, driverRes, vehicleRes] = await Promise.allSettled([
-        listOrders({ scheduled_at: from, end_date: to, per_page: 500 }),
+        listOrders({ scheduled_at: from, end_date: to, limit: 500 }),
         listDriverLeave({ per_page: 500, sort: "-start_date" }),
         listVehicleUnavailability({ per_page: 500, sort: "-start_date" }),
       ])
-      setOrders(ordersRes.status === "fulfilled" ? (ordersRes.value.orders ?? []) : [])
+      setOrders(ordersRes.status === "fulfilled" ? (ordersRes.value.data ?? []) : [])
       const dl = driverRes.status  === "fulfilled" ? (driverRes.value.data  ?? []) : []
       const vl = vehicleRes.status === "fulfilled" ? (vehicleRes.value.data ?? []) : []
       setLeaveEvents([...dl, ...vl])

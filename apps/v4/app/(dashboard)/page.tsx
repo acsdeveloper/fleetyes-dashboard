@@ -84,9 +84,9 @@ function TripRow({ trip }: { trip: Order }) {
       <div className="flex-1 min-w-0 space-y-0.5">
         <div className="flex items-center gap-1.5 text-[11px]">
           <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/60" />
-          <span className="font-semibold truncate">{trip.pickup_name ?? trip.payload?.pickup_name ?? "—"}</span>
+          <span className="font-semibold truncate">{trip.payload?.pickup?.name ?? trip.pickup_name ?? "—"}</span>
           <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground/40" />
-          <span className="truncate text-muted-foreground/70">{trip.dropoff_name ?? trip.payload?.dropoff_name ?? "—"}</span>
+          <span className="truncate text-muted-foreground/70">{trip.payload?.dropoff?.name ?? trip.dropoff_name ?? "—"}</span>
         </div>
         {noDriver
           ? <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400"><AlertTriangle className="h-2.5 w-2.5" /><span className="text-[10px] font-semibold">{c.noDriverAssigned}</span></div>
@@ -291,10 +291,10 @@ export default function DashboardPage() {
   React.useEffect(() => {
     setLoading(true)
     Promise.allSettled([
-      listOrders({ scheduled_at: today, per_page: 200 }).then(r =>
-        setTodayTrips((r.orders ?? []).sort((a,b) => (a.scheduled_at??"").localeCompare(b.scheduled_at??"")))
+      listOrders({ scheduled_at: today, limit: 200 }).then(r =>
+        setTodayTrips((r.data ?? []).sort((a,b) => (a.scheduled_at??"").localeCompare(b.scheduled_at??"")))
       ),
-      listOrders({ scheduled_at: mon, end_date: sun, per_page: 500 }).then(r => setWeekTrips(r.orders ?? [])),
+      listOrders({ scheduled_at: mon, end_date: sun, limit: 500 }).then(r => setWeekTrips(r.data ?? [])),
       listDrivers().then(r => setDrivers((r.drivers ?? []).filter(d => (d.status as string) !== "pending"))),
       listVehicles().then(r => setVehicles(r.vehicles ?? [])),
       listDriverLeave({ per_page: 500 }).then(r => setLeaves(r.data ?? [])),
