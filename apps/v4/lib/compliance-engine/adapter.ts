@@ -334,10 +334,24 @@ export async function buildDriverRecord(
         driver.uuid, dateStr, dayOrders, vehicleConfig,
       ))
     } else if (rota?.status === "WD") {
-      // Rota says working day but no trips — use defaults
-      workingDays.push(buildDefaultWorkingDay(
-        driver.uuid, dateStr, vehicleConfig,
-      ))
+      // Rota says working day but no trips on THIS date.
+      // Check whether the rota entry's trip_uuids are already indexed under a
+      // DIFFERENT date (overnight trips: scheduled_at is previous day).
+      // If so, those trips already create a working day on their own date —
+      // building a fake 8h day here would create a false second working day
+      // and trigger spurious rest-gap violations.
+      const rotaTripUuids = rota.trip_uuids ?? []
+      const tripsAccountedElsewhere = rotaTripUuids.length > 0 &&
+        rotaTripUuids.every(uuid =>
+          [...ordersByDate.values()].some(dayOrders => dayOrders.some(o => o.uuid === uuid))
+        )
+      if (!tripsAccountedElsewhere) {
+        // Genuinely working but no data — use defaults
+        workingDays.push(buildDefaultWorkingDay(driver.uuid, dateStr, vehicleConfig))
+      } else {
+        // Overnight trips already captured on their scheduled_at date — this cell is rest
+        workingDays.push(buildRestDay(driver.uuid, dateStr, vehicleConfig))
+      }
     } else if (rota?.status === "RD" || rota?.status === "HOL_REQ" || rota?.status === "OFF") {
       // Explicitly marked as rest/holiday/off
       workingDays.push(buildRestDay(driver.uuid, dateStr, vehicleConfig))

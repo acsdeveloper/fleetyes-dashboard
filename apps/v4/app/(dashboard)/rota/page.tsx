@@ -868,6 +868,7 @@ export default function RotaPage() {
     setComplianceLoading(false)
   }, [drivers, dates])
 
+
   // Trigger compliance check after initial load and on week change
   React.useEffect(() => {
     if (!loaderDone || drivers.length === 0) return
@@ -995,8 +996,6 @@ export default function RotaPage() {
     // Bump dock refresh — re-fetch from API updates tripIndex → assignedTripUuids (single source of truth)
     setDockRefreshKey(k => k + 1)
     setPopover(null)
-    // Re-run compliance checks after allocation change
-    runComplianceChecks()
   }
 
   const handleClear = async (driverUuid: string, date: string) => {
@@ -1018,8 +1017,6 @@ export default function RotaPage() {
     setPopover(null)
     // Bump dock so un-assigned trips reappear; tripIndex update will rebuild assignedTripUuids
     setDockRefreshKey(k => k + 1)
-    // Re-run compliance checks after clearing
-    runComplianceChecks()
   }
 
   const handleCellClick = (e: React.MouseEvent, driver: Driver, date: string) => {
@@ -1127,8 +1124,6 @@ export default function RotaPage() {
     setSavingCells(prev => { const s = new Set(prev); s.delete(cellKey); return s })
     // Bump dock refresh — re-fetch from API updates tripIndex → assignedTripUuids
     setDockRefreshKey(k => k + 1)
-    // Re-run compliance after allocation
-    runComplianceChecks()
   }
 
   /** Called when user confirms the reassignment dialog */
@@ -1184,8 +1179,6 @@ export default function RotaPage() {
     setSavingCells(prev => { const s = new Set(prev); s.delete(cellKey); return s })
     // Bump dock so old trips reappear; tripIndex update will rebuild assignedTripUuids
     setDockRefreshKey(k => k + 1)
-    // Re-run compliance after reassignment
-    runComplianceChecks()
   }
 
   const handlePreference = (pref: DriverPreference) => {
@@ -1450,12 +1443,23 @@ export default function RotaPage() {
                                     entry?.status === "WD" ? (() => {
                                       // Derive assigned trips from the live API (tripIndex) — single source of truth.
                                       // This reflects external unassignments (e.g. via Trips module) immediately.
-                                      const cellTrips = [...tripIndex.values()]
+                                      let cellTrips = [...tripIndex.values()]
                                         .filter(o => {
                                           const a = o.driver_assigned_uuid || o.driver_assigned?.uuid
                                           return a === driver.uuid && o.scheduled_at && isoLocalDate(o.scheduled_at) === date
                                         })
                                         .sort((a, b) => (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? ""))
+
+                                      // Fallback: if no trips match by scheduled_at date, check rota entry's
+                                      // trip_uuids — overnight trips start on a previous day but are assigned
+                                      // to this cell, so their scheduled_at won't match.
+                                      if (cellTrips.length === 0 && entry?.trip_uuids && entry.trip_uuids.length > 0) {
+                                        cellTrips = entry.trip_uuids
+                                          .map(uuid => tripIndex.get(uuid))
+                                          .filter((o): o is Order => !!o)
+                                          .sort((a, b) => (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? ""))
+                                      }
+
                                       if (cellTrips.length > 0) {
                                         return cellTrips.map((t) => {
                                           const time = t.scheduled_at ? isoLocalTime(t.scheduled_at) : ""
