@@ -1730,10 +1730,22 @@ export default function TripsPage() {
       headerName: "Est. End",
       field: "estimated_end_date",
       filter: "agDateColumnFilter",
-      width: 132,
-      cellRenderer: ({ value }: ICellRendererParams) => (
-        <span className="text-xs text-muted-foreground">{formatDate(value)}</span>
-      ),
+      width: 148,
+      cellRenderer: ({ value, data }: ICellRendererParams<Order>) => {
+        // Show amber risk badge when both estimated_end_date and time are absent
+        const hasEndTime = value || (data?.time && data.time > 0)
+        if (!hasEndTime) {
+          return (
+            <span
+              title="This trip has no estimated end time. Compliance gap calculations use a 2h fallback."
+              className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+            >
+              ⚠ No end time
+            </span>
+          )
+        }
+        return <span className="text-xs text-muted-foreground">{formatDate(value)}</span>
+      },
     },
     {
       headerName: c.fleet,
