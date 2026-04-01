@@ -66,6 +66,10 @@ const DAILY_DRIVE_WARN        = hoursToMinutes(8)     // warn at 8h
 const WEEKLY_DRIVE_WARN       = hoursToMinutes(50)    // warn at 50h
 const FORTNIGHT_DRIVE_WARN    = hoursToMinutes(82)    // warn at 82h
 
+// Daily working hours limits (for NON_DRIVING_DUTY days — all time between start and end)
+const MAX_DUTY_WARN_MINS      = 13 * 60              // 780 min — warn when approaching
+const MAX_DUTY_REDUCED_MINS   = 15 * 60              // 900 min — violation (absolute max)
+
 /**
  * Tramper threshold: trips ≥ 36 hours (2160 min).
  * On days containing a tramper trip the driver rests in-cab, so the
@@ -132,7 +136,34 @@ export function validateAssimilated(
 
   for (const day of days) {
     if (day.isRestDay) continue
-    if (!day.hasDriving) continue
+
+    // ── Non-driving working day: check daily working hours only ───────────
+    // (Break compliance is assumed for NON_DRIVING_DUTY — self-managed by driver)
+    if (!day.hasDriving) {
+      const dutyMins = day.totalDutyMinutes
+      if (dutyMins > MAX_DUTY_REDUCED_MINS) {
+        issues.push({
+          ruleId:      "EU_DAILY_WORK_LIMIT",
+          severity:    "violation",
+          date:        day.date,
+          driverUuid:  record.driverUuid,
+          message:     `Daily working hours exceeded — ${Math.round(dutyMins / 60 * 10) / 10}h on duty (15h absolute maximum)`,
+          calculation: `${dutyMins}min duty > ${MAX_DUTY_REDUCED_MINS}min limit`,
+          ruleset:     "ASSIMILATED",
+        })
+      } else if (dutyMins > MAX_DUTY_WARN_MINS) {
+        issues.push({
+          ruleId:      "EU_DAILY_WORK_LIMIT",
+          severity:    "warning",
+          date:        day.date,
+          driverUuid:  record.driverUuid,
+          message:     `Daily working hours approaching limit — ${Math.round(dutyMins / 60 * 10) / 10}h on duty (13h standard / 15h with reduced rest)`,
+          calculation: `${dutyMins}min duty > ${MAX_DUTY_WARN_MINS}min warn threshold`,
+          ruleset:     "ASSIMILATED",
+        })
+      }
+      continue  // no driving-specific checks for non-driving days
+    }
 
     const weekMon = toDateStr(isoWeekMonday(day.date))
     const driving = day.totalDrivingMinutes

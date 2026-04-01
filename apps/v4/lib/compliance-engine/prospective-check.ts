@@ -189,19 +189,6 @@ export function prospectiveComplianceCheck(
     ...existingTrips.map(t => `\n    - uuid=${t.uuid}, scheduled_at=${t.scheduled_at}, estimated_end_date=${t.estimated_end_date}, time=${t.time}, tripEnd=${tripEnd(t).toISOString()}`),
   )
 
-  // ── Step 1b: Block if new trip or any adjacent trip has no end time ────────
-  if (hasMissingEndTime(newTrip)) {
-    violations.push({
-      ruleId: "MISSING_END_TIME",
-      severity: "violation",
-      date: dropDate,
-      driverUuid,
-      message: `Cannot verify compliance — trip has no end time. Set estimated end date before assigning.`,
-      calculation: `Trip ${newTrip.uuid} has estimated_end_date=${newTrip.estimated_end_date ?? 'null'}, time=${newTrip.time ?? 'null'}. Cannot calculate rest gap.`,
-      ruleset: "ASSIMILATED",
-    })
-  }
-
   // ── Step 2: Sort all trips (existing + new) chronologically ───────────────
   const allTrips = [...existingTrips, newTrip].sort(
     (a, b) => tripStart(a).getTime() - tripStart(b).getTime()

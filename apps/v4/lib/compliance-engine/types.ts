@@ -170,6 +170,13 @@ export interface VehicleConfig {
   vehicleWeightTonnes: number
   /** Whether this driver primarily operates internationally */
   isInternational?:    boolean
+  /**
+   * When true (default), breaks within working windows are assumed compliant.
+   * The EU break requirement check (45min per 4.5h driving) only fires for
+   * DRIVING-type activities. NON_DRIVING_DUTY drivers self-manage breaks.
+   * Set to false (future mode) to enforce break timing from actual timestamps.
+   */
+  breaksAssumedCompliant?: boolean
 }
 
 /**
@@ -177,8 +184,9 @@ export interface VehicleConfig {
  * override is provided.  Defaults to GB Domestic Goods > 3.5t.
  */
 export const DEFAULT_VEHICLE_CONFIG: VehicleConfig = {
-  vehicleType:         VehicleType.GOODS,
-  usageType:           UsageType.STANDARD,
-  vehicleWeightTonnes: 7.5,       // typical rigid goods vehicle
-  isInternational:     false,
+  vehicleType:             VehicleType.GOODS,
+  usageType:               UsageType.STANDARD,
+  vehicleWeightTonnes:     7.5,       // typical rigid goods vehicle
+  isInternational:         false,
+  breaksAssumedCompliant:  true,      // breaks assumed self-managed within duty window
 }
