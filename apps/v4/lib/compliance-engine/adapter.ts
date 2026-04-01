@@ -275,20 +275,44 @@ export async function buildDriverRecord(
     rotaMap.set(r.date, r)
   }
 
-  // Index orders by local date
+  // Index orders by local date — multi-day trips appear on ALL covered dates.
+  // A trip from Monday 22:00 to Wednesday 06:00 is indexed under Mon, Tue, and Wed
+  // so the compliance engine sees the driver as working on all three days.
   const ordersByDate = new Map<string, Order[]>()
   const knownUuids = new Set<string>()
   for (const o of orders) {
-    const dateStr = o.scheduled_at
-      ? toLocalDateStr(new Date(o.scheduled_at))
-      : o.created_at
-      ? toLocalDateStr(new Date(o.created_at))
-      : null
-    if (!dateStr) continue
+    const startStr = o.scheduled_at ?? o.created_at
+    if (!startStr) continue
+    const tripStart = new Date(startStr)
+    // Resolve trip end using the same priority chain as orderToActivity()
+    let tripEnd: Date
+    if (o.estimated_end_date) {
+      const c = new Date(o.estimated_end_date)
+      tripEnd = isNaN(c.getTime()) ? new Date(0) : c
+    } else {
+      tripEnd = new Date(0)
+    }
+    if (tripEnd.getTime() === 0) {
+      tripEnd = o.time && o.time > 0
+        ? new Date(tripStart.getTime() + o.time * 1000)
+        : new Date(tripStart.getTime() + 2 * 60 * 60_000)
+    }
     knownUuids.add(o.uuid)
-    const existing = ordersByDate.get(dateStr) ?? []
-    existing.push(o)
-    ordersByDate.set(dateStr, existing)
+    // Walk every calendar day the trip covers and add the order to each
+    const cursor = new Date(tripStart)
+    cursor.setHours(0, 0, 0, 0)
+    const endDay = new Date(tripEnd)
+    endDay.setHours(0, 0, 0, 0)
+    while (cursor <= endDay) {
+      const dateStr = toLocalDateStr(cursor)
+      const existing = ordersByDate.get(dateStr) ?? []
+      // Avoid duplicates (same order on same date via multiple paths)
+      if (!existing.some(e => e.uuid === o.uuid)) {
+        existing.push(o)
+        ordersByDate.set(dateStr, existing)
+      }
+      cursor.setDate(cursor.getDate() + 1)
+    }
   }
 
   // Merge localStorage trip_data for trips NOT yet in the API response.
@@ -366,10 +390,13 @@ export async function buildDriverRecord(
   workingDays.sort((a, b) => a.date.localeCompare(b.date))
 
   return {
-    driverUuid:       driver.uuid,
-    driverName:       driver.name,
+    driverUuid:        driver.uuid,
+    driverName:        driver.name,
     workingDays,
     applicableRuleset: determineRuleset(vehicleConfig),
+    // Count of distinct source orders (real trips only — excludes fake WD placeholder days).
+    // Used by validators to enforce the "2+ trips required" guard.
+    tripCount: knownUuids.size,
   }
 }
 

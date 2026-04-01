@@ -1402,9 +1402,15 @@ export default function RotaPage() {
                               if (entry?.status) return entry.status
                               // Trips assigned from the Trips module update only the API — no localStorage
                               // rota entry is written. Detect those here and promote the cell to "WD".
+                              // Date-range check: multi-day trips cover multiple cells.
                               const hasApiTrip = [...tripIndex.values()].some(o => {
                                 const a = o.driver_assigned_uuid || o.driver_assigned?.uuid
-                                return a === driver.uuid && o.scheduled_at && isoLocalDate(o.scheduled_at) === date
+                                if (a !== driver.uuid || !o.scheduled_at) return false
+                                const startD = isoLocalDate(o.scheduled_at)
+                                const endD = (o.estimated_end_date && !isNaN(new Date(o.estimated_end_date).getTime()))
+                                  ? isoLocalDate(o.estimated_end_date)
+                                  : startD
+                                return date >= startD && date <= endD
                               })
                               if (hasApiTrip) return "WD" as const
                               return leaveStatus
@@ -1450,25 +1456,20 @@ export default function RotaPage() {
                                       <span className="w-10 h-2 rounded bg-emerald-200/80 dark:bg-emerald-700/50" />
                                     </span>
                                   ) : effectiveStatus ? (
-                                    entry?.status === "WD" ? (() => {
+                                    effectiveStatus === "WD" ? (() => {
                                       // Derive assigned trips from the live API (tripIndex) — single source of truth.
-                                      // This reflects external unassignments (e.g. via Trips module) immediately.
-                                      let cellTrips = [...tripIndex.values()]
+                                      // Date-range match: covers same-day, overnight, and multi-day trips.
+                                      const cellTrips = [...tripIndex.values()]
                                         .filter(o => {
                                           const a = o.driver_assigned_uuid || o.driver_assigned?.uuid
-                                          return a === driver.uuid && o.scheduled_at && isoLocalDate(o.scheduled_at) === date
+                                          if (a !== driver.uuid || !o.scheduled_at) return false
+                                          const startD = isoLocalDate(o.scheduled_at)
+                                          const endD = (o.estimated_end_date && !isNaN(new Date(o.estimated_end_date).getTime()))
+                                            ? isoLocalDate(o.estimated_end_date)
+                                            : startD
+                                          return date >= startD && date <= endD
                                         })
                                         .sort((a, b) => (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? ""))
-
-                                      // Fallback: if no trips match by scheduled_at date, check rota entry's
-                                      // trip_uuids — overnight trips start on a previous day but are assigned
-                                      // to this cell, so their scheduled_at won't match.
-                                      if (cellTrips.length === 0 && entry?.trip_uuids && entry.trip_uuids.length > 0) {
-                                        cellTrips = entry.trip_uuids
-                                          .map(uuid => tripIndex.get(uuid))
-                                          .filter((o): o is Order => !!o)
-                                          .sort((a, b) => (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? ""))
-                                      }
 
                                       if (cellTrips.length > 0) {
                                         return cellTrips.map((t) => {

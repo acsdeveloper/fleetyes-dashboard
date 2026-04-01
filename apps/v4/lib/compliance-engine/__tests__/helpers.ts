@@ -113,16 +113,21 @@ export function makeRestDay(
 
 /**
  * Create a DriverRecord from an array of WorkingDays.
+ * tripCount defaults to the number of non-rest working days (1 per distinct
+ * trip in test scenarios). Pass an explicit value to test guard behaviour.
  */
 export function makeDriverRecord(
   workingDays: WorkingDay[],
   driverUuid: string = DEFAULT_DRIVER_UUID,
   ruleset: Ruleset = "ASSIMILATED",
+  tripCount?: number,
 ): DriverRecord {
+  const nonRestDays = workingDays.filter(d => !d.isRestDay && d.totalDutyMinutes > 0).length
   return {
     driverUuid,
     driverName: "Test Driver",
     workingDays: [...workingDays].sort((a, b) => a.date.localeCompare(b.date)),
     applicableRuleset: ruleset,
+    tripCount: tripCount ?? nonRestDays,
   }
 }

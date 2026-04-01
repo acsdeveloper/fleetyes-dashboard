@@ -136,8 +136,9 @@ export function validateAssimilated(
   // consecutive duty, weekly/fortnightly accumulation. A single trip cannot
   // violate these — the upstream planning system handles individual trip
   // validity. Overlap checks above still apply (they involve 2 activities).
-  const workingDays = days.filter(d => !d.isRestDay && d.totalDutyMinutes > 0)
-  if (workingDays.length < 2) return issues
+  // Use record.tripCount (distinct source orders) not working day count:
+  // a single multi-day trip creates multiple working days but is still 1 trip.
+  if (record.tripCount < 2) return issues
 
   // Track extended driving days per ISO week for the 2×/week cap
   const extendedDaysPerWeek = new Map<string, number>()

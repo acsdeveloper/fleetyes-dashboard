@@ -110,6 +110,12 @@ export interface DriverRecord {
   workingDays: WorkingDay[]
   /** The primary ruleset to validate against */
   applicableRuleset: Ruleset
+  /**
+   * Number of distinct source orders (API trips) in this record.
+   * Used by validators to skip inter-trip checks when only 1 real trip exists.
+   * Fake WD placeholder days (no trip data) do NOT count toward this.
+   */
+  tripCount: number
 }
 
 // ─── Compliance Output ───────────────────────────────────────────────────────
