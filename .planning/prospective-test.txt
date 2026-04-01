@@ -1,0 +1,78 @@
+﻿node.exe : npm warn Unknown 
+project config 
+"auto-install-peers". This will 
+stop working in the next major 
+version of npm.
+At line:1 char:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Program Files\nodejs/node_mo 
+...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~
+    + CategoryInfo          : Not 
+   Specified: (npm warn Unknow..  
+  .version of npm.:String) [],    
+ RemoteException
+    + FullyQualifiedErrorId : Nat 
+   iveCommandError
+ 
+npm warn Unknown project config 
+"link-workspace-packages". This 
+will stop working in the next 
+major version of npm.
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mC:/Projects/Maintenance/ui[39m
+
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/prospective-rest-gap.test.ts[2m > [22mprospectiveComplianceCheck ÔÇö rest gap detection[2m > [22mcatches 2h rest gap when estimated_end_date IS provided (overnight trip)
+ [31m├ù[39m apps/v4/lib/compliance-engine/__tests__/prospective-rest-gap.test.ts[2m > [22mprospectiveComplianceCheck ÔÇö rest gap detection[2m > [22mFAILS to catch gap when estimated_end_date is NULL ÔÇö uses 2h fallback (THE BUG)
+[31m   ÔåÆ expected 0 to be greater than or equal to 1[39m
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/prospective-rest-gap.test.ts[2m > [22mprospectiveComplianceCheck ÔÇö rest gap detection[2m > [22mcatches gap when estimated_end_date is null BUT time field is accurate
+
+[31mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[1m[7m
+ Failed Tests 1 [27m[22mÔÄ»ÔÄ»ÔÄ
+»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[39m
+
+[31m[1m[7m FAIL 
+[27m[22m[39m apps/v4/lib/compli
+ance-engine/__tests__/prospective-
+rest-gap.test.ts[2m > 
+[22mprospectiveComplianceCheck 
+ÔÇö rest gap detection[2m > 
+[22mFAILS to catch gap when 
+estimated_end_date is NULL ÔÇö 
+uses 2h fallback (THE BUG)
+[31m[1mAssertionError[22m: 
+expected 0 to be greater than or 
+equal to 1[39m
+[36m [2mÔØ»[22m apps/v4/lib/com
+pliance-engine/__tests__/prospecti
+ve-rest-gap.test.ts:[2m93:38[22m
+[39m
+    [90m 91| [39m    [90m// 
+Gap: 20:00 ÔåÆ 07:31 = 11h31m (> 
+11h, so no violation)[39m
+    [90m 92| [39m    [90m// 
+The engine CANNOT catch this 
+without the real end time.[39m
+    [90m 93| [39m    [34mexpect
+[39m(result[33m.[39mviolations
+[33m.[39mlength)[33m.[39m[34mt
+oBeGreaterThanOrEqual[39m([34m1
+[39m)
+    [90m   | [39m               
+                      [31m^[39m
+    [90m 94| [39m  })
+    [90m 95| [39m
+
+[31m[2mÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»Ô
+Ä»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ
+»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[1/1]ÔÄ»[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m2 passed[39m[22m[90m (3)[39m
+[2m   Start at [22m 10:16:49
+[2m   Duration [22m 871ms[2m (transform 91ms, setup 0ms, collect 79ms, tests 66ms, environment 1ms, prepare 233ms)[22m
+
+

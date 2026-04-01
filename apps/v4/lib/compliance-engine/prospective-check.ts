@@ -75,6 +75,16 @@ function tripEnd(order: Order): Date {
   return new Date(start.getTime() + 2 * 60 * 60_000)
 }
 
+/** Returns true if the order has no reliable end-time data */
+function hasMissingEndTime(order: Order): boolean {
+  if (order.estimated_end_date) {
+    const end = parseTime(order.estimated_end_date)
+    if (end && !isNaN(end.getTime())) return false
+  }
+  if (order.time && order.time > 0) return false
+  return true
+}
+
 /** Trip duration in minutes (start → end) */
 function tripDrivingMinutes(order: Order): number {
   return Math.max(0, (tripEnd(order).getTime() - tripStart(order).getTime()) / 60_000)
@@ -170,6 +180,28 @@ export function prospectiveComplianceCheck(
 
   const existingTrips = [...driverTripMap.values()]
 
+  // ── DIAGNOSTIC: Log what the engine sees ──────────────────────────────────
+  console.warn(
+    `[COMPLIANCE] prospectiveCheck for driver=${driverUuid}, dropDate=${dropDate}`,
+    `\n  newTrip: uuid=${newTrip.uuid}, scheduled_at=${newTrip.scheduled_at}, estimated_end_date=${newTrip.estimated_end_date}, time=${newTrip.time}`,
+    `\n  tripStart=${tripStart(newTrip).toISOString()}, tripEnd=${tripEnd(newTrip).toISOString()}, hasMissingEnd=${hasMissingEndTime(newTrip)}`,
+    `\n  existingTrips (${existingTrips.length}):`,
+    ...existingTrips.map(t => `\n    - uuid=${t.uuid}, scheduled_at=${t.scheduled_at}, estimated_end_date=${t.estimated_end_date}, time=${t.time}, tripEnd=${tripEnd(t).toISOString()}`),
+  )
+
+  // ── Step 1b: Block if new trip or any adjacent trip has no end time ────────
+  if (hasMissingEndTime(newTrip)) {
+    violations.push({
+      ruleId: "MISSING_END_TIME",
+      severity: "violation",
+      date: dropDate,
+      driverUuid,
+      message: `Cannot verify compliance — trip has no end time. Set estimated end date before assigning.`,
+      calculation: `Trip ${newTrip.uuid} has estimated_end_date=${newTrip.estimated_end_date ?? 'null'}, time=${newTrip.time ?? 'null'}. Cannot calculate rest gap.`,
+      ruleset: "ASSIMILATED",
+    })
+  }
+
   // ── Step 2: Sort all trips (existing + new) chronologically ───────────────
   const allTrips = [...existingTrips, newTrip].sort(
     (a, b) => tripStart(a).getTime() - tripStart(b).getTime()
@@ -196,6 +228,11 @@ export function prospectiveComplianceCheck(
 
     const prevEndFmt   = new Date(prevEndMs).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })
     const currStartFmt = new Date(currStartMs).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })
+
+    // DIAGNOSTIC: Log each pair comparison
+    console.warn(
+      `[COMPLIANCE] Pair check: prev=${prev.uuid} end=${new Date(prevEndMs).toISOString()} → curr=${curr.uuid} start=${new Date(currStartMs).toISOString()} | restMins=${restMins.toFixed(1)} (${fmtMinutes(restMins)})`,
+    )
 
     if (restMins < 0) {
       // Overlap — the trips run at the same time
@@ -272,6 +309,13 @@ export function prospectiveComplianceCheck(
   }
 
   void newIdx  // suppress unused-var lint — used implicitly via uuid comparison above
+
+  // DIAGNOSTIC: Log final result
+  console.warn(
+    `[COMPLIANCE] RESULT: ${violations.length} violations, ${warnings.length} warnings`,
+    violations.length > 0 ? `\n  violations: ${violations.map(v => `${v.ruleId}: ${v.message}`).join('; ')}` : '',
+    warnings.length > 0 ? `\n  warnings: ${warnings.map(w => `${w.ruleId}: ${w.message}`).join('; ')}` : '',
+  )
 
   return { violations, warnings }
 }
