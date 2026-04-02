@@ -22,9 +22,10 @@
  */
 
 export const WEEKLY_REST_RULES = {
-  REGULAR_REST_HOURS:  45,
+  /** Internal policy: 46h (1h above EC 561/2006 minimum of 45h) */
+  REGULAR_REST_HOURS:  46,
   REDUCED_REST_HOURS:  24,
-  REGULAR_REST_MS:     45 * 3600 * 1000,
+  REGULAR_REST_MS:     46 * 3600 * 1000,
   REDUCED_REST_MS:     24 * 3600 * 1000,
 } as const
 
@@ -88,7 +89,7 @@ export function findWeeklyRestViolation(trips: TripWindow[]): WeeklyRestResult |
     return {
       longestGapMinutes,
       severity:           "warning",
-      message:            `Longest rest this week was ${fmtHoursMin(longestGapMinutes)} — below 45h regular weekly rest (EC 561/2006 Art.8.6). Reduced rest (≥24h) requires compensation within 3 weeks.`,
+      message:            `Longest rest this week was ${fmtHoursMin(longestGapMinutes)} — below 46h company policy for weekly rest (EC 561/2006 Art.8.6 minimum is 45h). Reduced rest (≥24h) requires compensation within 3 weeks.`,
       tripBeforeRestUuid: tripBefore.orderId,
       tripAfterRestUuid:  tripAfter.orderId,
     }

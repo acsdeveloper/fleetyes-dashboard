@@ -66,7 +66,7 @@ export const COMPLIANCE_RULES = [
   {
     id:          "WEEKLY_REST",
     name:        "Weekly Rest Period",
-    description: "EC 561/2006 Art.8.6: drivers must take ≥45h unbroken rest per 7-day period (regular). Reduced to 24h allowed but compensation required within 3 weeks. Warning: longest gap 24–44h. Violation: longest gap <24h.",
+    description: "EC 561/2006 Art.8.6 + internal policy: drivers must take ≥46h unbroken rest per 7-day period (company policy; EC minimum is 45h). Reduced to 24h allowed but requires compensation within 3 weeks. Warning: longest gap 24–45h. Violation: longest gap <24h.",
     severity:    "violation" as const,
   },
 ]

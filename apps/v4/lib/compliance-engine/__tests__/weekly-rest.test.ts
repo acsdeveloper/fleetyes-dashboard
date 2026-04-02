@@ -45,9 +45,9 @@ describe("findWeeklyRestViolation", () => {
     expect(findWeeklyRestViolation(trips)).toBeNull()
   })
 
-  // B. Exactly 45h → compliant
-  it("B: exactly 45h gap → compliant", () => {
-    const start2 = new Date(new Date(`${MON}T14:00:00`).getTime() + 45 * 3600 * 1000)
+  // B. Exactly 46h → compliant (company policy threshold)
+  it("B: exactly 46h gap → compliant (company policy threshold)", () => {
+    const start2 = new Date(new Date(`${MON}T14:00:00`).getTime() + 46 * 3600 * 1000)
     const trips = [
       trip("T1", `${MON}T06:00:00`, `${MON}T14:00:00`),
       trip("T2", start2.toISOString(), new Date(start2.getTime() + 4 * 3600000).toISOString()),
@@ -55,9 +55,21 @@ describe("findWeeklyRestViolation", () => {
     expect(findWeeklyRestViolation(trips)).toBeNull()
   })
 
-  // C. 44h 59m → warning
-  it("C: 44h 59m gap → warning (just below regular threshold)", () => {
-    const gapMs  = (45 * 60 - 1) * 60 * 1000  // 44h59m in ms
+  // B2. Exactly 45h → warning (below 46h policy, but ≥ 24h reduced)
+  it("B2: exactly 45h gap → warning (meets EC minimum but below 46h company policy)", () => {
+    const start2 = new Date(new Date(`${MON}T14:00:00`).getTime() + 45 * 3600 * 1000)
+    const trips = [
+      trip("T1", `${MON}T06:00:00`, `${MON}T14:00:00`),
+      trip("T2", start2.toISOString(), new Date(start2.getTime() + 4 * 3600000).toISOString()),
+    ]
+    const result = findWeeklyRestViolation(trips)
+    expect(result).not.toBeNull()
+    expect(result!.severity).toBe("warning")
+  })
+
+  // C. 45h 59m → warning (just below 46h policy)
+  it("C: 45h 59m gap → warning (just below 46h company policy threshold)", () => {
+    const gapMs  = (46 * 60 - 1) * 60 * 1000  // 45h59m in ms
     const start2 = new Date(new Date(`${MON}T14:00:00`).getTime() + gapMs)
     const trips = [
       trip("T1", `${MON}T06:00:00`, `${MON}T14:00:00`),
