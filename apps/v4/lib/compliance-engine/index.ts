@@ -25,6 +25,7 @@ import { checkOverlap }          from "./check-overlap"
 import { checkRestGap }          from "./check-rest-gap"
 import { checkDailyHours }       from "./check-daily-hours"
 import { checkWeeklyHoursRule }  from "./check-weekly-hours"
+import { checkWeeklyRest }       from "./check-weekly-rest"
 
 // Re-export types so the UI only needs to import from one place
 export type { ComplianceViolation, RotaComplianceReport } from "./types"
@@ -60,6 +61,12 @@ export const COMPLIANCE_RULES = [
     id:          "BIWEEKLY_HOURS",
     name:        "Biweekly Driving Hours",
     description: "EC 561/2006 Art.6.3: maximum 90h driving across any two consecutive weeks. Warning at 80h.",
+    severity:    "violation" as const,
+  },
+  {
+    id:          "WEEKLY_REST",
+    name:        "Weekly Rest Period",
+    description: "EC 561/2006 Art.8.6: drivers must take ≥45h unbroken rest per 7-day period (regular). Reduced to 24h allowed but compensation required within 3 weeks. Warning: longest gap 24–44h. Violation: longest gap <24h.",
     severity:    "violation" as const,
   },
 ]
@@ -162,6 +169,14 @@ export function runComplianceCheck(
     return checkWeeklyHoursRule(thisWeek, lastWeek, weekEnd, weekLabel, biweeklyLabel)
   })()
 
+  // ── Check 5: Weekly Rest ────────────────────────────────────────────────────
+  // Run for the trips visible in the current week only.
+  const weeklyRestResult = (() => {
+    if (!weekDates || weekDates.length === 0) return { violations: [], warnings: [] }
+    const weekEnd = weekDates[weekDates.length - 1]  // Saturday
+    return checkWeeklyRest(trips, weekEnd)
+  })()
+
   // ── Merge ─────────────────────────────────────────────────────────────────
   return {
     violations: [
@@ -169,12 +184,14 @@ export function runComplianceCheck(
       ...restGapResult.violations,
       ...dailyHoursResult.violations,
       ...weeklyResult.violations,
+      ...weeklyRestResult.violations,
     ],
     warnings: [
       ...overlapResult.warnings,
       ...restGapResult.warnings,
       ...dailyHoursResult.warnings,
       ...weeklyResult.warnings,
+      ...weeklyRestResult.warnings,
     ],
   }
 }
