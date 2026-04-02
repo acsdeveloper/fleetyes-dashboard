@@ -1,0 +1,16 @@
+.git
+.github
+node_modules
+**/node_modules
+**/.next
+**/dist
+**/build
+.planning
+*.md
+.env
+.env.*
+!.env.example
+deprecated
+packages/shadcn/test
+packages/tests
+templates
