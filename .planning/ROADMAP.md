@@ -63,3 +63,26 @@ Plans:
 
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.4: Compliance Engine — Rule Logic Rethink (Rule-by-Rule with Trip Context) (BACKLOG)
+
+**Goal:** Rethink the compliance engine from the ground up to ensure every rule is evaluated correctly, with clear violated-rule reporting that includes: the rule name, what was found, the trip ID, trip start time, trip end time, and the exact violation reason. The engine must use a simple, auditable loop that checks each rule independently against the trip data.
+
+**Context:** The current compliance engine logic is unclear and likely broken — violations may not be surfacing, or surfacing incorrectly, due to muddled rule evaluation order, stale data, or short-circuit logic that skips rules when data is sparse. The goal is to:
+1. Replace any opaque batch/async logic with a transparent rule-loop: iterate over each rule, evaluate it against the driver's trip window, and emit a structured violation object if the rule is breached
+2. Each violation must carry: `ruleId`, `ruleName`, `tripId`, `startTime`, `endTime`, `violationDescription` — so the UI can display exactly what was wrong, for which trip, and why
+3. Rules must be evaluated even when trip data is sparse (treat missing history as "driver was free")
+4. The engine must be re-verified against all known edge cases before re-deploying
+
+**Known Issues to Resolve:**
+1. **Opaque evaluation path** — it is currently unclear which rules are being checked and in what order
+2. **Missing violation context** — violations don't consistently carry trip ID, start/end times, and human-readable reason
+3. **Sparse-data handling** — rules may be skipped or incorrectly triggered when trip history is incomplete
+4. **No simple audit trail** — can't easily trace why a specific rule fired for a specific trip
+
+**Requirements:** TBD
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
