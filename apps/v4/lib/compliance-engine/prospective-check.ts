@@ -189,15 +189,6 @@ export function prospectiveComplianceCheck(
     return { violations: [], warnings: [] }
   }
 
-  // ── DIAGNOSTIC: Log what the engine sees ──────────────────────────────────
-  console.warn(
-    `[COMPLIANCE] prospectiveCheck for driver=${driverUuid}, dropDate=${dropDate}`,
-    `\n  newTrip: uuid=${newTrip.uuid}, scheduled_at=${newTrip.scheduled_at}, estimated_end_date=${newTrip.estimated_end_date}, time=${newTrip.time}`,
-    `\n  tripStart=${tripStart(newTrip).toISOString()}, tripEnd=${tripEnd(newTrip).toISOString()}, hasMissingEnd=${hasMissingEndTime(newTrip)}`,
-    `\n  existingTrips (${existingTrips.length}):`,
-    ...existingTrips.map(t => `\n    - uuid=${t.uuid}, scheduled_at=${t.scheduled_at}, estimated_end_date=${t.estimated_end_date}, time=${t.time}, tripEnd=${tripEnd(t).toISOString()}`),
-  )
-
   // ── Step 2: Sort all trips (existing + new) chronologically ───────────────
   const allTrips = [...existingTrips, newTrip].sort(
     (a, b) => tripStart(a).getTime() - tripStart(b).getTime()
@@ -225,11 +216,6 @@ export function prospectiveComplianceCheck(
     const prevEndFmt   = new Date(prevEndMs).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })
     const currStartFmt = new Date(currStartMs).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })
 
-    // DIAGNOSTIC: Log each pair comparison
-    console.warn(
-      `[COMPLIANCE] Pair check: prev=${prev.uuid} end=${new Date(prevEndMs).toISOString()} → curr=${curr.uuid} start=${new Date(currStartMs).toISOString()} | restMins=${restMins.toFixed(1)} (${fmtMinutes(restMins)})`,
-    )
-
     if (restMins < 0) {
       // Overlap — the trips run at the same time
       violations.push({
@@ -240,6 +226,9 @@ export function prospectiveComplianceCheck(
         message: `Trip overlaps with another trip — ${curr.uuid === newTrip.uuid ? "new" : "existing"} trip starts before previous trip ends`,
         calculation: `Previous trip ends ${prevEndFmt}. This trip starts ${currStartFmt}. Overlap: ${fmtMinutes(Math.abs(restMins))}.`,
         ruleset: "ASSIMILATED",
+        tripId:        newTrip.uuid,
+        tripStartTime: tripStart(newTrip).toISOString(),
+        tripEndTime:   tripEnd(newTrip).toISOString(),
       })
     } else if (restMins < MIN_DAILY_REST_REDUCED) {
       // Hard violation — less than minimum 9h rest
@@ -251,6 +240,9 @@ export function prospectiveComplianceCheck(
         message: `Insufficient rest between trips — only ${fmtMinutes(restMins)} rest (minimum 9h required)`,
         calculation: `Previous trip ends ${prevEndFmt}. Next trip starts ${currStartFmt}. Gap: ${fmtMinutes(restMins)} vs 9h minimum.`,
         ruleset: "ASSIMILATED",
+        tripId:        newTrip.uuid,
+        tripStartTime: tripStart(newTrip).toISOString(),
+        tripEndTime:   tripEnd(newTrip).toISOString(),
       })
     } else if (restMins < MIN_DAILY_REST_STANDARD) {
       // Warning — reduced rest (9h–11h, only 3 allowed per week)
@@ -262,6 +254,9 @@ export function prospectiveComplianceCheck(
         message: `Reduced daily rest — ${fmtMinutes(restMins)} between trips (standard is 11h). Uses 1 of 3 allowed reduced rests per week.`,
         calculation: `Previous trip ends ${prevEndFmt}. Next trip starts ${currStartFmt}. Gap: ${fmtMinutes(restMins)}.`,
         ruleset: "ASSIMILATED",
+        tripId:        newTrip.uuid,
+        tripStartTime: tripStart(newTrip).toISOString(),
+        tripEndTime:   tripEnd(newTrip).toISOString(),
       })
     }
   }
@@ -290,6 +285,9 @@ export function prospectiveComplianceCheck(
         message: `Would exceed maximum daily working hours of 15 hours`,
         calculation: `Existing: ${fmtMinutes(sameDayMins)} + New trip: ${fmtMinutes(newMins)} = ${fmtMinutes(totalMins)} (max ${fmtMinutes(MAX_DAILY_WORKING_REDUCED)})`,
         ruleset: "ASSIMILATED",
+        tripId:        newTrip.uuid,
+        tripStartTime: tripStart(newTrip).toISOString(),
+        tripEndTime:   tripEnd(newTrip).toISOString(),
       })
     } else if (totalMins > MAX_DAILY_WORKING) {
       warnings.push({
@@ -300,18 +298,12 @@ export function prospectiveComplianceCheck(
         message: `Working ${fmtMinutes(totalMins)} — requires reduced daily rest (9h min instead of 11h). Only 3 per week allowed.`,
         calculation: `Existing: ${fmtMinutes(sameDayMins)} + New trip: ${fmtMinutes(newMins)} = ${fmtMinutes(totalMins)}`,
         ruleset: "ASSIMILATED",
+        tripId:        newTrip.uuid,
+        tripStartTime: tripStart(newTrip).toISOString(),
+        tripEndTime:   tripEnd(newTrip).toISOString(),
       })
     }
   }
-
-  void newIdx  // suppress unused-var lint — used implicitly via uuid comparison above
-
-  // DIAGNOSTIC: Log final result
-  console.warn(
-    `[COMPLIANCE] RESULT: ${violations.length} violations, ${warnings.length} warnings`,
-    violations.length > 0 ? `\n  violations: ${violations.map(v => `${v.ruleId}: ${v.message}`).join('; ')}` : '',
-    warnings.length > 0 ? `\n  warnings: ${warnings.map(w => `${w.ruleId}: ${w.message}`).join('; ')}` : '',
-  )
 
   return { violations, warnings }
 }

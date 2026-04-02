@@ -322,11 +322,21 @@ export function validateAssimilated(
     const weekDays = daysInRange(days, ws, we)
     const weekDriving = weekDays.reduce((sum, d) => sum + d.totalDrivingMinutes, 0)
 
+    // Find the specific day that pushed (or would push) over the limit.
+    // Walk days cumulatively; the last day with driving data is the attribution point.
+    let cumDriving = 0
+    let attributionDate = ws   // fallback to ws if all days have 0 driving
+    for (const day of weekDays) {
+      cumDriving += day.totalDrivingMinutes
+      if (cumDriving > 0) attributionDate = day.date
+      if (cumDriving > WEEKLY_DRIVE_LIMIT) break
+    }
+
     if (weekDriving > WEEKLY_DRIVE_LIMIT) {
       issues.push({
         ruleId:      "EU_WEEKLY_DRIVE_LIMIT",
         severity:    "violation",
-        date:        ws,
+        date:        attributionDate,
         driverUuid:  record.driverUuid,
         message:     `Weekly driving limit exceeded (max 56 hours)`,
         calculation: `${fmtMinutes(weekDriving)} driving in week of ${ws} vs ${fmtMinutes(WEEKLY_DRIVE_LIMIT)} limit`,
@@ -336,7 +346,7 @@ export function validateAssimilated(
       issues.push({
         ruleId:      "EU_WEEKLY_DRIVE_LIMIT",
         severity:    "warning",
-        date:        ws,
+        date:        attributionDate,
         driverUuid:  record.driverUuid,
         message:     `Approaching weekly driving limit (${fmtMinutes(WEEKLY_DRIVE_LIMIT - weekDriving)} remaining)`,
         calculation: `${fmtMinutes(weekDriving)} driving vs ${fmtMinutes(WEEKLY_DRIVE_LIMIT)} limit`,
@@ -364,11 +374,20 @@ export function validateAssimilated(
     const fortDays = daysInRange(days, ws, we)
     const fortDriving = fortDays.reduce((sum, d) => sum + d.totalDrivingMinutes, 0)
 
+    // Find the specific day that pushed (or would push) over the fortnightly limit.
+    let cumFortDriving = 0
+    let fortAttributionDate = ws
+    for (const day of fortDays) {
+      cumFortDriving += day.totalDrivingMinutes
+      if (cumFortDriving > 0) fortAttributionDate = day.date
+      if (cumFortDriving > FORTNIGHTLY_DRIVE_LIMIT) break
+    }
+
     if (fortDriving > FORTNIGHTLY_DRIVE_LIMIT) {
       issues.push({
         ruleId:      "EU_FORTNIGHTLY_DRIVE_LIMIT",
         severity:    "violation",
-        date:        ws,
+        date:        fortAttributionDate,
         driverUuid:  record.driverUuid,
         message:     `Fortnightly driving limit exceeded (max 90 hours in any 2 consecutive weeks)`,
         calculation: `${fmtMinutes(fortDriving)} driving in ${ws} to ${we} vs ${fmtMinutes(FORTNIGHTLY_DRIVE_LIMIT)} limit`,
@@ -378,7 +397,7 @@ export function validateAssimilated(
       issues.push({
         ruleId:      "EU_FORTNIGHTLY_DRIVE_LIMIT",
         severity:    "warning",
-        date:        ws,
+        date:        fortAttributionDate,
         driverUuid:  record.driverUuid,
         message:     `Approaching fortnightly driving limit (${fmtMinutes(FORTNIGHTLY_DRIVE_LIMIT - fortDriving)} remaining)`,
         calculation: `${fmtMinutes(fortDriving)} driving vs ${fmtMinutes(FORTNIGHTLY_DRIVE_LIMIT)} limit`,
@@ -407,12 +426,16 @@ export function validateAssimilated(
     const weekDays = daysInRange(days, ws, we)
     if (weekDays.length > 0) {
       const longestRest = longestContinuousRest(weekDays)
+      // Attribution: use the first working (non-rest) day as the violation date.
+      // This is the day where the driver started work without adequate rest.
+      // Falls back to ws (Monday) if the entire week is rest (no violation expected).
+      const firstWorkingDay = weekDays.find(d => !d.isRestDay)?.date ?? ws
 
       if (longestRest < WEEKLY_REST_REDUCED) {
         issues.push({
           ruleId:      "EU_WEEKLY_REST",
           severity:    "violation",
-          date:        ws,
+          date:        firstWorkingDay,
           driverUuid:  record.driverUuid,
           message:     `Weekly rest period too short (minimum 24h even with reduction)`,
           calculation: `Longest rest in week of ${ws}: ${fmtMinutes(longestRest)} vs ${fmtMinutes(WEEKLY_REST_REDUCED)} reduced minimum`,
@@ -424,7 +447,7 @@ export function validateAssimilated(
           issues.push({
             ruleId:      "EU_CONSECUTIVE_REDUCED_WEEKLY_REST",
             severity:    "violation",
-            date:        ws,
+            date:        firstWorkingDay,
             driverUuid:  record.driverUuid,
             message:     `Cannot take reduced weekly rest in consecutive weeks`,
             calculation: `Longest rest in week of ${ws}: ${fmtMinutes(longestRest)}. Previous week was also reduced.`,
