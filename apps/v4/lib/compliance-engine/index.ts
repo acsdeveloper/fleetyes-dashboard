@@ -1,70 +1,62 @@
 /**
- * Compliance Engine — Public API
+ * Compliance Engine — Orchestrator
  *
- * Entry point imported by Rota and Trips pages.
+ * This file contains ZERO rule logic.
+ * It only:
+ *   1. Converts API Order objects → DriverTrip[]
+ *   2. Calls each check module in sequence
+ *   3. Merges results into RotaComplianceReport
  *
- * Rules (EC 561/2006 / UK HGV):
- *   OVERLAP    — two trips overlap in time (violation)
- *   REST_GAP   — gap between consecutive trips < 9h (violation) or 9h–11h (warning)
+ * To add a new rule:
+ *   - Create check-<rule>.ts with a check<Rule>(trips) function
+ *   - Import and call it in runComplianceCheck and prospectiveComplianceCheck below
+ *   - That is all.
  *
- * Exports:
+ * Public API:
  *   runComplianceCheck(driverUuid, tripIndex)                  → RotaComplianceReport
  *   prospectiveComplianceCheck(driverUuid, date, order, index) → { violations }
- *   COMPLIANCE_RULES                                           → rule metadata
- *   types: RotaComplianceReport, ComplianceViolation
+ *   COMPLIANCE_RULES                                           → rule metadata for UI
+ *   re-exports: ComplianceViolation, RotaComplianceReport
  */
 
 import type { Order } from "@/lib/orders-api"
-import { findOverlaps } from "./overlap"
-import { findRestGapViolations } from "./rest-gap"
-import type { Trip } from "./types"
+import type { DriverTrip } from "./types"
+import { checkOverlap }  from "./check-overlap"
+import { checkRestGap }  from "./check-rest-gap"
 
-// ─── Public Types ─────────────────────────────────────────────────────────────
+// Re-export types so the UI only needs to import from one place
+export type { ComplianceViolation, RotaComplianceReport } from "./types"
 
-export interface ComplianceViolation {
-  /** YYYY-MM-DD of the calendar day the violation occurs */
-  date: string
-  ruleId: "OVERLAP" | "REST_GAP"
-  message: string
-  severity: "violation" | "warning"
-  tripAUuid: string
-  tripBUuid: string
-  /** Minutes of overlap (OVERLAP) or minutes of actual gap (REST_GAP) */
-  durationMinutes: number
-}
-
-export interface RotaComplianceReport {
-  violations: ComplianceViolation[]
-  warnings:   ComplianceViolation[]
-}
-
-// ─── Rule Metadata ────────────────────────────────────────────────────────────
+// ─── Rule Metadata (for the compliance panel drawer) ─────────────────────────
 
 export const COMPLIANCE_RULES = [
   {
-    id: "OVERLAP",
-    name: "Overlapping Trips",
-    description:
-      "Two trips assigned to the same driver overlap in time. A driver cannot be in two places at once.",
-    severity: "violation" as const,
+    id:          "OVERLAP",
+    name:        "Overlapping Trips",
+    description: "Two trips assigned to the same driver overlap in time. A driver cannot be in two places at once.",
+    severity:    "violation" as const,
   },
   {
-    id: "REST_GAP",
-    name: "Insufficient Rest Period",
-    description:
-      "EC 561/2006: drivers must have at least 11h rest between shifts (or 9h reduced rest, max 3× per week). A gap below 9h is a violation; 9h–11h is a warning.",
-    severity: "violation" as const,  // can produce warnings too
+    id:          "REST_GAP",
+    name:        "Insufficient Rest Period",
+    description: "EC 561/2006: minimum 11h rest required between shifts (reduced to 9h allowed max 3× per week). Gap < 9h = violation. Gap 9–11h = warning.",
+    severity:    "violation" as const,
   },
 ]
 
-// ─── Internal helpers ─────────────────────────────────────────────────────────
+// ─── Order → DriverTrip conversion ───────────────────────────────────────────
 
 /**
- * Convert an Order to a Trip for the overlap engine.
- * Falls back to scheduled_at+time (seconds) then scheduled_at+8h if no end time.
- * Returns null only when scheduled_at is missing.
+ * Convert an API Order to a DriverTrip for the check modules.
+ *
+ * End-time resolution (priority order):
+ *   1. estimated_end_date  — explicit API end time
+ *   2. scheduled_at + time — start + duration (time is in seconds per API)
+ *   3. scheduled_at + 8h   — conservative fallback; trip is never silently dropped
+ *
+ * Returns null only when scheduled_at is missing (can't place the trip in time at all).
  */
-function orderToTrip(order: Order): Trip | null {
+function orderToTrip(order: Order): DriverTrip | null {
   if (!order.scheduled_at) return null
 
   const startTime = new Date(order.scheduled_at)
@@ -78,6 +70,7 @@ function orderToTrip(order: Order): Trip | null {
     endTime = new Date(startTime.getTime() + 8 * 60 * 60 * 1000)
   }
 
+  // Sanity: end must be after start
   if (endTime <= startTime) {
     endTime = new Date(startTime.getTime() + 8 * 60 * 60 * 1000)
   }
@@ -90,24 +83,12 @@ function orderToTrip(order: Order): Trip | null {
   }
 }
 
-function toLocalDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
-}
-
-function fmtMinutes(minutes: number): string {
-  const h = Math.floor(minutes / 60)
-  const m = Math.round(minutes % 60)
-  if (h === 0) return `${m}m`
-  if (m === 0) return `${h}h`
-  return `${h}h ${m}m`
-}
-
-/** Get all trips for a specific driver from the tripIndex */
-function driverTrips(driverUuid: string, tripIndex: Map<string, Order>): Trip[] {
-  const trips: Trip[] = []
+/** Extract all trips for one driver from the tripIndex */
+function getDriverTrips(driverUuid: string, tripIndex: Map<string, Order>): DriverTrip[] {
+  const trips: DriverTrip[] = []
   tripIndex.forEach(order => {
-    const assignedUuid = order.driver_assigned_uuid ?? order.driver_assigned?.uuid
-    if (assignedUuid !== driverUuid) return
+    const assigned = order.driver_assigned_uuid ?? order.driver_assigned?.uuid
+    if (assigned !== driverUuid) return
     const t = orderToTrip(order)
     if (t) trips.push(t)
   })
@@ -117,112 +98,86 @@ function driverTrips(driverUuid: string, tripIndex: Map<string, Order>): Trip[] 
 // ─── runComplianceCheck ───────────────────────────────────────────────────────
 
 /**
- * Full compliance check for one driver using the already-loaded tripIndex.
- * No extra API calls — checks exactly what the UI shows.
+ * Full compliance check for one driver.
+ * Uses the tripIndex already loaded in the rota page — no extra API calls.
+ * Calls each rule check module in sequence and merges results.
+ *
+ * @param driverUuid  Driver to check
+ * @param tripIndex   All orders currently loaded in the UI (uuid → Order)
  */
 export function runComplianceCheck(
   driverUuid: string,
   tripIndex: Map<string, Order>,
-): RotaComplianceReport {
-  const trips = driverTrips(driverUuid, tripIndex)
+) {
+  const trips = getDriverTrips(driverUuid, tripIndex)
 
-  if (trips.length < 2) return { violations: [], warnings: [] }
+  // ── Check 1: Overlap ──────────────────────────────────────────────────────
+  const overlapResult = checkOverlap(trips)
 
-  const violations: ComplianceViolation[] = []
-  const warnings:   ComplianceViolation[] = []
+  // ── Check 2: Rest Gap ─────────────────────────────────────────────────────
+  const restGapResult = checkRestGap(trips)
 
-  // ── Rule 1: Overlap ────────────────────────────────────────────────────────
-  for (const o of findOverlaps(trips)) {
-    violations.push({
-      date:            toLocalDate(new Date(Math.max(o.tripA.startTime.getTime(), o.tripB.startTime.getTime()))),
-      ruleId:          "OVERLAP",
-      severity:        "violation",
-      message:         `Trips overlap by ${fmtMinutes(o.overlapMinutes)}: trip on ${toLocalDate(o.tripA.startTime)} and trip on ${toLocalDate(o.tripB.startTime)}.`,
-      tripAUuid:       o.tripA.orderId,
-      tripBUuid:       o.tripB.orderId,
-      durationMinutes: o.overlapMinutes,
-    })
+  // ── Merge ─────────────────────────────────────────────────────────────────
+  return {
+    violations: [
+      ...overlapResult.violations,
+      ...restGapResult.violations,
+    ],
+    warnings: [
+      ...overlapResult.warnings,    // always empty for overlap
+      ...restGapResult.warnings,
+    ],
   }
-
-  // ── Rule 2: Rest Gap ───────────────────────────────────────────────────────
-  for (const r of findRestGapViolations(trips)) {
-    const item: ComplianceViolation = {
-      date:            r.date,
-      ruleId:          "REST_GAP",
-      severity:        r.severity,
-      message:         r.message,
-      tripAUuid:       r.tripAUuid,
-      tripBUuid:       r.tripBUuid,
-      durationMinutes: r.gapMinutes,
-    }
-    if (r.severity === "violation") violations.push(item)
-    else warnings.push(item)
-  }
-
-  return { violations, warnings }
 }
 
 // ─── prospectiveComplianceCheck ───────────────────────────────────────────────
 
 /**
- * Check if assigning a new trip to a driver would create a violation.
- * Checks overlaps AND rest gap against all existing trips for this driver.
+ * Check if assigning a new trip to a driver would create a VIOLATION.
+ * Called before saving. Only violations block the assignment — warnings do not.
+ *
+ * Calls each rule check module in sequence with the combined trip set,
+ * then filters to only pairs involving the new trip.
+ *
+ * @param driverUuid  Driver being assigned
+ * @param _date       Assignment date (unused — we scan all trips in tripIndex)
+ * @param newOrder    The order being newly assigned
+ * @param tripIndex   All orders currently in the UI (uuid → Order)
  */
 export function prospectiveComplianceCheck(
   driverUuid: string,
   _date: string,
   newOrder: Order,
   tripIndex: Map<string, Order>,
-): { violations: ComplianceViolation[] } {
+) {
   const newTrip = orderToTrip(newOrder)
   if (!newTrip) return { violations: [] }
   newTrip.driverUuid = driverUuid
 
-  // Existing trips for this driver (excluding the new one)
-  const existing: Trip[] = []
-  tripIndex.forEach(order => {
-    if (order.uuid === newOrder.uuid) return
-    const assignedUuid = order.driver_assigned_uuid ?? order.driver_assigned?.uuid
-    if (assignedUuid !== driverUuid) return
-    const t = orderToTrip(order)
-    if (t) existing.push(t)
-  })
-
+  // Existing trips for this driver (excluding the one being assigned)
+  const existing = getDriverTrips(driverUuid, tripIndex).filter(
+    t => t.orderId !== newOrder.uuid
+  )
   if (existing.length === 0) return { violations: [] }
 
   const all = [...existing, newTrip]
-  const violations: ComplianceViolation[] = []
 
-  // Check overlaps
-  for (const o of findOverlaps(all)) {
-    if (o.tripA.orderId !== newOrder.uuid && o.tripB.orderId !== newOrder.uuid) continue
-    violations.push({
-      date:            toLocalDate(new Date(Math.max(o.tripA.startTime.getTime(), o.tripB.startTime.getTime()))),
-      ruleId:          "OVERLAP",
-      severity:        "violation",
-      message:         `This trip overlaps an existing assignment by ${fmtMinutes(o.overlapMinutes)}. Driver already has a trip during this time.`,
-      tripAUuid:       o.tripA.orderId,
-      tripBUuid:       o.tripB.orderId,
-      durationMinutes: o.overlapMinutes,
-    })
+  // ── Check 1: Overlap (prospective) ────────────────────────────────────────
+  const overlapResult = checkOverlap(all)
+  const overlapViolations = overlapResult.violations.filter(
+    v => v.tripAUuid === newOrder.uuid || v.tripBUuid === newOrder.uuid
+  )
+
+  // ── Check 2: Rest Gap (prospective — violations only, warnings don't block) ──
+  const restGapResult = checkRestGap(all)
+  const restGapViolations = restGapResult.violations.filter(
+    v => v.tripAUuid === newOrder.uuid || v.tripBUuid === newOrder.uuid
+  )
+
+  return {
+    violations: [
+      ...overlapViolations,
+      ...restGapViolations,
+    ],
   }
-
-  // Check rest gaps (only pairs involving the new trip)
-  for (const r of findRestGapViolations(all)) {
-    if (r.tripAUuid !== newOrder.uuid && r.tripBUuid !== newOrder.uuid) continue
-    if (r.severity === "violation") {
-      violations.push({
-        date:            r.date,
-        ruleId:          "REST_GAP",
-        severity:        "violation",
-        message:         r.message,
-        tripAUuid:       r.tripAUuid,
-        tripBUuid:       r.tripBUuid,
-        durationMinutes: r.gapMinutes,
-      })
-    }
-    // Warnings in prospective check: don't block the assignment, just note
-  }
-
-  return { violations }
 }

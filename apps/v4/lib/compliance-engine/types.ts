@@ -1,30 +1,51 @@
 /**
- * Compliance Engine — Types
+ * Compliance Engine — Shared Types
  *
- * Minimal types. We add to these only as we add rules.
+ * All types used across check modules live here.
+ * Each rule module imports from this file only — never from each other.
  */
 
-/** A single trip assigned to a driver */
+// ─── Core trip type (used by pure logic modules) ───────────────────────────
+
+/** A single trip assigned to a driver, used internally by overlap/rest-gap logic */
 export interface Trip {
-  /** Unique identifier for this order/trip */
-  orderId: string
-
-  /** UUID of the driver this trip is assigned to */
+  orderId:    string
   driverUuid: string
-
-  /** Trip start (inclusive) */
-  startTime: Date
-
-  /** Trip end (inclusive) */
-  endTime: Date
+  startTime:  Date
+  endTime:    Date
 }
 
-/** A pair of trips that overlap in time */
+/** Alias exported for check modules — same shape as Trip */
+export type DriverTrip = Trip
+
+// ─── Overlap result (used by overlap.ts) ──────────────────────────────────
+
 export interface OverlapResult {
-  tripA: Trip
-  tripB: Trip
-  /** How many minutes the two trips overlap */
+  tripA:          Trip
+  tripB:          Trip
   overlapMinutes: number
-  /** Human-readable description of the overlap type */
-  overlapType: "partial" | "containment" | "exact"
+  overlapType:    "partial" | "containment" | "exact"
+}
+
+// ─── Public compliance violation type (used by check modules + index.ts) ──
+
+export type RuleId = "OVERLAP" | "REST_GAP"
+
+export interface ComplianceViolation {
+  /** YYYY-MM-DD of the cell to highlight (date tripB starts for REST_GAP) */
+  date:            string
+  ruleId:          RuleId
+  severity:        "violation" | "warning"
+  message:         string
+  tripAUuid:       string
+  tripBUuid:       string
+  /** Minutes of overlap (OVERLAP) or actual gap in minutes (REST_GAP) */
+  durationMinutes: number
+}
+
+// ─── Per-driver compliance report (returned by runComplianceCheck) ─────────
+
+export interface RotaComplianceReport {
+  violations: ComplianceViolation[]
+  warnings:   ComplianceViolation[]
 }
