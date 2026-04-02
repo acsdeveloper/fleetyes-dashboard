@@ -158,17 +158,6 @@ export function validateAssimilated(
   for (const day of days) {
     if (day.isRestDay) continue
 
-    // ── Multi-day trip segment guard ──────────────────────────────────────
-    // If ALL activities on this day are segments of an ongoing multi-day trip
-    // (i.e. the trip started on a previous day or continues to a future day),
-    // skip ALL per-day rule checks for this day.  The trip is not a completed
-    // shift — evaluating daily limits against a clipped 24h slice would produce
-    // false violations.  We still count this day toward weekly/fortnightly
-    // totals (those loops run separately against the WorkingDay.totalDutyMinutes
-    // which is now correctly clipped to the day portion).
-    const isMultiDaySegmentDay = day.activities.some(a => a.isMultiDaySegment)
-    if (isMultiDaySegmentDay) continue
-
     // ── Non-driving working day: check daily working hours only ───────────
     // (Break compliance is assumed for NON_DRIVING_DUTY — self-managed by driver)
     if (!day.hasDriving) {
@@ -277,12 +266,21 @@ export function validateAssimilated(
 
     // Only check rest between working days (isRestDay already filters full rest days)
     if (prev.isRestDay || curr.isRestDay) continue
-    // If either day is an interior segment of a multi-day trip, skip rest check.
-    // The driver never stopped — both days are part of the same ongoing trip,
-    // so the "gap" between T23:59 and T00:00 is not a rest period.
-    const prevIsSegment = prev.activities.some(a => a.isMultiDaySegment)
-    const currIsSegment = curr.activities.some(a => a.isMultiDaySegment)
-    if (prevIsSegment || currIsSegment) continue
+
+    // Same-trip continuity check: if the last duty activity on prev and the
+    // first duty activity on curr share the same orderId, the driver is still
+    // on the same continuous trip — there is no rest gap to enforce between
+    // the clipped day boundaries.
+    const prevDuty = prev.activities
+      .filter(a => a.activityType === ActivityType.DRIVING || a.activityType === ActivityType.NON_DRIVING_DUTY)
+      .sort((a, b) => a.endTime.getTime() - b.endTime.getTime())
+    const currDuty = curr.activities
+      .filter(a => a.activityType === ActivityType.DRIVING || a.activityType === ActivityType.NON_DRIVING_DUTY)
+      .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
+    const prevLastOrderId  = prevDuty[prevDuty.length - 1]?.orderId
+    const currFirstOrderId = currDuty[0]?.orderId
+    if (prevLastOrderId && currFirstOrderId && prevLastOrderId === currFirstOrderId) continue
+
     // NOTE: we do NOT skip based on hasDriving — all our trips are NON_DRIVING_DUTY
     // and hasDriving would always be false, silently bypassing every rest check.
     // Tramper exemption: driver rests in-cab — daily rest rule does not apply

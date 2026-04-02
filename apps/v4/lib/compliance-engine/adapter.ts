@@ -113,9 +113,24 @@ function orderToActivity(order: Order): Activity {
 /**
  * Build a WorkingDay from a set of orders (trips) for a specific date.
  *
- * Since we treat trip time as working hours (not driving), and assume
- * intra-shift breaks are taken as per law, we only add the work
- * activity itself — no artificial pre/post buffers or forced breaks.
+ * Multi-day trip handling
+ * ──────────────────────
+ * A trip that spans multiple calendar days is indexed on each day it covers.
+ * We distinguish three kinds of day-slices:
+ *
+ *   • First day  — trip starts on this date, ends after midnight
+ *                  → use real start time, clip end to 23:59:59
+ *   • Interior   — trip was already running at midnight AND still running at end-of-day
+ *                  → use DEFAULT_DUTY_MINUTES (8h) as the duty assumption.
+ *                    The driver must be taking mandatory rest/breaks in-cab but
+ *                    we have no granular data.  orderId is preserved so the
+ *                    inter-day rest checker can recognise same-trip continuity.
+ *   • Last day   — trip started on a prior day, ends on this date
+ *                  → clip start to 00:00:00, use real end time
+ *
+ * The orderId on every clipped/default activity is the source trip UUID.
+ * The rest-gap checker uses this: if the last activity on day N and first
+ * activity on day N+1 share the same orderId, there is no rest gap to enforce.
  */
 function buildWorkingDayFromTrips(
   driverUuid: string,
@@ -125,34 +140,39 @@ function buildWorkingDayFromTrips(
 ): WorkingDay {
   const activities: Activity[] = []
 
-  // Day boundaries (local time) — activities are clipped to this window so that
-  // a multi-day trip (Mon→Sat) only contributes the hours worked on this specific
-  // calendar day.  Without clipping, a 72h trip would count as 72h duty on every
-  // one of the 6 days it spans, triggering bogus daily-work-limit violations.
   const dayStart = new Date(date + "T00:00:00").getTime()
   const dayEnd   = new Date(date + "T23:59:59.999").getTime()
 
   for (const order of orders) {
-    const raw = orderToActivity(order)
-    const clippedStart = Math.max(raw.startTime.getTime(), dayStart)
-    const clippedEnd   = Math.min(raw.endTime.getTime(),   dayEnd)
+    const raw      = orderToActivity(order)
+    const rawStart = raw.startTime.getTime()
+    const rawEnd   = raw.endTime.getTime()
 
-    // If the trip doesn't actually touch this day (edge case), skip
-    if (clippedStart >= clippedEnd) continue
+    const clippedStart = Math.max(rawStart, dayStart)
+    const clippedEnd   = Math.min(rawEnd,   dayEnd)
+    if (clippedStart >= clippedEnd) continue   // trip doesn't touch this day
 
-    // Mark as a multi-day segment when the original trip extends outside this
-    // calendar day — meaning the trip started before midnight or ends after midnight.
-    // The validator uses this to skip daily work-limit and rest-gap checks.
-    const wasClipped =
-      raw.startTime.getTime() < dayStart ||   // trip started on a prior day
-      raw.endTime.getTime()   > dayEnd         // trip ends on a future day
+    // Interior day: trip was already running at midnight AND continues past end-of-day.
+    // We cannot know when the driver rested during the trip, so we apply the
+    // regulatory default of DEFAULT_DUTY_MINUTES (8h).  The orderId is preserved
+    // so the rest-gap checker can recognise same-trip continuity.
+    const isInterior = rawStart < dayStart && rawEnd > dayEnd
 
-    activities.push({
-      ...raw,
-      startTime:        new Date(clippedStart),
-      endTime:          new Date(clippedEnd),
-      isMultiDaySegment: wasClipped || undefined,
-    })
+    if (isInterior) {
+      activities.push({
+        activityType: ActivityType.NON_DRIVING_DUTY,
+        startTime:    new Date(dayStart),
+        endTime:      new Date(dayStart + DEFAULT_DUTY_MINUTES * 60_000),
+        orderId:      raw.orderId,
+      })
+    } else {
+      // First day, last day, or single-day trip — real clipped times.
+      activities.push({
+        ...raw,
+        startTime: new Date(clippedStart),
+        endTime:   new Date(clippedEnd),
+      })
+    }
   }
 
   return computeWorkingDay(driverUuid, date, activities, config)
