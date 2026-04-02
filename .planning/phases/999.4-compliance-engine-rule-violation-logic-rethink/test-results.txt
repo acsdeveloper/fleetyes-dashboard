@@ -1,0 +1,216 @@
+﻿node.exe : npm warn Unknown 
+project config 
+"auto-install-peers". This will 
+stop working in the next major 
+version of npm.
+At line:1 char:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Program Files\nodejs/node_mo 
+...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~
+    + CategoryInfo          : Not 
+   Specified: (npm warn Unknow..  
+  .version of npm.:String) [],    
+ RemoteException
+    + FullyQualifiedErrorId : Nat 
+   iveCommandError
+ 
+npm warn Unknown project config 
+"link-workspace-packages". This 
+will stop working in the next 
+major version of npm.
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mC:/Projects/Maintenance/ui[39m
+
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/utils.test.ts[2m > [22mactivityMinutes[2m > [22mcalculates duration correctly
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/utils.test.ts[2m > [22mactivityMinutes[2m > [22mreturns 0 for zero-length activity
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/utils.test.ts[2m > [22mfmtMinutes[2m > [22mformats minutes only
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/utils.test.ts[2m > [22mfmtMinutes[2m > [22mformats hours only
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/utils.test.ts[2m > [22mfmtMinutes[2m > [22mformats hours and minutes
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/utils.test.ts[2m > [22mfmtMinutes[2m > [22mformats zero
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/utils.test.ts[2m > [22mrestBetweenDays[2m > [22mcalculates rest between consecutive days
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/utils.test.ts[2m > [22mrestBetweenDays[2m > [22mreturns 0 for days with no activities
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/utils.test.ts[2m > [22mrestBetweenDays[2m > [22mhandles cross-midnight correctly
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/utils.test.ts[2m > [22misoWeekMonday[2m > [22mreturns Monday for a Monday
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/utils.test.ts[2m > [22misoWeekMonday[2m > [22mreturns Monday for a Wednesday
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/utils.test.ts[2m > [22misoWeekMonday[2m > [22mreturns Monday for a Sunday
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/utils.test.ts[2m > [22mlongestContinuousRest[2m > [22mfinds the longest gap between duty activities
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/utils.test.ts[2m > [22mcheckAssimilatedBreaks[2m > [22mis satisfied with a 45min break in 4.5h
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/utils.test.ts[2m > [22mcheckAssimilatedBreaks[2m > [22mis violated with 5h driving and no break
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/utils.test.ts[2m > [22mcheckAssimilatedBreaks[2m > [22maccepts split break (15min + 30min)
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/utils.test.ts[2m > [22mmergedDutyMinutes[2m > [22mhandles single activity
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/utils.test.ts[2m > [22mmergedDutyMinutes[2m > [22mhandles three overlapping activities
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/daily-work-ndt.test.ts[2m > [22mvalidateAssimilated ÔÇö Daily Working Hours Limit (NON_DRIVING_DUTY)[2m > [22mno issue for 12h NON_DRIVING_DUTY (below 13h threshold)
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/daily-work-ndt.test.ts[2m > [22mvalidateAssimilated ÔÇö Daily Working Hours Limit (NON_DRIVING_DUTY)[2m > [22mwarning for 14h NON_DRIVING_DUTY (13h < duty Ôëñ 15h)
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/daily-work-ndt.test.ts[2m > [22mvalidateAssimilated ÔÇö Daily Working Hours Limit (NON_DRIVING_DUTY)[2m > [22mviolation for 16h NON_DRIVING_DUTY (exceeds 15h absolute maximum)
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/daily-work-ndt.test.ts[2m > [22mvalidateAssimilated ÔÇö Daily Working Hours Limit (NON_DRIVING_DUTY)[2m > [22mno EU_DAILY_WORK_LIMIT issue for a DRIVING day (existing driving limits apply instead)
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/daily-rest.test.ts[2m > [22mvalidateAssimilated ÔÇö Daily Rest[2m > [22mallows standard 11h rest between working days
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/daily-rest.test.ts[2m > [22mvalidateAssimilated ÔÇö Daily Rest[2m > [22mflags violation when rest is below 9h (below reduced)
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/daily-rest.test.ts[2m > [22mvalidateAssimilated ÔÇö Daily Rest[2m > [22muses reduced rest count for 9h-11h gap (no warning on 1st usage)
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/daily-rest.test.ts[2m > [22mvalidateAssimilated ÔÇö Daily Rest[2m > [22mflags overnight trip with only 2h rest before next trip (user scenario)
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/daily-rest.test.ts[2m > [22mvalidateAssimilated ÔÇö Breaks[2m > [22mallows 45min break after 4.5h driving
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/daily-rest.test.ts[2m > [22mvalidateAssimilated ÔÇö Breaks[2m > [22mflags driving >4.5h without a 45min break
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/fortnightly.test.ts[2m > [22mvalidateAssimilated ÔÇö Fortnightly Driving Limit (90h cap)[2m > [22mno violation when fortnightly driving is under 90h (85h total)
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/fortnightly.test.ts[2m > [22mvalidateAssimilated ÔÇö Fortnightly Driving Limit (90h cap)[2m > [22mproduces a fortnightly-drive violation when total exceeds 90h (96h)
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/fortnightly.test.ts[2m > [22mvalidateAssimilated ÔÇö Fortnightly Driving Limit (90h cap)[2m > [22mno hard violation at 83h (near warning threshold, under 90h cap)
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/weekly-rest.test.ts[2m > [22mvalidateAssimilated ÔÇö Weekly Rest Period[2m > [22mno EU_WEEKLY_REST in a week with MonÔÇôThu work + Fri/Sat/Sun rest (48h+ rest within week)
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/weekly-rest.test.ts[2m > [22mvalidateAssimilated ÔÇö Weekly Rest Period[2m > [22mno EU_WEEKLY_REST violation for reduced weekly rest (SatÔÇôSun rest = ~48h within week)
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/weekly-rest.test.ts[2m > [22mvalidateAssimilated ÔÇö Weekly Rest Period[2m > [22mEU_WEEKLY_REST violation when no rest day in the week (7 consecutive working days)
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/weekly-rest.test.ts[2m > [22mvalidateAssimilated ÔÇö Weekly Rest Period[2m > [22mEU_CONSECUTIVE_REDUCED_WEEKLY_REST violation when two consecutive weeks each have only one rest day
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/weekly-limits.test.ts[2m > [22mvalidateAssimilated ÔÇö Weekly Driving Limit[2m > [22mno violation when weekly driving <56h
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/weekly-limits.test.ts[2m > [22mvalidateAssimilated ÔÇö Consecutive Working Days[2m > [22mwarns at 6 consecutive working days
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/weekly-limits.test.ts[2m > [22mvalidateAssimilated ÔÇö Consecutive Working Days[2m > [22mviolation at 7+ consecutive working days
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/weekly-limits.test.ts[2m > [22mvalidateAssimilated ÔÇö Consecutive Working Days[2m > [22mrest day resets consecutive count
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/daily-limits.test.ts[2m > [22mvalidateAssimilated ÔÇö Daily Driving Limit[2m > [22mno violation for <9h driving
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/daily-limits.test.ts[2m > [22mvalidateAssimilated ÔÇö Daily Driving Limit[2m > [22mwarns when approaching 9h limit (at 8h+)
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/daily-limits.test.ts[2m > [22mvalidateAssimilated ÔÇö Daily Driving Limit[2m > [22mviolation when driving >10h (extended limit)
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/daily-limits.test.ts[2m > [22mvalidateGBDomesticGoods ÔÇö Daily Driving Limit[2m > [22mno violation for <10h driving
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/daily-limits.test.ts[2m > [22mvalidateGBDomesticGoods ÔÇö Daily Driving Limit[2m > [22mviolation when driving >10h
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/daily-limits.test.ts[2m > [22mvalidateGBDomesticGoods ÔÇö Daily Duty Limit[2m > [22mno violation for <11h duty on driving day
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/daily-limits.test.ts[2m > [22mvalidateGBDomesticGoods ÔÇö Daily Duty Limit[2m > [22mviolation when duty >11h on driving day
+[90mstderr[2m | apps/v4/lib/comp
+liance-engine/__tests__/prospectiv
+e-rest-gap.test.ts[2m > [22m[2m
+prospectiveComplianceCheck ÔÇö 
+rest gap detection[2m > 
+[22m[2mcatches 2h rest gap when 
+estimated_end_date IS provided 
+(overnight trip)
+[22m[39m[COMPLIANCE] 
+prospectiveCheck for 
+driver=driver-1, 
+dropDate=2026-04-02 
+  newTrip: uuid=trip-b, 
+scheduled_at=2026-04-02 07:31:00, 
+estimated_end_date=2026-04-02 
+15:00:00, time=26940 
+  tripStart=2026-04-02T06:31:00.00
+0Z, 
+tripEnd=2026-04-02T14:00:00.000Z, 
+hasMissingEnd=false 
+  existingTrips (1): 
+    - uuid=trip-a, 
+scheduled_at=2026-04-01 18:00:00, 
+estimated_end_date=2026-04-02 
+05:29:00, time=41340, 
+tripEnd=2026-04-02T04:29:00.000Z
+[COMPLIANCE] Pair check: 
+prev=trip-a 
+end=2026-04-02T04:29:00.000Z ÔåÆ 
+curr=trip-b 
+start=2026-04-02T06:31:00.000Z | 
+restMins=122.0 (2h 2m)
+[COMPLIANCE] RESULT: 1 
+violations, 0 warnings 
+  violations: EU_DAILY_REST: 
+Insufficient rest between trips 
+ÔÇö only 2h 2m rest (minimum 9h 
+required) 
+
+[90mstderr[2m | apps/v4/lib/comp
+liance-engine/__tests__/prospectiv
+e-rest-gap.test.ts[2m > [22m[2m
+prospectiveComplianceCheck ÔÇö 
+rest gap detection[2m > 
+[22m[2muses 2h fallback when 
+existing trip has no end time ÔÇö 
+does not block assignment
+[22m[39m[COMPLIANCE] 
+prospectiveCheck for 
+driver=driver-1, 
+dropDate=2026-04-02 
+  newTrip: uuid=trip-b, 
+scheduled_at=2026-04-02 07:31:00, 
+estimated_end_date=2026-04-02 
+15:00:00, time=26940 
+  tripStart=2026-04-02T06:31:00.00
+0Z, 
+tripEnd=2026-04-02T14:00:00.000Z, 
+hasMissingEnd=false 
+  existingTrips (1): 
+    - uuid=trip-a, 
+scheduled_at=2026-04-01 18:00:00, 
+estimated_end_date=null, time=0, 
+tripEnd=2026-04-01T19:00:00.000Z
+[COMPLIANCE] Pair check: 
+prev=trip-a 
+end=2026-04-01T19:00:00.000Z ÔåÆ 
+curr=trip-b 
+start=2026-04-02T06:31:00.000Z | 
+restMins=691.0 (11h 31m)
+[COMPLIANCE] RESULT: 0 
+violations, 0 warnings  
+
+[90mstderr[2m | apps/v4/lib/comp
+liance-engine/__tests__/prospectiv
+e-rest-gap.test.ts[2m > [22m[2m
+prospectiveComplianceCheck ÔÇö 
+rest gap detection[2m > 
+[22m[2mcatches gap when 
+estimated_end_date is null BUT 
+time field is accurate
+[22m[39m[COMPLIANCE] 
+prospectiveCheck for 
+driver=driver-1, 
+dropDate=2026-04-02 
+  newTrip: uuid=trip-b, 
+scheduled_at=2026-04-02 07:31:00, 
+estimated_end_date=2026-04-02 
+15:00:00, time=26940 
+  tripStart=2026-04-02T06:31:00.00
+0Z, 
+tripEnd=2026-04-02T14:00:00.000Z, 
+hasMissingEnd=false 
+  existingTrips (1): 
+    - uuid=trip-a, 
+scheduled_at=2026-04-01 18:00:00, 
+estimated_end_date=null, 
+time=41340, 
+tripEnd=2026-04-02T04:29:00.000Z
+[COMPLIANCE] Pair check: 
+prev=trip-a 
+end=2026-04-02T04:29:00.000Z ÔåÆ 
+curr=trip-b 
+start=2026-04-02T06:31:00.000Z | 
+restMins=122.0 (2h 2m)
+[COMPLIANCE] RESULT: 1 
+violations, 0 warnings 
+  violations: EU_DAILY_REST: 
+Insufficient rest between trips 
+ÔÇö only 2h 2m rest (minimum 9h 
+required) 
+
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/prospective-rest-gap.test.ts[2m > [22mprospectiveComplianceCheck ÔÇö rest gap detection[2m > [22mcatches 2h rest gap when estimated_end_date IS provided (overnight trip)
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/prospective-rest-gap.test.ts[2m > [22mprospectiveComplianceCheck ÔÇö rest gap detection[2m > [22muses 2h fallback when existing trip has no end time ÔÇö does not block assignment
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/prospective-rest-gap.test.ts[2m > [22mprospectiveComplianceCheck ÔÇö rest gap detection[2m > [22mcatches gap when estimated_end_date is null BUT time field is accurate
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/no-data-clean-slate.test.ts[2m > [22mvalidateAssimilated ÔÇö Clean-Slate Driver (No Trip Data)[2m > [22mproduces zero hard violations when driver has 29 days of no trips
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/no-data-clean-slate.test.ts[2m > [22mvalidateAssimilated ÔÇö Clean-Slate Driver (No Trip Data)[2m > [22mproduces zero hard violations for a single compliant 8h working day with surrounding rest
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/no-data-clean-slate.test.ts[2m > [22mvalidateAssimilated ÔÇö Clean-Slate Driver (No Trip Data)[2m > [22mproduces zero hard violations for a driver with no workingDays at all
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/overlap.test.ts[2m > [22mdetectOverlaps[2m > [22mdetects same-day overlap
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/overlap.test.ts[2m > [22mdetectOverlaps[2m > [22mallows back-to-back (zero gap)
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/overlap.test.ts[2m > [22mdetectOverlaps[2m > [22mdetects full containment
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/overlap.test.ts[2m > [22mdetectOverlaps[2m > [22mignores REST activities
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/overlap.test.ts[2m > [22mdetectOverlaps[2m > [22mignores BREAK activities
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/overlap.test.ts[2m > [22mdetectOverlaps[2m > [22mdetects cross-midnight overlap
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/overlap.test.ts[2m > [22mdetectOverlaps[2m > [22mdetects multiple overlaps in a set
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/overlap.test.ts[2m > [22mdetectOverlaps[2m > [22mhandles no activities
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/overlap.test.ts[2m > [22mdetectOverlaps[2m > [22mhandles single activity
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/overlap.test.ts[2m > [22mdetectOverlaps[2m > [22mhandles non-overlapping activities
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/overlap.test.ts[2m > [22mmergedDutyMinutes[2m > [22msums non-overlapping correctly
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/overlap.test.ts[2m > [22mmergedDutyMinutes[2m > [22mmerges overlapping correctly
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/overlap.test.ts[2m > [22mmergedDutyMinutes[2m > [22mmerges fully contained
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/overlap.test.ts[2m > [22mmergedDutyMinutes[2m > [22mreturns 0 for empty array
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/overlap.test.ts[2m > [22mmergedDutyMinutes[2m > [22mexcludes REST and BREAK from duty calculation
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/overlap.test.ts[2m > [22mvalidateAssimilated ÔÇö TRIP_OVERLAP[2m > [22mflags overlapping activities as violation
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/overlap.test.ts[2m > [22mvalidateAssimilated ÔÇö TRIP_OVERLAP[2m > [22mdoes not flag back-to-back as overlap
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/overlap.test.ts[2m > [22mvalidateAssimilated ÔÇö TRIP_OVERLAP[2m > [22mdetects cross-day overlap via batch validator
+ [32mÔ£ô[39m apps/v4/lib/compliance-engine/__tests__/overlap.test.ts[2m > [22mvalidateGBDomesticGoods ÔÇö TRIP_OVERLAP[2m > [22mflags overlapping activities as violation
+
+[2m Test Files [22m [1m[32m10 passed[39m[22m[90m (10)[39m
+[2m      Tests [22m [1m[32m71 passed[39m[22m[90m (71)[39m
+[2m   Start at [22m 12:37:43
+[2m   Duration [22m 777ms[2m (transform 445ms, setup 0ms, collect 1.07s, tests 258ms, environment 2ms, prepare 2.04s)[22m
+
