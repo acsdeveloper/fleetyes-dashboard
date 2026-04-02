@@ -242,3 +242,18 @@ describe("Input order does not affect results", () => {
   })
 
 })
+
+// --- 7. Your EXACT real-world scenario ---
+
+describe("Real scenario — overnight trip overlapping next-day trip", () => {
+
+  it("Trip 1: Mon 23:30 to Tue 10:00, Trip 2: Tue 06:30 to Tue 14:00 = OVERLAP", () => {
+    const results = findOverlaps([
+      trip("T1", "2026-04-06T23:30:00", "2026-04-07T10:00:00"),
+      trip("T2", "2026-04-07T06:30:00", "2026-04-07T14:00:00"),
+    ])
+    expect(results).toHaveLength(1)
+    expect(results[0].overlapMinutes).toBe(210)
+  })
+
+})
