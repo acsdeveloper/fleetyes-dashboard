@@ -356,22 +356,40 @@ function TripsDockPanel({
     const start = dates[0]
     const end   = dates[dates.length - 1]
 
-    listOrders({ scheduled_at: start, end_date: end, limit: 200 })
+    // Extend fetch window 1 day before Monday and 1 day after Sunday.
+    // This ensures trips that START on the Sunday before or Monday after are
+    // included in tripIndex so the compliance engine can detect rest-gap
+    // violations between adjacent-week trips (e.g. a Sunday overnight trip
+    // followed by a Monday morning trip has an insufficient rest gap).
+    const fetchStart = (() => {
+      const d = new Date(start + "T12:00:00")
+      d.setDate(d.getDate() - 1)
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+    })()
+    const fetchEnd = (() => {
+      const d = new Date(end + "T12:00:00")
+      d.setDate(d.getDate() + 1)
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+    })()
+
+    listOrders({ scheduled_at: fetchStart, end_date: fetchEnd, limit: 250 })
       .then(res => {
         const unassigned = (res.data ?? []).filter(o => {
           const a = o.driver_assigned_uuid || o.driver_assigned?.uuid
           if (a) return false
-          // Keep only trips that actually fall in this week (using local date)
+          // Dock only shows unassigned trips within the actual visible week
           const d = o.scheduled_at ? isoLocalDate(o.scheduled_at) : undefined
           return d ? datesSet.has(d) : false
         })
         setAllTrips(unassigned)
-        // Bubble all fetched orders (not just unassigned) up to parent for cell labels
+        // Bubble ALL fetched orders (including adjacent days) up to parent.
+        // The compliance engine uses these to detect cross-week rest gaps.
         onTripsLoaded?.(res.data ?? [])
       })
       .catch(() => setAllTrips([]))
       .finally(() => setLoading(false))
   }, [dates, refreshKey])
+
 
   // Filter by selected day tab
   const visible = allTrips.filter(o => {
