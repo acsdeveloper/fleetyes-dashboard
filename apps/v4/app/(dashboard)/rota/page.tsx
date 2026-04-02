@@ -847,34 +847,23 @@ export default function RotaPage() {
     })
   }
 
-  // ── Compliance Engine — Run checks when drivers load or week changes ─────
-  const runComplianceChecks = React.useCallback(async () => {
-    if (drivers.length === 0) return
-    setComplianceLoading(true)
-    const today = dates[dates.length - 1] // evaluate through end of visible week
+  // ── Compliance Engine — Run checks using tripIndex (no extra API calls) ─────
+  const runComplianceChecks = React.useCallback(() => {
+    if (drivers.length === 0 || tripIndex.size === 0) return
     const results = new Map<string, RotaComplianceReport>()
-    const settled = await Promise.allSettled(
-      drivers.map(async (d) => {
-        const report = await runComplianceCheck(d, today)
-        return { uuid: d.uuid, report }
-      })
-    )
-    for (const result of settled) {
-      if (result.status === "fulfilled") {
-        results.set(result.value.uuid, result.value.report)
-      }
+    for (const driver of drivers) {
+      results.set(driver.uuid, runComplianceCheck(driver.uuid, tripIndex))
     }
     setComplianceReports(results)
-    setComplianceLoading(false)
-  }, [drivers, dates])
+  }, [drivers, tripIndex])
 
 
-  // Trigger compliance check after initial load and on week change
+  // Re-run compliance whenever tripIndex changes (new assignments reflected immediately)
   React.useEffect(() => {
     if (!loaderDone || drivers.length === 0) return
     runComplianceChecks()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaderDone, drivers.length, wk])
+  }, [loaderDone, drivers.length, wk, tripIndex])
 
   /**
    * Get all violations/warnings for a specific driver + date cell.

@@ -8,15 +8,13 @@
  *     tripA.startTime < tripB.endTime  AND  tripB.startTime < tripA.endTime
  *
  * Exports:
- *   runComplianceCheck(driver, today)                          → Promise<RotaComplianceReport>
+ *   runComplianceCheck(driverUuid, tripIndex)                  → RotaComplianceReport
  *   prospectiveComplianceCheck(driverUuid, date, order, index) → { violations }
  *   COMPLIANCE_RULES                                           → rule metadata
  *   types: RotaComplianceReport, ComplianceViolation
  */
 
-import { listOrders } from "@/lib/orders-api"
 import type { Order } from "@/lib/orders-api"
-import type { Driver } from "@/lib/drivers-api"
 import { findOverlaps } from "./overlap"
 import type { Trip } from "./types"
 
@@ -54,13 +52,8 @@ export const COMPLIANCE_RULES = [
 
 /**
  * Convert an Order to a Trip for the overlap engine.
- *
- * End-time resolution (in priority order):
- *   1. estimated_end_date   — explicit API end time
- *   2. scheduled_at + time  — start + duration (time is in SECONDS per API convention)
- *   3. scheduled_at + 8h    — conservative fallback so trips are never silently dropped
- *
- * Returns null only when scheduled_at itself is missing.
+ * Returns null only when scheduled_at is missing (can't place the trip in time).
+ * Falls back to estimated_end_date → scheduled_at+time → scheduled_at+8h for end time.
  */
 function orderToTrip(order: Order): Trip | null {
   if (!order.scheduled_at) return null
@@ -68,18 +61,14 @@ function orderToTrip(order: Order): Trip | null {
   const startTime = new Date(order.scheduled_at)
 
   let endTime: Date
-
   if (order.estimated_end_date) {
     endTime = new Date(order.estimated_end_date)
   } else if (order.time && order.time > 0) {
-    // `time` field is trip duration in seconds
-    endTime = new Date(startTime.getTime() + order.time * 1000)
+    endTime = new Date(startTime.getTime() + order.time * 1000)  // time is in seconds
   } else {
-    // No end time at all — assume 8-hour shift as a safe fallback
-    endTime = new Date(startTime.getTime() + 8 * 60 * 60 * 1000)
+    endTime = new Date(startTime.getTime() + 8 * 60 * 60 * 1000)  // fallback: 8h
   }
 
-  // Sanity check — end must be after start
   if (endTime <= startTime) {
     endTime = new Date(startTime.getTime() + 8 * 60 * 60 * 1000)
   }
@@ -104,83 +93,57 @@ function toLocalDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
 
+function buildViolation(o: ReturnType<typeof findOverlaps>[number]): ComplianceViolation {
+  const overlapStart = new Date(
+    Math.max(o.tripA.startTime.getTime(), o.tripB.startTime.getTime())
+  )
+  return {
+    date:           toLocalDate(overlapStart),
+    ruleId:         "OVERLAP",
+    severity:       "violation",
+    message:        `Trips overlap by ${fmtMinutes(o.overlapMinutes)}: trip on ${toLocalDate(o.tripA.startTime)} and trip on ${toLocalDate(o.tripB.startTime)}.`,
+    tripAUuid:      o.tripA.orderId,
+    tripBUuid:      o.tripB.orderId,
+    overlapMinutes: o.overlapMinutes,
+  }
+}
+
 // ─── runComplianceCheck ───────────────────────────────────────────────────────
 
 /**
  * Full compliance check for one driver.
- * Fetches all trips assigned to this driver via the API, then checks every
- * pair for time overlaps.
  *
- * Called by the rota page once per driver on load and on week change.
+ * Uses the tripIndex already loaded in the rota page — no separate API call.
+ * This guarantees we check exactly what the user sees in the UI.
+ *
+ * @param driverUuid  UUID of the driver to check
+ * @param tripIndex   All orders currently loaded in the rota page (uuid → Order)
  */
-export async function runComplianceCheck(
-  driver: Driver,
-  _today: string,
-): Promise<RotaComplianceReport> {
-  try {
-    // Fetch all orders assigned to this driver.
-    // We use a broad date range and filter client-side by driver UUID to be
-    // resilient to API filter behaviour differences across environments.
-    const res = await listOrders({
-      driver: driver.uuid,
-      limit: 500,
-      sort: "scheduled_at:asc",
-    })
+export function runComplianceCheck(
+  driverUuid: string,
+  tripIndex: Map<string, Order>,
+): RotaComplianceReport {
+  // Collect all trips assigned to this driver
+  const trips: Trip[] = []
+  tripIndex.forEach(order => {
+    const assignedUuid = order.driver_assigned_uuid ?? order.driver_assigned?.uuid
+    if (assignedUuid !== driverUuid) return
+    const t = orderToTrip(order)
+    if (t) trips.push(t)
+  })
 
-    const orders = (res.data ?? []).filter(o => {
-      const assignedUuid = o.driver_assigned_uuid ?? o.driver_assigned?.uuid
-      return assignedUuid === driver.uuid
-    })
+  if (trips.length < 2) return { violations: [], warnings: [] }
 
-    if (orders.length < 2) {
-      return { violations: [], warnings: [] }
-    }
-
-    const trips: Trip[] = orders.flatMap(o => {
-      const t = orderToTrip(o)
-      return t ? [t] : []
-    })
-
-    if (trips.length < 2) {
-      return { violations: [], warnings: [] }
-    }
-
-    const overlaps = findOverlaps(trips)
-
-    const violations: ComplianceViolation[] = overlaps.map(o => {
-      const overlapStart = new Date(
-        Math.max(o.tripA.startTime.getTime(), o.tripB.startTime.getTime())
-      )
-      return {
-        date:           toLocalDate(overlapStart),
-        ruleId:         "OVERLAP",
-        severity:       "violation",
-        message:        `Trips overlap by ${fmtMinutes(o.overlapMinutes)}: one starting ${toLocalDate(o.tripA.startTime)} and another starting ${toLocalDate(o.tripB.startTime)}.`,
-        tripAUuid:      o.tripA.orderId,
-        tripBUuid:      o.tripB.orderId,
-        overlapMinutes: o.overlapMinutes,
-      }
-    })
-
-    return { violations, warnings: [] }
-
-  } catch {
-    return { violations: [], warnings: [] }
-  }
+  const overlaps = findOverlaps(trips)
+  const violations = overlaps.map(buildViolation)
+  return { violations, warnings: [] }
 }
 
 // ─── prospectiveComplianceCheck ───────────────────────────────────────────────
 
 /**
  * Check if assigning a new trip to a driver would create an overlap.
- *
- * Called BEFORE saving an assignment. Returns violations so the UI can block
- * the save and show an error.
- *
- * @param driverUuid  Driver being assigned
- * @param _date       Assignment date (unused — we scan all trips in tripIndex)
- * @param newOrder    The order being newly assigned
- * @param tripIndex   All orders currently in the UI (uuid → Order)
+ * Called BEFORE saving. Returns violations so the UI can block the save.
  */
 export function prospectiveComplianceCheck(
   driverUuid: string,
@@ -192,10 +155,9 @@ export function prospectiveComplianceCheck(
   if (!newTrip) return { violations: [] }
   newTrip.driverUuid = driverUuid
 
-  // All trips already assigned to this driver in the current UI state
   const existingTrips: Trip[] = []
   tripIndex.forEach(order => {
-    if (order.uuid === newOrder.uuid) return  // skip self
+    if (order.uuid === newOrder.uuid) return
     const assignedUuid = order.driver_assigned_uuid ?? order.driver_assigned?.uuid
     if (assignedUuid !== driverUuid) return
     const t = orderToTrip(order)
@@ -204,25 +166,12 @@ export function prospectiveComplianceCheck(
 
   if (existingTrips.length === 0) return { violations: [] }
 
-  // Check new trip against all existing trips
   const overlaps = findOverlaps([...existingTrips, newTrip]).filter(
     o => o.tripA.orderId === newOrder.uuid || o.tripB.orderId === newOrder.uuid
   )
 
-  const violations: ComplianceViolation[] = overlaps.map(o => {
-    const overlapStart = new Date(
-      Math.max(o.tripA.startTime.getTime(), o.tripB.startTime.getTime())
-    )
-    return {
-      date:           toLocalDate(overlapStart),
-      ruleId:         "OVERLAP",
-      severity:       "violation",
-      message:        `This trip overlaps an existing assignment by ${fmtMinutes(o.overlapMinutes)}. The driver already has a trip during this time.`,
-      tripAUuid:      o.tripA.orderId,
-      tripBUuid:      o.tripB.orderId,
-      overlapMinutes: o.overlapMinutes,
-    }
-  })
-
-  return { violations }
+  return { violations: overlaps.map(o => ({
+    ...buildViolation(o),
+    message: `This trip overlaps an existing assignment by ${fmtMinutes(o.overlapMinutes)}. Driver already has a trip during this time.`,
+  })) }
 }
