@@ -158,6 +158,17 @@ export function validateAssimilated(
   for (const day of days) {
     if (day.isRestDay) continue
 
+    // ── Multi-day trip segment guard ──────────────────────────────────────
+    // If ALL activities on this day are segments of an ongoing multi-day trip
+    // (i.e. the trip started on a previous day or continues to a future day),
+    // skip ALL per-day rule checks for this day.  The trip is not a completed
+    // shift — evaluating daily limits against a clipped 24h slice would produce
+    // false violations.  We still count this day toward weekly/fortnightly
+    // totals (those loops run separately against the WorkingDay.totalDutyMinutes
+    // which is now correctly clipped to the day portion).
+    const isMultiDaySegmentDay = day.activities.some(a => a.isMultiDaySegment)
+    if (isMultiDaySegmentDay) continue
+
     // ── Non-driving working day: check daily working hours only ───────────
     // (Break compliance is assumed for NON_DRIVING_DUTY — self-managed by driver)
     if (!day.hasDriving) {
@@ -266,6 +277,12 @@ export function validateAssimilated(
 
     // Only check rest between working days (isRestDay already filters full rest days)
     if (prev.isRestDay || curr.isRestDay) continue
+    // If either day is an interior segment of a multi-day trip, skip rest check.
+    // The driver never stopped — both days are part of the same ongoing trip,
+    // so the "gap" between T23:59 and T00:00 is not a rest period.
+    const prevIsSegment = prev.activities.some(a => a.isMultiDaySegment)
+    const currIsSegment = curr.activities.some(a => a.isMultiDaySegment)
+    if (prevIsSegment || currIsSegment) continue
     // NOTE: we do NOT skip based on hasDriving — all our trips are NON_DRIVING_DUTY
     // and hasDriving would always be false, silently bypassing every rest check.
     // Tramper exemption: driver rests in-cab — daily rest rule does not apply

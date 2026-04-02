@@ -56,6 +56,14 @@ export interface Activity {
    * Used to enrich violation objects with trip context.
    */
   orderId?:         string
+  /**
+   * True when this activity is a clipped day-segment of a multi-day trip.
+   * The adapter sets this when the trip's original start or end time falls
+   * OUTSIDE the target calendar day (i.e. the trip spans into the next/prev day).
+   * When true, the validator skips daily work-limit and inter-day rest-gap
+   * checks for this day — the trip is ongoing, not a completed shift.
+   */
+  isMultiDaySegment?: boolean
   /** Off-road driving — only counted toward daily limit for certain UsageTypes */
   isOffRoad?:       boolean
   /** Driving to/from/through an EU country — triggers Assimilated rules */

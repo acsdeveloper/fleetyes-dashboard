@@ -140,10 +140,18 @@ function buildWorkingDayFromTrips(
     // If the trip doesn't actually touch this day (edge case), skip
     if (clippedStart >= clippedEnd) continue
 
+    // Mark as a multi-day segment when the original trip extends outside this
+    // calendar day — meaning the trip started before midnight or ends after midnight.
+    // The validator uses this to skip daily work-limit and rest-gap checks.
+    const wasClipped =
+      raw.startTime.getTime() < dayStart ||   // trip started on a prior day
+      raw.endTime.getTime()   > dayEnd         // trip ends on a future day
+
     activities.push({
       ...raw,
-      startTime: new Date(clippedStart),
-      endTime:   new Date(clippedEnd),
+      startTime:        new Date(clippedStart),
+      endTime:          new Date(clippedEnd),
+      isMultiDaySegment: wasClipped || undefined,
     })
   }
 
