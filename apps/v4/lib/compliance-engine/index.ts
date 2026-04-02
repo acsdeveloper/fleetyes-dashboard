@@ -21,8 +21,9 @@
 
 import type { Order } from "@/lib/orders-api"
 import type { DriverTrip } from "./types"
-import { checkOverlap }  from "./check-overlap"
-import { checkRestGap }  from "./check-rest-gap"
+import { checkOverlap }      from "./check-overlap"
+import { checkRestGap }      from "./check-rest-gap"
+import { checkDailyHours }   from "./check-daily-hours"
 
 // Re-export types so the UI only needs to import from one place
 export type { ComplianceViolation, RotaComplianceReport } from "./types"
@@ -40,6 +41,12 @@ export const COMPLIANCE_RULES = [
     id:          "REST_GAP",
     name:        "Insufficient Rest Period",
     description: "EC 561/2006: minimum 11h rest required between shifts (reduced to 9h allowed max 3× per week). Gap < 9h = violation. Gap 9–11h = warning.",
+    severity:    "violation" as const,
+  },
+  {
+    id:          "DAILY_HOURS",
+    name:        "Daily Driving Hours",
+    description: "EC 561/2006 Art.6: maximum 9h driving per day (standard). May be extended to 10h but only twice per week. Exceeding 9h = warning; exceeding 10h = violation.",
     severity:    "violation" as const,
   },
 ]
@@ -112,20 +119,25 @@ export function runComplianceCheck(
   const trips = getDriverTrips(driverUuid, tripIndex)
 
   // ── Check 1: Overlap ──────────────────────────────────────────────────────
-  const overlapResult = checkOverlap(trips)
+  const overlapResult    = checkOverlap(trips)
 
   // ── Check 2: Rest Gap ─────────────────────────────────────────────────────
-  const restGapResult = checkRestGap(trips)
+  const restGapResult    = checkRestGap(trips)
+
+  // ── Check 3: Daily Hours ───────────────────────────────────────────────────
+  const dailyHoursResult = checkDailyHours(trips)
 
   // ── Merge ─────────────────────────────────────────────────────────────────
   return {
     violations: [
       ...overlapResult.violations,
       ...restGapResult.violations,
+      ...dailyHoursResult.violations,
     ],
     warnings: [
-      ...overlapResult.warnings,    // always empty for overlap
+      ...overlapResult.warnings,
       ...restGapResult.warnings,
+      ...dailyHoursResult.warnings,
     ],
   }
 }
@@ -174,10 +186,17 @@ export function prospectiveComplianceCheck(
     v => v.tripAUuid === newOrder.uuid || v.tripBUuid === newOrder.uuid
   )
 
+  // ── Check 3: Daily Hours (prospective) ────────────────────────────────────
+  const dailyHoursResult = checkDailyHours(all)
+  const dailyHoursViolations = dailyHoursResult.violations.filter(
+    v => v.tripAUuid === newOrder.uuid || v.tripBUuid === newOrder.uuid
+  )
+
   return {
     violations: [
       ...overlapViolations,
       ...restGapViolations,
+      ...dailyHoursViolations,
     ],
   }
 }

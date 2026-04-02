@@ -29,7 +29,7 @@ export interface OverlapResult {
 
 // ─── Public compliance violation type (used by check modules + index.ts) ──
 
-export type RuleId = "OVERLAP" | "REST_GAP"
+export type RuleId = "OVERLAP" | "REST_GAP" | "DAILY_HOURS"
 
 export interface ComplianceViolation {
   /** YYYY-MM-DD of the cell to highlight (date tripB starts for REST_GAP) */
