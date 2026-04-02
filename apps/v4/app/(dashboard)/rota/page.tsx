@@ -870,10 +870,11 @@ export default function RotaPage() {
     if (drivers.length === 0 || tripIndex.size === 0) return
     const results = new Map<string, RotaComplianceReport>()
     for (const driver of drivers) {
-      results.set(driver.uuid, runComplianceCheck(driver.uuid, tripIndex))
+      // Pass dates (Sun–Sat) so the engine can run weekly/biweekly checks
+      results.set(driver.uuid, runComplianceCheck(driver.uuid, tripIndex, dates))
     }
     setComplianceReports(results)
-  }, [drivers, tripIndex])
+  }, [drivers, tripIndex, dates])
 
 
   // Re-run compliance whenever tripIndex or drivers change.

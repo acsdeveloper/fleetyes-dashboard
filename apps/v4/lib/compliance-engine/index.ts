@@ -21,9 +21,10 @@
 
 import type { Order } from "@/lib/orders-api"
 import type { DriverTrip } from "./types"
-import { checkOverlap }      from "./check-overlap"
-import { checkRestGap }      from "./check-rest-gap"
-import { checkDailyHours }   from "./check-daily-hours"
+import { checkOverlap }          from "./check-overlap"
+import { checkRestGap }          from "./check-rest-gap"
+import { checkDailyHours }       from "./check-daily-hours"
+import { checkWeeklyHoursRule }  from "./check-weekly-hours"
 
 // Re-export types so the UI only needs to import from one place
 export type { ComplianceViolation, RotaComplianceReport } from "./types"
@@ -47,6 +48,18 @@ export const COMPLIANCE_RULES = [
     id:          "DAILY_HOURS",
     name:        "Daily Driving Hours",
     description: "EC 561/2006 Art.6: maximum 9h driving per day (standard). May be extended to 10h but only twice per week. Exceeding 9h = warning; exceeding 10h = violation.",
+    severity:    "violation" as const,
+  },
+  {
+    id:          "WEEKLY_HOURS",
+    name:        "Weekly Driving Hours",
+    description: "EC 561/2006 Art.6.3: maximum 56h driving in any single week. Warning at 50h.",
+    severity:    "violation" as const,
+  },
+  {
+    id:          "BIWEEKLY_HOURS",
+    name:        "Biweekly Driving Hours",
+    description: "EC 561/2006 Art.6.3: maximum 90h driving across any two consecutive weeks. Warning at 80h.",
     severity:    "violation" as const,
   },
 ]
@@ -111,10 +124,13 @@ function getDriverTrips(driverUuid: string, tripIndex: Map<string, Order>): Driv
  *
  * @param driverUuid  Driver to check
  * @param tripIndex   All orders currently loaded in the UI (uuid → Order)
+ * @param weekDates   Optional: Sun–Sat date strings for the visible week.
+ *                    Required for weekly/biweekly checks. If omitted, those checks are skipped.
  */
 export function runComplianceCheck(
   driverUuid: string,
   tripIndex: Map<string, Order>,
+  weekDates?: string[],
 ) {
   const trips = getDriverTrips(driverUuid, tripIndex)
 
@@ -127,17 +143,38 @@ export function runComplianceCheck(
   // ── Check 3: Daily Hours ───────────────────────────────────────────────────
   const dailyHoursResult = checkDailyHours(trips)
 
+  // ── Check 4: Weekly + Biweekly Hours ───────────────────────────────────────
+  // Only runs when weekDates is provided (rota page always passes it).
+  // Partitions trips by whether they fall in the current visible week or the prior week.
+  const weeklyResult = (() => {
+    if (!weekDates || weekDates.length === 0) return { violations: [], warnings: [] }
+    const weekSet  = new Set(weekDates)
+    const thisWeek = trips.filter(t => weekSet.has(
+      `${t.startTime.getFullYear()}-${String(t.startTime.getMonth()+1).padStart(2,"0")}-${String(t.startTime.getDate()).padStart(2,"0")}`
+    ))
+    const lastWeek = trips.filter(t => !weekSet.has(
+      `${t.startTime.getFullYear()}-${String(t.startTime.getMonth()+1).padStart(2,"0")}-${String(t.startTime.getDate()).padStart(2,"0")}`
+    ))
+    const weekEnd       = weekDates[weekDates.length - 1]  // Saturday
+    const weekStart     = weekDates[0]                     // Sunday
+    const weekLabel     = `w/c ${weekStart}`
+    const biweeklyLabel = `weeks ending ${weekEnd}`
+    return checkWeeklyHoursRule(thisWeek, lastWeek, weekEnd, weekLabel, biweeklyLabel)
+  })()
+
   // ── Merge ─────────────────────────────────────────────────────────────────
   return {
     violations: [
       ...overlapResult.violations,
       ...restGapResult.violations,
       ...dailyHoursResult.violations,
+      ...weeklyResult.violations,
     ],
     warnings: [
       ...overlapResult.warnings,
       ...restGapResult.warnings,
       ...dailyHoursResult.warnings,
+      ...weeklyResult.warnings,
     ],
   }
 }
