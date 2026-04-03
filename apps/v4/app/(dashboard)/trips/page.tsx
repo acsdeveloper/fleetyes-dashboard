@@ -216,7 +216,7 @@ function PlaceSearchSelect({
                 <span className="font-medium">{p.name}</span>
                 {(p.code || p.address) && (
                   <span className="text-muted-foreground truncate">
-                    {[p.code, p.address].filter(Boolean).join(" Â· ")}
+                    {[p.code, p.address].filter(Boolean).join(" · ")}
                   </span>
                 )}
               </button>
@@ -435,7 +435,7 @@ function AssignDriverDropdown({
             </div>
             {/* Rota note */}
             <div className="border-t px-3 py-1.5">
-              <p className="text-[9px] text-muted-foreground">? = not on rota Â· WD = working day Â· greyed = unavailable</p>
+              <p className="text-[9px] text-muted-foreground">? = not on rota · WD = working day · greyed = unavailable</p>
             </div>
           </div>
         </>,
@@ -662,7 +662,7 @@ function FilterPanel({
   )
 }
 
-// â”€â”€â”€ CSV Import Wizard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── CSV Import Wizard ───────────────────────────────────────────────────
 
 type ImportStep = "upload" | "creating-places" | "importing" | "done" | "error"
 
@@ -671,11 +671,19 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
   const [file, setFile] = React.useState<File | null>(null)
   const [result, setResult] = React.useState<{ created: number; updated: number; errors: {row:number;message:string}[]; failed_rows_file?: string } | null>(null)
   const [placeResult, setPlaceResult] = React.useState<{ created: number; errors: {row:number;message:string}[] } | null>(null)
-  const [errMsg, setErrMsg] = React.useState("")
+  const [errInfo, setErrInfo] = React.useState<{
+    step: string
+    message: string
+    status?: number
+    body?: unknown
+    hint?: string
+  } | null>(null)
+  const [copied, setCopied] = React.useState(false)
   const fileRef = React.useRef<HTMLInputElement>(null)
 
   const runImport = async () => {
     if (!file) return
+    setErrInfo(null)
     try {
       // Step 1 — create missing places
       setStep("creating-places")
@@ -698,9 +706,41 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
       setResult(ir)
       setStep("done")
     } catch (e: unknown) {
-      setErrMsg(e instanceof Error ? e.message : "Import failed")
+      const isApiError = e instanceof OnTrackApiError
+      const failedStep = step === "creating-places" ? "Step 1 — Create missing places" : "Step 2 — Import orders"
+
+      let hint: string | undefined
+      if (isApiError) {
+        if (e.status === 401 || e.status === 403) hint = "Your session may have expired. Try logging out and back in."
+        else if (e.status === 422) hint = "The file structure does not match the expected Trips Sheet format. Check that the column headers are exactly as shown above."
+        else if (e.status === 400) hint = "The request was rejected by the server. Check that a valid file was selected."
+        else if (e.status >= 500) hint = "A server error occurred. This is not a problem with your file — please try again in a moment."
+      }
+
+      setErrInfo({
+        step: failedStep,
+        message: e instanceof Error ? e.message : "Unknown error",
+        status: isApiError ? e.status : undefined,
+        body: isApiError ? e.body : undefined,
+        hint,
+      })
       setStep("error")
     }
+  }
+
+  const copyErrorDetails = () => {
+    if (!errInfo) return
+    const text = [
+      `Import failed at: ${errInfo.step}`,
+      `File: ${file?.name ?? "unknown"}`,
+      errInfo.status ? `HTTP Status: ${errInfo.status}` : null,
+      `Error: ${errInfo.message}`,
+      errInfo.body ? `\nAPI Response:\n${JSON.stringify(errInfo.body, null, 2)}` : null,
+    ].filter(Boolean).join("\n")
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
   }
 
   return (
@@ -775,7 +815,7 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
               </div>
               {placeResult && step === "importing" && (
                 <div className="rounded-lg bg-green-50 dark:bg-green-950/20 px-4 py-2 text-xs text-green-700 dark:text-green-400">
-                  âœ“ {placeResult.created} places created
+                  ✓ {placeResult.created} places created
                 </div>
               )}
             </div>
@@ -789,8 +829,8 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
                 <div>
                   <p className="font-medium text-green-800 dark:text-green-300">Import complete</p>
                   <p className="text-xs text-green-700 dark:text-green-400 mt-0.5">
-                    {result.created} created Â· {result.updated} updated
-                    {placeResult && ` Â· ${placeResult.created} places created`}
+                    {result.created} created · {result.updated} updated
+                    {placeResult && ` · ${placeResult.created} places created`}
                   </p>
                 </div>
               </div>
@@ -812,14 +852,63 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
             </div>
           )}
 
-          {/* Error */}
-          {step === "error" && (
-            <div className="flex items-center gap-3 rounded-xl bg-red-50 dark:bg-red-950/20 p-4">
-              <XCircle className="h-6 w-6 text-red-500 shrink-0" />
-              <div>
-                <p className="font-medium text-red-700 dark:text-red-400">Import failed</p>
-                <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">{errMsg}</p>
+          {/* Error — rich diagnostics */}
+          {step === "error" && errInfo && (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-start gap-3 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 p-4">
+                <XCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-red-700 dark:text-red-400">Import failed</p>
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+                    Failed at: <span className="font-medium">{errInfo.step}</span>
+                    {errInfo.status && <span className="ml-2 font-mono">HTTP {errInfo.status}</span>}
+                  </p>
+                </div>
               </div>
+
+              <div className="rounded-lg border bg-muted/40 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Error message</p>
+                <p className="text-sm font-medium break-words">{errInfo.message}</p>
+              </div>
+
+              {errInfo.hint && (
+                <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 px-3 py-2.5 flex gap-2">
+                  <span className="text-amber-500 shrink-0">💡</span>
+                  <p className="text-xs text-amber-700 dark:text-amber-400">{errInfo.hint}</p>
+                </div>
+              )}
+
+              {errInfo.body && typeof errInfo.body === "object" && errInfo.body !== null &&
+               "errors" in errInfo.body && typeof (errInfo.body as Record<string, unknown>).errors === "object" && (errInfo.body as Record<string, unknown>).errors !== null && (
+                <div className="rounded-lg border bg-muted/40 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Validation errors</p>
+                  <div className="space-y-1">
+                    {Object.entries((errInfo.body as Record<string, unknown>).errors as Record<string, unknown>).map(([field, msgs]) => (
+                      <div key={field} className="text-xs">
+                        <span className="font-mono font-medium">{field}:</span>{" "}
+                        <span className="text-muted-foreground">{Array.isArray(msgs) ? msgs.join(", ") : String(msgs)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {errInfo.body && (
+                <div className="rounded-lg border bg-muted/40 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">API response</p>
+                  <pre className="text-[11px] text-muted-foreground overflow-x-auto max-h-28 whitespace-pre-wrap break-all">
+                    {JSON.stringify(errInfo.body, null, 2)}
+                  </pre>
+                </div>
+              )}
+
+              <button
+                onClick={copyErrorDetails}
+                className="flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs text-muted-foreground hover:bg-muted transition-colors"
+              >
+                {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500" /> : <FileText className="h-3.5 w-3.5" />}
+                {copied ? "Copied!" : "Copy error details to clipboard"}
+              </button>
             </div>
           )}
         </div>
@@ -842,7 +931,7 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
           )}
           {step === "error" && (
             <>
-              <button onClick={() => setStep("upload")} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">Try Again</button>
+              <button onClick={() => { setStep("upload"); setErrInfo(null) }} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">Try Again</button>
               <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted">Close</button>
             </>
           )}
@@ -2028,7 +2117,7 @@ export default function TripsPage() {
       {/* â”€â”€ Toolbar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div data-help="toolbar" className="flex flex-col gap-2">
 
-        {/* Single row: [Tabs + date range?] Â·Â·Â·spacerÂ·Â·Â· [Delete?] [ðŸ”] [toggles] â”‚ [utils] â”‚ [New Trip] [?] */}
+        {/* Single row: [Tabs + date range?] ···spacer··· [Delete?] [ðŸ”] [toggles] â”‚ [utils] â”‚ [New Trip] [?] */}
         <div className="flex items-center gap-2">
 
           {/* LEFT: Tabs */}
