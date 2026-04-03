@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { PageHeader } from "@/components/page-header"
 import * as React from "react"
@@ -38,7 +38,7 @@ import {
 
 ModuleRegistry.registerModules([AllCommunityModule])
 
-// ─── AG Grid themes (light + dark) ────────────────────────────────────────────
+// â”€â”€â”€ AG Grid themes (light + dark) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Use the JS Theming API so font, colors, and spacing are all in one place
 // and automatically co-ordinate with the app's Montserrat / design tokens.
 
@@ -61,7 +61,7 @@ const baseParams = {
   rowVerticalPaddingScale: 1,
   selectedRowBackgroundColor: "var(--accent, #f0f0f0)",
   gridSize: 5,
-  scrollbarWidth: 6,    // thin but present — required for touchpad/trackpad scroll event routing
+  scrollbarWidth: 6,    // thin but present â€” required for touchpad/trackpad scroll event routing
 }
 
 const lightTheme = themeQuartz.withParams({
@@ -86,7 +86,7 @@ const darkTheme = themeQuartz.withParams({
   selectedRowBackgroundColor: "#1e3a5f",
 })
 
-// ─── Status Config ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Status Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Inventory-demo style: translucent bg + coloured border (matches StatusCellRenderer.module.css)
 const statusStyles: Record<OrderStatus, { bg: string; border: string; text: string; dot: string }> = {
@@ -99,13 +99,13 @@ const statusStyles: Record<OrderStatus, { bg: string; border: string; text: stri
 
 const ALL_STATUSES: OrderStatus[] = ["created", "dispatched", "started", "completed", "canceled"]
 
-// ─── Helper ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function fleetLabel(order: Order): string {
   if (order.fleet?.name) return order.fleet.name
   if (order.fleet_name) return order.fleet_name
-  if (order.fleet_uuid) return order.fleet_uuid.slice(0, 8) + "…"
-  return "—"
+  if (order.fleet_uuid) return order.fleet_uuid.slice(0, 8) + "â€¦"
+  return "â€”"
 }
 
 function driverInitial(name: string): string {
@@ -113,7 +113,7 @@ function driverInitial(name: string): string {
 }
 
 function formatDate(iso?: string | null): string {
-  if (!iso) return "—"
+  if (!iso) return "â€”"
   // Use new Date(iso) to display in the browser's local clock
   const d = new Date(iso)
   const day   = d.getDate().toString().padStart(2, "0")
@@ -126,9 +126,9 @@ function formatDate(iso?: string | null): string {
 /**
  * Format the current date (or a given date) as "YYYY-MM-DD" in LOCAL time.
  *
- * IMPORTANT: Do NOT use `new Date().toISOString().slice(0, 10)` — that
+ * IMPORTANT: Do NOT use `new Date().toISOString().slice(0, 10)` â€” that
  * converts to UTC first, which gives the wrong date when the browser's
- * local clock is past midnight UTC (e.g. 23:30 BST → 2026-04-02 UTC).
+ * local clock is past midnight UTC (e.g. 23:30 BST â†’ 2026-04-02 UTC).
  *
  * The API stores and returns local time, so all date strings must stay local.
  */
@@ -139,7 +139,7 @@ function localDateStr(d: Date = new Date()): string {
   return `${y}-${m}-${day}`
 }
 
-// ─── Place Search Combobox ────────────────────────────────────────────────────
+// â”€â”€â”€ Place Search Combobox â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function PlaceSearchSelect({
   label,
@@ -177,7 +177,7 @@ function PlaceSearchSelect({
     return () => clearTimeout(t)
   }, [query])
 
-  const displayValue = selectedName || (value ? value.slice(0, 12) + "…" : "")
+  const displayValue = selectedName || (value ? value.slice(0, 12) + "â€¦" : "")
 
   return (
     <div className="relative">
@@ -186,7 +186,7 @@ function PlaceSearchSelect({
         <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <input
           type="text"
-          placeholder={`Search ${label.toLowerCase()}…`}
+          placeholder={`Search ${label.toLowerCase()}â€¦`}
           value={open ? query : displayValue}
           onFocus={() => { setOpen(true); setQuery("") }}
           onChange={(e) => setQuery(e.target.value)}
@@ -198,7 +198,7 @@ function PlaceSearchSelect({
           <div className="max-h-48 overflow-y-auto py-1">
             {results.length === 0 && (
               <p className="px-3 py-2 text-xs text-muted-foreground">
-                {query ? "No places found" : "Type to search places…"}
+                {query ? "No places found" : "Type to search placesâ€¦"}
               </p>
             )}
             {results.map((p) => (
@@ -216,7 +216,7 @@ function PlaceSearchSelect({
                 <span className="font-medium">{p.name}</span>
                 {(p.code || p.address) && (
                   <span className="text-muted-foreground truncate">
-                    {[p.code, p.address].filter(Boolean).join(" · ")}
+                    {[p.code, p.address].filter(Boolean).join(" Â· ")}
                   </span>
                 )}
               </button>
@@ -228,7 +228,7 @@ function PlaceSearchSelect({
   )
 }
 
-// ─── Assign Driver Dropdown ───────────────────────────────────────────────────
+// â”€â”€â”€ Assign Driver Dropdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function AssignDriverDropdown({
   order,
@@ -288,7 +288,7 @@ function AssignDriverDropdown({
     setLoading(true)
     setOpen(false)
     try {
-      // ── Prospective compliance check ──
+      // â”€â”€ Prospective compliance check â”€â”€
       const dropDate = order.scheduled_at?.slice(0, 10) ?? localDateStr()
       const tripIndex = new Map<string, Order>()
       allOrders.forEach(o => tripIndex.set(o.uuid, o))
@@ -298,7 +298,7 @@ function AssignDriverDropdown({
         return
       }
 
-      // ── Write trip_data to rota store (synchronous, before async API call) ──
+      // â”€â”€ Write trip_data to rota store (synchronous, before async API call) â”€â”€
       // This ensures the batch compliance check can find this trip even if
       // the API hasn't propagated the assignment yet.
       const existing = getRotaEntry(driver.uuid, dropDate)
@@ -359,7 +359,7 @@ function AssignDriverDropdown({
         className="inline-flex items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
       >
         <UserCheck className="h-3 w-3" />
-        {loading ? "Saving…" : current ? current.name : "Assign Driver"}
+        {loading ? "Savingâ€¦" : current ? current.name : "Assign Driver"}
         <ChevronDown className="h-3 w-3 opacity-60" />
       </button>
 
@@ -397,7 +397,7 @@ function AssignDriverDropdown({
           >
             {/* Header */}
             <div className="border-b px-3 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Assign Driver — {tripDate}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Assign Driver â€” {tripDate}</p>
             </div>
             <div className="max-h-64 overflow-y-auto py-1">
               {sortedDrivers.length === 0 && (
@@ -426,7 +426,7 @@ function AssignDriverDropdown({
                     </span>
                     <span className="flex-1 truncate font-medium">{d.name}</span>
                     {hasPrefConflict && !isBlocked && (
-                      <span title="Outside preference window" className="text-amber-500">⚠️</span>
+                      <span title="Outside preference window" className="text-amber-500">âš ï¸</span>
                     )}
                     {availBadge(d.uuid)}
                   </button>
@@ -435,7 +435,7 @@ function AssignDriverDropdown({
             </div>
             {/* Rota note */}
             <div className="border-t px-3 py-1.5">
-              <p className="text-[9px] text-muted-foreground">? = not on rota · WD = working day · greyed = unavailable</p>
+              <p className="text-[9px] text-muted-foreground">? = not on rota Â· WD = working day Â· greyed = unavailable</p>
             </div>
           </div>
         </>,
@@ -445,7 +445,7 @@ function AssignDriverDropdown({
   )
 }
 
-// ─── Assign Vehicle (Truck) Dropdown ─────────────────────────────────────────
+// â”€â”€â”€ Assign Vehicle (Truck) Dropdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function AssignVehicleDropdown({
   order,
@@ -490,7 +490,7 @@ function AssignVehicleDropdown({
         disabled={loading}
         className="inline-flex items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
       >
-        {loading ? "Saving…" : current ? current.plate_number : "Assign Truck"}
+        {loading ? "Savingâ€¦" : current ? current.plate_number : "Assign Truck"}
         <ChevronDown className="h-3 w-3 opacity-60" />
       </button>
       {open && dropRect && ReactDOM.createPortal(
@@ -522,7 +522,7 @@ function AssignVehicleDropdown({
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted font-mono text-[10px] font-bold uppercase">
                     {(v.plate_number ?? "?")[0]}
                   </span>
-                  <span className="flex-1 truncate font-medium">{v.plate_number ?? v.model ?? "—"}</span>
+                  <span className="flex-1 truncate font-medium">{v.plate_number ?? v.model ?? "â€”"}</span>
                   {v.model && <span className="text-[9px] text-muted-foreground">{v.model}</span>}
                 </button>
               ))}
@@ -535,7 +535,7 @@ function AssignVehicleDropdown({
   )
 }
 
-// ─── Filter Panel ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Filter Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type Filters = {
   status: string
@@ -662,7 +662,7 @@ function FilterPanel({
   )
 }
 
-// ─── CSV Import Wizard ───────────────────────────────────────────────────
+// â”€â”€â”€ CSV Import Wizard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type ImportStep = "upload" | "creating-places" | "importing" | "done" | "error"
 
@@ -677,7 +677,7 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
   const runImport = async () => {
     if (!file) return
     try {
-      // Step 1 — create missing places
+      // Step 1 â€” create missing places
       setStep("creating-places")
       const fd1 = new FormData()
       fd1.append("file", file)
@@ -687,7 +687,7 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
       )
       setPlaceResult(pr)
 
-      // Step 2 — import orders
+      // Step 2 â€” import orders
       setStep("importing")
       const fd2 = new FormData()
       fd2.append("file", file)
@@ -710,7 +710,7 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
         <div className="flex items-center justify-between border-b px-5 py-4">
           <div>
             <h2 className="font-bold text-base">Import Trips</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Upload an Excel or CSV file to bulk-create trips</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Upload a Trips Sheet (.csv / .xlsx) to bulk-create trips</p>
           </div>
           <button onClick={onClose} className="rounded-lg border p-1.5 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
         </div>
@@ -721,15 +721,31 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
           {step === "upload" && (
             <>
               <div className="rounded-xl border bg-muted/30 p-4">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Required columns</p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                  {[["block_id","Groups rows into one trip"],["driver_name","Matched to existing driver"],["plate_number","Matched to vehicle"],["scheduled_at","Date/time of pickup"],["estimated_end_date","Expected end date/time"],["pickup_code","Place code for pickup"],["dropoff_code","Place code for dropoff"],["fleet_name","Fleet assignment"]].map(([col,desc]) => (
-                    <div key={col}>
-                      <span className="font-mono font-medium">{col}</span>
-                      <span className="ml-1 text-muted-foreground">{desc}</span>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Required columns (Trips Sheet format)</p>
+                <div className="grid grid-cols-1 gap-y-1.5 text-xs">
+                  {([
+                    ["Block ID",               "Groups rows into one trip (e.g. TK-HVHSNR4MS)"],
+                    ["VR ID",                  "Vehicle registration plate number"],
+                    ["Facility Sequence",       "Route as Fromâ†’To codes (e.g. LCY42â†’LCY3)"],
+                    ["Stop 1 Yard Arrival",    "Pickup date/time (UTC, e.g. 3/21/2026 20:30)"],
+                    ["Stop 1 Yard Departure",  "Pickup departure time"],
+                    ["Stop 2 Yard Arrival",    "Drop-off / next stop arrival time"],
+                    ["Carrier",                "Fleet / carrier name (e.g. AZFNR)"],
+                    ["Operator ID",            "Driver identifier (e.g. AZFNR_UK-London_SOLO7_2)"],
+                    ["Trip ID",                "Internal trip reference (optional)"],
+                    ["Equipment Type",         "Trailer type â€” passed as notes (optional)"],
+                    ["Trailer Id",             "Trailer ID â€” passed as tracking ref (optional)"],
+                    ["Contract ID",            "Contract reference (optional)"],
+                  ] as [string, string][]).map(([col, desc]) => (
+                    <div key={col} className="flex gap-2">
+                      <span className="font-mono font-medium shrink-0 w-44">{col}</span>
+                      <span className="text-muted-foreground">{desc}</span>
                     </div>
                   ))}
                 </div>
+                <p className="mt-3 text-[11px] text-muted-foreground border-t pt-2">
+                  Multi-stop trips: use <span className="font-mono">Stop 3 / Stop 4 â€¦</span> columns for waypoints. Rows sharing the same <span className="font-mono">Block ID</span> are merged into a single trip.
+                </p>
               </div>
 
               {/* Drop zone */}
@@ -754,12 +770,12 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
             <div className="flex flex-col items-center gap-4 py-10">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <div className="text-center">
-                <p className="font-medium">{step === "creating-places" ? "Step 1 / 2 — Creating missing places…" : "Step 2 / 2 — Importing trips…"}</p>
+                <p className="font-medium">{step === "creating-places" ? "Step 1 / 2 â€” Creating missing placesâ€¦" : "Step 2 / 2 â€” Importing tripsâ€¦"}</p>
                 <p className="text-xs text-muted-foreground mt-1">This may take a moment for large files</p>
               </div>
               {placeResult && step === "importing" && (
                 <div className="rounded-lg bg-green-50 dark:bg-green-950/20 px-4 py-2 text-xs text-green-700 dark:text-green-400">
-                  ✓ {placeResult.created} places created
+                  âœ“ {placeResult.created} places created
                 </div>
               )}
             </div>
@@ -773,8 +789,8 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
                 <div>
                   <p className="font-medium text-green-800 dark:text-green-300">Import complete</p>
                   <p className="text-xs text-green-700 dark:text-green-400 mt-0.5">
-                    {result.created} created · {result.updated} updated
-                    {placeResult && ` · ${placeResult.created} places created`}
+                    {result.created} created Â· {result.updated} updated
+                    {placeResult && ` Â· ${placeResult.created} places created`}
                   </p>
                 </div>
               </div>
@@ -821,7 +837,7 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
           {step === "done" && (
             <button onClick={() => { onDone(); onClose() }}
               className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-              Done — Refresh List
+              Done â€” Refresh List
             </button>
           )}
           {step === "error" && (
@@ -836,50 +852,50 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
   )
 }
 
-// ─── Help Walkthrough ───────────────────────────────────────────────────────
+// â”€â”€â”€ Help Walkthrough â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const HELP_STEPS = [
   {
     id: "summary-cards",
     title: "Summary Cards",
-    icon: "📊",
+    icon: "ðŸ“Š",
     target: "[data-help='summary-cards']",
     description: "At-a-glance metrics derived from the loaded batch: total trips, how many are unassigned (amber alert), today's scheduled trips, and counts by status. Updates instantly as you change status filters.",
   },
   {
     id: "search",
     title: "Search & Filters",
-    icon: "🔍",
+    icon: "ðŸ”",
     target: "[data-help='toolbar']",
-    description: "Type anything to instantly filter across all columns. Use the Status dropdown for a server-side refetch by status. Refresh ↺ reloads from the API. Import uploads a CSV/Excel batch. Export downloads the current view.",
+    description: "Type anything to instantly filter across all columns. Use the Status dropdown for a server-side refetch by status. Refresh â†º reloads from the API. Import uploads a CSV/Excel batch. Export downloads the current view.",
   },
   {
     id: "new-trip",
     title: "New Trip",
-    icon: "➕",
+    icon: "âž•",
     target: "[data-help='toolbar']",
-    description: "Click New Trip to open the slide-over. Choose fleet, driver and pickup/dropoff from live Places search. Set scheduled dates and save — the grid refreshes automatically.",
+    description: "Click New Trip to open the slide-over. Choose fleet, driver and pickup/dropoff from live Places search. Set scheduled dates and save â€” the grid refreshes automatically.",
   },
   {
     id: "grid",
     title: "Trips Grid",
-    icon: "📋",
+    icon: "ðŸ“‹",
     target: "[data-help='grid']",
-    description: "AG Grid with 15 rows per page. Click any column header to sort. Drag headers to reorder columns. Resize columns by dragging the edge. Use the ☰ menu icon in each header to open column-level filters.",
+    description: "AG Grid with 15 rows per page. Click any column header to sort. Drag headers to reorder columns. Resize columns by dragging the edge. Use the â˜° menu icon in each header to open column-level filters.",
   },
   {
     id: "status",
     title: "Status Badges",
-    icon: "🏷️",
+    icon: "ðŸ·ï¸",
     target: "[data-help='grid']",
-    description: "Each trip shows a colour-coded status pill: Created (amber) → Dispatched (violet) → Started (sky) → Completed (emerald). Canceled shows in rose. Statuses are updated in real-time via the API.",
+    description: "Each trip shows a colour-coded status pill: Created (amber) â†’ Dispatched (violet) â†’ Started (sky) â†’ Completed (emerald). Canceled shows in rose. Statuses are updated in real-time via the API.",
   },
   {
     id: "pagination",
     title: "Pagination",
-    icon: "📄",
+    icon: "ðŸ“„",
     target: "[data-help='grid']",
-    description: "15 rows per page by default — use the page-size selector to switch to 30, 50 or 100. Navigate pages with the arrows. The total count shown in the top bar reflects the full API result.",
+    description: "15 rows per page by default â€” use the page-size selector to switch to 30, 50 or 100. Navigate pages with the arrows. The total count shown in the top bar reflects the full API result.",
   },
 ]
 
@@ -935,7 +951,7 @@ function HelpWalkthrough({ onClose }: { onClose: () => void }) {
       {/* Invisible click-away to close */}
       <div className="fixed inset-0 z-40" onClick={onClose} />
 
-      {/* Floating card — bottom-right so it doesn't block content */}
+      {/* Floating card â€” bottom-right so it doesn't block content */}
       <div
         id="help-walkthrough-card"
         className="fixed bottom-6 right-6 z-50 w-80 rounded-2xl border bg-card shadow-2xl"
@@ -1002,7 +1018,7 @@ function HelpWalkthrough({ onClose }: { onClose: () => void }) {
   )
 }
 
-// ─── New Trip Form ────────────────────────────────────────────────────────────
+// â”€â”€â”€ New Trip Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function NewTripDrawer({
   drivers,
@@ -1106,7 +1122,7 @@ function NewTripDrawer({
                 onChange={(e) => set("fleet_uuid", e.target.value || null as never)}
                 className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
               >
-                <option value="">— Select fleet —</option>
+                <option value="">â€” Select fleet â€”</option>
                 {fleets.map((f) => (
                   <option key={f.uuid} value={f.uuid}>
                     {f.name}
@@ -1123,7 +1139,7 @@ function NewTripDrawer({
                 onChange={(e) => set("driver_assigned_uuid", e.target.value || null as never)}
                 className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
               >
-                <option value="">— No driver —</option>
+                <option value="">â€” No driver â€”</option>
                 {drivers.map((d) => (
                   <option key={d.uuid} value={d.uuid}>
                     {d.name} ({d.status})
@@ -1140,10 +1156,10 @@ function NewTripDrawer({
                 onChange={(e) => set("vehicle_assigned_uuid", e.target.value || undefined)}
                 className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
               >
-                <option value="">— No vehicle —</option>
+                <option value="">â€” No vehicle â€”</option>
                 {vehicles.map((v) => (
                   <option key={v.uuid} value={v.uuid}>
-                    {v.plate_number}{v.make ? ` — ${v.make}${v.model ? ` ${v.model}` : ""}` : ""}
+                    {v.plate_number}{v.make ? ` â€” ${v.make}${v.model ? ` ${v.model}` : ""}` : ""}
                   </option>
                 ))}
               </select>
@@ -1194,7 +1210,7 @@ function NewTripDrawer({
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Notes</label>
               <textarea
                 rows={3}
-                placeholder="Any special instructions…"
+                placeholder="Any special instructionsâ€¦"
                 value={form.notes ?? ""}
                 onChange={(e) => set("notes", e.target.value)}
                 className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring resize-none"
@@ -1225,7 +1241,7 @@ function NewTripDrawer({
               className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              {submitting ? "Creating…" : "Create Trip"}
+              {submitting ? "Creatingâ€¦" : "Create Trip"}
             </button>
           </div>
         </form>
@@ -1234,7 +1250,7 @@ function NewTripDrawer({
   )
 }
 
-// ─── AG Grid custom cell renderers ──────────────────────────────────────────────────────
+// â”€â”€â”€ AG Grid custom cell renderers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function StatusCellRenderer({ data, value, context }: ICellRendererParams<Order, OrderStatus> & { context: RowCallbacks }) {
   const canDispatch = data?.status === "created" && !!data?.driver_assigned_uuid
@@ -1249,7 +1265,7 @@ function StatusCellRenderer({ data, value, context }: ICellRendererParams<Order,
           {value}
         </span>
       ) : (
-        <span className="text-muted-foreground">—</span>
+        <span className="text-muted-foreground">â€”</span>
       )}
 
     </div>
@@ -1293,7 +1309,7 @@ function VehicleCellRenderer({ data, context }: ICellRendererParams<Order> & { c
   return <span className="font-mono text-xs">{plate}</span>
 }
 
-// ─── Auto-Allocate Modal ─────────────────────────────────────────────────────
+// â”€â”€â”€ Auto-Allocate Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type AllocStep = "idle" | "fetching" | "running" | "applying" | "done" | "error"
 
@@ -1346,9 +1362,9 @@ function AutoAllocateModal({ open, onClose, onDone }: {
 
   const STEPS_LABELS: Record<AllocStep, string> = {
     idle:     "Ready",
-    fetching: "Step 1 of 3 — Fetching shift data\u2026",
-    running:  "Step 2 of 3 — Running allocation engine\u2026",
-    applying: "Step 3 of 3 — Applying assignments\u2026",
+    fetching: "Step 1 of 3 â€” Fetching shift data\u2026",
+    running:  "Step 2 of 3 â€” Running allocation engine\u2026",
+    applying: "Step 3 of 3 â€” Applying assignments\u2026",
     done:     "Done!",
     error:    "Failed",
   }
@@ -1428,7 +1444,7 @@ function AutoAllocateModal({ open, onClose, onDone }: {
                   <p className="text-2xl font-bold tabular-nums">{result.updated}</p>
                   <p className="text-xs text-muted-foreground">trips assigned</p>
                   {result.unassigned > 0 && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">⚠ {result.unassigned} trips could not be assigned</p>
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">âš  {result.unassigned} trips could not be assigned</p>
                   )}
                 </div>
               </div>
@@ -1469,7 +1485,7 @@ type LegData = {
   legType:  "pickup" | "waypoint" | "dropoff"
 }
 
-// Pure function — no component state needed
+// Pure function â€” no component state needed
 function buildLegs(order: Order): LegData[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const payload = order.payload as any
@@ -1502,7 +1518,7 @@ function buildLegs(order: Order): LegData[] {
   }))
 }
 
-// ─── Page component uses a stable context passed into AG Grid cell renderers ──
+// â”€â”€â”€ Page component uses a stable context passed into AG Grid cell renderers â”€â”€
 type RowCallbacks = {
   onDelete:          (o: Order) => void
   onDispatch:        (o: Order) => void
@@ -1513,7 +1529,7 @@ type RowCallbacks = {
   allOrders:         Order[]
 }
 
-// ─── Page ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function TripsPage() {
   const { t } = useLang()
@@ -1537,12 +1553,12 @@ export default function TripsPage() {
   const [selectedCount, setSelectedCount] = React.useState(0)
   const [showCards, setShowCards] = React.useState(false)
   const [expandedRows, setExpandedRows] = React.useState<Set<string>>(new Set())
-  // Stable ref — always up-to-date, doesn't cause gridContext to recreate
+  // Stable ref â€” always up-to-date, doesn't cause gridContext to recreate
   const expandedRowsRef = React.useRef<Set<string>>(new Set())
   const [searchFocused, setSearchFocused] = React.useState(false)
   const [showAllocate, setShowAllocate] = React.useState(false)
 
-  // Detect dark mode reactively — declared here so detailCellRendererParams can use it
+  // Detect dark mode reactively â€” declared here so detailCellRendererParams can use it
   const [isDark, setIsDark] = React.useState(() =>
     typeof window !== "undefined" && document.documentElement.classList.contains("dark")
   )
@@ -1557,7 +1573,7 @@ export default function TripsPage() {
   // Tabs
   const [tab, setTab] = React.useState<"current" | "history">("current")
 
-  // Last Sunday 00:00 — default start for Current tab
+  // Last Sunday 00:00 â€” default start for Current tab
   const lastSunday = React.useMemo(() => {
     const now = new Date()
     return new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay())
@@ -1730,7 +1746,7 @@ export default function TripsPage() {
     }, 0)
   }, [])
 
-  // Stable context — only changes when drivers/vehicles/handlers change, NOT on row expand
+  // Stable context â€” only changes when drivers/vehicles/handlers change, NOT on row expand
   const gridContext = React.useMemo<RowCallbacks & { expandedRowsRef: React.MutableRefObject<Set<string>>; toggleRow: (id: string) => void }>(() => ({
     onDelete:          handleDelete,
     onDispatch:        handleDispatch,
@@ -1761,7 +1777,7 @@ export default function TripsPage() {
       filter: "agTextColumnFilter",
       width: 140,
       cellRenderer: ({ value }: ICellRendererParams) => (
-        <span className="font-medium text-primary">{value ?? "—"}</span>
+        <span className="font-medium text-primary">{value ?? "â€”"}</span>
       ),
     },
     {
@@ -1769,7 +1785,7 @@ export default function TripsPage() {
       field: "internal_id",
       filter: "agTextColumnFilter",
       width: 110,
-      cellRenderer: ({ value }: ICellRendererParams) => value ?? <span className="text-muted-foreground">—</span>,
+      cellRenderer: ({ value }: ICellRendererParams) => value ?? <span className="text-muted-foreground">â€”</span>,
     },
     {
       headerName: c.status,
@@ -1827,11 +1843,11 @@ export default function TripsPage() {
         if (stops.length === 0) return <span className="text-muted-foreground text-xs">No route</span>
 
         const isExpanded = context?.expandedRowsRef?.current?.has(data.uuid)
-        const from = stops[0]?.name ?? "—"
-        const to = stops[stops.length - 1]?.name ?? "—"
+        const from = stops[0]?.name ?? "â€”"
+        const to = stops[stops.length - 1]?.name ?? "â€”"
 
         if (!isExpanded) {
-          // Compact: From → To with expand chevron
+          // Compact: From â†’ To with expand chevron
           return (
             <div className="flex items-center gap-1.5">
               <button
@@ -1843,7 +1859,7 @@ export default function TripsPage() {
               </button>
               <span className="flex items-center gap-1 text-[12px]">
                 <span className="font-medium truncate max-w-[120px]" title={from}>{from}</span>
-                <span className="text-muted-foreground shrink-0">→</span>
+                <span className="text-muted-foreground shrink-0">â†’</span>
                 <span className="font-medium truncate max-w-[120px]" title={to}>{to}</span>
                 {stops.length > 2 && (
                   <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
@@ -1876,7 +1892,7 @@ export default function TripsPage() {
                   {i < visible.length - 1 && <span className="w-px flex-1 bg-border" style={{ minHeight: 12 }} />}
                 </div>
                 <div className="pb-2">
-                  <span className="text-[12px] font-medium leading-tight">{s.name ?? "—"}</span>
+                  <span className="text-[12px] font-medium leading-tight">{s.name ?? "â€”"}</span>
                   {s.publicId && <span className="ml-1 font-mono text-[10px] text-muted-foreground">({s.publicId})</span>}
                 </div>
               </div>
@@ -1914,7 +1930,7 @@ export default function TripsPage() {
               title="This trip has no estimated end time. Compliance gap calculations use a 2h fallback."
               className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
             >
-              ⚠ No end time
+              âš  No end time
             </span>
           )
         }
@@ -1926,7 +1942,7 @@ export default function TripsPage() {
       valueGetter: ({ data }) => data ? fleetLabel(data) : "",
       filter: "agTextColumnFilter",
       width: 110,
-      cellRenderer: ({ value }: ICellRendererParams) => value || <span className="text-muted-foreground">—</span>,
+      cellRenderer: ({ value }: ICellRendererParams) => value || <span className="text-muted-foreground">â€”</span>,
     },
   ], [showCompleted])
 
@@ -1938,7 +1954,7 @@ export default function TripsPage() {
     floatingFilter: false,
   }), [showFilters])
 
-  // Grid ref — declared early so both effects below can reference it
+  // Grid ref â€” declared early so both effects below can reference it
   const gridRef = React.useRef<AgGridReact<Order>>(null)
 
   // Force AG Grid to re-apply defaultColDef when filters toggle changes
@@ -1967,7 +1983,7 @@ export default function TripsPage() {
 
     <div className="flex flex-1 flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
 
-      {/* ── Summary Cards (hidden by default, toggled by Stats button in toolbar) ─── */}
+      {/* â”€â”€ Summary Cards (hidden by default, toggled by Stats button in toolbar) â”€â”€â”€ */}
       {showCards && (() => {
         const todayStr   = new Date().toDateString()
         const unassigned = orders.filter(o => !o.driver_assigned_uuid).length
@@ -2009,10 +2025,10 @@ export default function TripsPage() {
         )
       })()}
 
-      {/* ── Toolbar ─────────────────────────────────────────────────────────── */}
+      {/* â”€â”€ Toolbar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div data-help="toolbar" className="flex flex-col gap-2">
 
-        {/* Single row: [Tabs + date range?] ···spacer··· [Delete?] [🔍] [toggles] │ [utils] │ [New Trip] [?] */}
+        {/* Single row: [Tabs + date range?] Â·Â·Â·spacerÂ·Â·Â· [Delete?] [ðŸ”] [toggles] â”‚ [utils] â”‚ [New Trip] [?] */}
         <div className="flex items-center gap-2">
 
           {/* LEFT: Tabs */}
@@ -2030,7 +2046,7 @@ export default function TripsPage() {
             ))}
           </div>
 
-          {/* History date range — sits right beside the History tab, defines what you're viewing */}
+          {/* History date range â€” sits right beside the History tab, defines what you're viewing */}
           {tab === "history" && (
             <>
               <span className="h-6 w-px bg-border" />
@@ -2046,7 +2062,7 @@ export default function TripsPage() {
                   }}
                   className="h-8 rounded-lg border bg-background px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
                 />
-                <span className="text-xs text-muted-foreground">→</span>
+                <span className="text-xs text-muted-foreground">â†’</span>
                 <input
                   type="date"
                   value={dateTo}
@@ -2074,10 +2090,10 @@ export default function TripsPage() {
             </>
           )}
 
-          {/* Flex spacer — everything below is pushed to the right */}
+          {/* Flex spacer â€” everything below is pushed to the right */}
           <div className="flex-1" />
 
-          {/* Delete selected — appears when rows are checked */}
+          {/* Delete selected â€” appears when rows are checked */}
           {selectedCount > 0 && (
             <button
               onClick={handleDeleteSelected}
@@ -2088,7 +2104,7 @@ export default function TripsPage() {
             </button>
           )}
 
-          {/* Search — expands on focus */}
+          {/* Search â€” expands on focus */}
           <div className={`relative transition-all duration-200 ${searchFocused ? "w-72" : "w-40"}`}>
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -2102,7 +2118,7 @@ export default function TripsPage() {
             />
           </div>
 
-          {/* Pill toggles — view options grouped together */}
+          {/* Pill toggles â€” view options grouped together */}
           <div className="flex items-center gap-0.5 rounded-lg border bg-muted/30 p-0.5">
             <button
               onClick={() => setShowCompleted(v => !v)}
@@ -2130,7 +2146,7 @@ export default function TripsPage() {
               </svg>
               {c.filter}
             </button>
-            {/* Stats toggle — shows/hides summary cards */}
+            {/* Stats toggle â€” shows/hides summary cards */}
             <button
               onClick={() => setShowCards(v => !v)}
               title={showCards ? "Hide summary stats" : "Show summary stats"}
@@ -2196,7 +2212,7 @@ export default function TripsPage() {
             Auto-Allocate
           </button>
 
-          {/* Help — icon only */}
+          {/* Help â€” icon only */}
           <button
             onClick={() => setShowHelp(true)}
             title="Page guide"
@@ -2222,7 +2238,7 @@ export default function TripsPage() {
       {loading ? (
         <div className="flex items-center justify-center rounded-xl border bg-card py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          <span className="ml-2 text-sm text-muted-foreground">Loading trips…</span>
+          <span className="ml-2 text-sm text-muted-foreground">Loading tripsâ€¦</span>
         </div>
       ) : (
         <div ref={gridContainerRef} data-help="grid" className="flex-1 min-h-0" style={{ height: "100%", width: "100%" }}>
