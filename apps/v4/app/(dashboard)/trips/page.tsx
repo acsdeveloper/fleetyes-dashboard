@@ -61,7 +61,7 @@ const baseParams = {
   rowVerticalPaddingScale: 1,
   selectedRowBackgroundColor: "var(--accent, #f0f0f0)",
   gridSize: 5,
-  scrollbarWidth: 6,    // thin but present â€” required for touchpad/trackpad scroll event routing
+  scrollbarWidth: 6,    // thin but present — required for touchpad/trackpad scroll event routing
 }
 
 const lightTheme = themeQuartz.withParams({
@@ -104,8 +104,8 @@ const ALL_STATUSES: OrderStatus[] = ["created", "dispatched", "started", "comple
 function fleetLabel(order: Order): string {
   if (order.fleet?.name) return order.fleet.name
   if (order.fleet_name) return order.fleet_name
-  if (order.fleet_uuid) return order.fleet_uuid.slice(0, 8) + "â€¦"
-  return "â€”"
+  if (order.fleet_uuid) return order.fleet_uuid.slice(0, 8) + "…"
+  return "—"
 }
 
 function driverInitial(name: string): string {
@@ -113,7 +113,7 @@ function driverInitial(name: string): string {
 }
 
 function formatDate(iso?: string | null): string {
-  if (!iso) return "â€”"
+  if (!iso) return "—"
   // Use new Date(iso) to display in the browser's local clock
   const d = new Date(iso)
   const day   = d.getDate().toString().padStart(2, "0")
@@ -126,9 +126,9 @@ function formatDate(iso?: string | null): string {
 /**
  * Format the current date (or a given date) as "YYYY-MM-DD" in LOCAL time.
  *
- * IMPORTANT: Do NOT use `new Date().toISOString().slice(0, 10)` â€” that
+ * IMPORTANT: Do NOT use `new Date().toISOString().slice(0, 10)` — that
  * converts to UTC first, which gives the wrong date when the browser's
- * local clock is past midnight UTC (e.g. 23:30 BST â†’ 2026-04-02 UTC).
+ * local clock is past midnight UTC (e.g. 23:30 BST → 2026-04-02 UTC).
  *
  * The API stores and returns local time, so all date strings must stay local.
  */
@@ -177,7 +177,7 @@ function PlaceSearchSelect({
     return () => clearTimeout(t)
   }, [query])
 
-  const displayValue = selectedName || (value ? value.slice(0, 12) + "â€¦" : "")
+  const displayValue = selectedName || (value ? value.slice(0, 12) + "…" : "")
 
   return (
     <div className="relative">
@@ -186,7 +186,7 @@ function PlaceSearchSelect({
         <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <input
           type="text"
-          placeholder={`Search ${label.toLowerCase()}â€¦`}
+          placeholder={`Search ${label.toLowerCase()}…`}
           value={open ? query : displayValue}
           onFocus={() => { setOpen(true); setQuery("") }}
           onChange={(e) => setQuery(e.target.value)}
@@ -198,7 +198,7 @@ function PlaceSearchSelect({
           <div className="max-h-48 overflow-y-auto py-1">
             {results.length === 0 && (
               <p className="px-3 py-2 text-xs text-muted-foreground">
-                {query ? "No places found" : "Type to search placesâ€¦"}
+                {query ? "No places found" : "Type to search places…"}
               </p>
             )}
             {results.map((p) => (
@@ -359,7 +359,7 @@ function AssignDriverDropdown({
         className="inline-flex items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
       >
         <UserCheck className="h-3 w-3" />
-        {loading ? "Savingâ€¦" : current ? current.name : "Assign Driver"}
+        {loading ? "Saving…" : current ? current.name : "Assign Driver"}
         <ChevronDown className="h-3 w-3 opacity-60" />
       </button>
 
@@ -397,7 +397,7 @@ function AssignDriverDropdown({
           >
             {/* Header */}
             <div className="border-b px-3 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Assign Driver â€” {tripDate}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Assign Driver — {tripDate}</p>
             </div>
             <div className="max-h-64 overflow-y-auto py-1">
               {sortedDrivers.length === 0 && (
@@ -426,7 +426,7 @@ function AssignDriverDropdown({
                     </span>
                     <span className="flex-1 truncate font-medium">{d.name}</span>
                     {hasPrefConflict && !isBlocked && (
-                      <span title="Outside preference window" className="text-amber-500">âš ï¸</span>
+                      <span title="Outside preference window" className="text-amber-500">⚠ï¸</span>
                     )}
                     {availBadge(d.uuid)}
                   </button>
@@ -490,7 +490,7 @@ function AssignVehicleDropdown({
         disabled={loading}
         className="inline-flex items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
       >
-        {loading ? "Savingâ€¦" : current ? current.plate_number : "Assign Truck"}
+        {loading ? "Saving…" : current ? current.plate_number : "Assign Truck"}
         <ChevronDown className="h-3 w-3 opacity-60" />
       </button>
       {open && dropRect && ReactDOM.createPortal(
@@ -522,7 +522,7 @@ function AssignVehicleDropdown({
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted font-mono text-[10px] font-bold uppercase">
                     {(v.plate_number ?? "?")[0]}
                   </span>
-                  <span className="flex-1 truncate font-medium">{v.plate_number ?? v.model ?? "â€”"}</span>
+                  <span className="flex-1 truncate font-medium">{v.plate_number ?? v.model ?? "—"}</span>
                   {v.model && <span className="text-[9px] text-muted-foreground">{v.model}</span>}
                 </button>
               ))}
@@ -677,7 +677,7 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
   const runImport = async () => {
     if (!file) return
     try {
-      // Step 1 â€” create missing places
+      // Step 1 — create missing places
       setStep("creating-places")
       const fd1 = new FormData()
       fd1.append("file", file)
@@ -687,7 +687,7 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
       )
       setPlaceResult(pr)
 
-      // Step 2 â€” import orders
+      // Step 2 — import orders
       setStep("importing")
       const fd2 = new FormData()
       fd2.append("file", file)
@@ -726,15 +726,15 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
                   {([
                     ["Block ID",               "Groups rows into one trip (e.g. TK-HVHSNR4MS)"],
                     ["VR ID",                  "Vehicle registration plate number"],
-                    ["Facility Sequence",       "Route as Fromâ†’To codes (e.g. LCY42â†’LCY3)"],
+                    ["Facility Sequence",       "Route as From→To codes (e.g. LCY42→LCY3)"],
                     ["Stop 1 Yard Arrival",    "Pickup date/time (UTC, e.g. 3/21/2026 20:30)"],
                     ["Stop 1 Yard Departure",  "Pickup departure time"],
                     ["Stop 2 Yard Arrival",    "Drop-off / next stop arrival time"],
                     ["Carrier",                "Fleet / carrier name (e.g. AZFNR)"],
                     ["Operator ID",            "Driver identifier (e.g. AZFNR_UK-London_SOLO7_2)"],
                     ["Trip ID",                "Internal trip reference (optional)"],
-                    ["Equipment Type",         "Trailer type â€” passed as notes (optional)"],
-                    ["Trailer Id",             "Trailer ID â€” passed as tracking ref (optional)"],
+                    ["Equipment Type",         "Trailer type — passed as notes (optional)"],
+                    ["Trailer Id",             "Trailer ID — passed as tracking ref (optional)"],
                     ["Contract ID",            "Contract reference (optional)"],
                   ] as [string, string][]).map(([col, desc]) => (
                     <div key={col} className="flex gap-2">
@@ -744,7 +744,7 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
                   ))}
                 </div>
                 <p className="mt-3 text-[11px] text-muted-foreground border-t pt-2">
-                  Multi-stop trips: use <span className="font-mono">Stop 3 / Stop 4 â€¦</span> columns for waypoints. Rows sharing the same <span className="font-mono">Block ID</span> are merged into a single trip.
+                  Multi-stop trips: use <span className="font-mono">Stop 3 / Stop 4 …</span> columns for waypoints. Rows sharing the same <span className="font-mono">Block ID</span> are merged into a single trip.
                 </p>
               </div>
 
@@ -770,7 +770,7 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
             <div className="flex flex-col items-center gap-4 py-10">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <div className="text-center">
-                <p className="font-medium">{step === "creating-places" ? "Step 1 / 2 â€” Creating missing placesâ€¦" : "Step 2 / 2 â€” Importing tripsâ€¦"}</p>
+                <p className="font-medium">{step === "creating-places" ? "Step 1 / 2 — Creating missing places…" : "Step 2 / 2 — Importing trips…"}</p>
                 <p className="text-xs text-muted-foreground mt-1">This may take a moment for large files</p>
               </div>
               {placeResult && step === "importing" && (
@@ -837,7 +837,7 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
           {step === "done" && (
             <button onClick={() => { onDone(); onClose() }}
               className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-              Done â€” Refresh List
+              Done — Refresh List
             </button>
           )}
           {step === "error" && (
@@ -874,7 +874,7 @@ const HELP_STEPS = [
     title: "New Trip",
     icon: "âž•",
     target: "[data-help='toolbar']",
-    description: "Click New Trip to open the slide-over. Choose fleet, driver and pickup/dropoff from live Places search. Set scheduled dates and save â€” the grid refreshes automatically.",
+    description: "Click New Trip to open the slide-over. Choose fleet, driver and pickup/dropoff from live Places search. Set scheduled dates and save — the grid refreshes automatically.",
   },
   {
     id: "grid",
@@ -888,14 +888,14 @@ const HELP_STEPS = [
     title: "Status Badges",
     icon: "ðŸ·ï¸",
     target: "[data-help='grid']",
-    description: "Each trip shows a colour-coded status pill: Created (amber) â†’ Dispatched (violet) â†’ Started (sky) â†’ Completed (emerald). Canceled shows in rose. Statuses are updated in real-time via the API.",
+    description: "Each trip shows a colour-coded status pill: Created (amber) → Dispatched (violet) → Started (sky) → Completed (emerald). Canceled shows in rose. Statuses are updated in real-time via the API.",
   },
   {
     id: "pagination",
     title: "Pagination",
     icon: "ðŸ“„",
     target: "[data-help='grid']",
-    description: "15 rows per page by default â€” use the page-size selector to switch to 30, 50 or 100. Navigate pages with the arrows. The total count shown in the top bar reflects the full API result.",
+    description: "15 rows per page by default — use the page-size selector to switch to 30, 50 or 100. Navigate pages with the arrows. The total count shown in the top bar reflects the full API result.",
   },
 ]
 
@@ -951,7 +951,7 @@ function HelpWalkthrough({ onClose }: { onClose: () => void }) {
       {/* Invisible click-away to close */}
       <div className="fixed inset-0 z-40" onClick={onClose} />
 
-      {/* Floating card â€” bottom-right so it doesn't block content */}
+      {/* Floating card — bottom-right so it doesn't block content */}
       <div
         id="help-walkthrough-card"
         className="fixed bottom-6 right-6 z-50 w-80 rounded-2xl border bg-card shadow-2xl"
@@ -1122,7 +1122,7 @@ function NewTripDrawer({
                 onChange={(e) => set("fleet_uuid", e.target.value || null as never)}
                 className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
               >
-                <option value="">â€” Select fleet â€”</option>
+                <option value="">— Select fleet —</option>
                 {fleets.map((f) => (
                   <option key={f.uuid} value={f.uuid}>
                     {f.name}
@@ -1139,7 +1139,7 @@ function NewTripDrawer({
                 onChange={(e) => set("driver_assigned_uuid", e.target.value || null as never)}
                 className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
               >
-                <option value="">â€” No driver â€”</option>
+                <option value="">— No driver —</option>
                 {drivers.map((d) => (
                   <option key={d.uuid} value={d.uuid}>
                     {d.name} ({d.status})
@@ -1156,10 +1156,10 @@ function NewTripDrawer({
                 onChange={(e) => set("vehicle_assigned_uuid", e.target.value || undefined)}
                 className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
               >
-                <option value="">â€” No vehicle â€”</option>
+                <option value="">— No vehicle —</option>
                 {vehicles.map((v) => (
                   <option key={v.uuid} value={v.uuid}>
-                    {v.plate_number}{v.make ? ` â€” ${v.make}${v.model ? ` ${v.model}` : ""}` : ""}
+                    {v.plate_number}{v.make ? ` — ${v.make}${v.model ? ` ${v.model}` : ""}` : ""}
                   </option>
                 ))}
               </select>
@@ -1210,7 +1210,7 @@ function NewTripDrawer({
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Notes</label>
               <textarea
                 rows={3}
-                placeholder="Any special instructionsâ€¦"
+                placeholder="Any special instructions…"
                 value={form.notes ?? ""}
                 onChange={(e) => set("notes", e.target.value)}
                 className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring resize-none"
@@ -1241,7 +1241,7 @@ function NewTripDrawer({
               className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              {submitting ? "Creatingâ€¦" : "Create Trip"}
+              {submitting ? "Creating…" : "Create Trip"}
             </button>
           </div>
         </form>
@@ -1265,7 +1265,7 @@ function StatusCellRenderer({ data, value, context }: ICellRendererParams<Order,
           {value}
         </span>
       ) : (
-        <span className="text-muted-foreground">â€”</span>
+        <span className="text-muted-foreground">—</span>
       )}
 
     </div>
@@ -1362,9 +1362,9 @@ function AutoAllocateModal({ open, onClose, onDone }: {
 
   const STEPS_LABELS: Record<AllocStep, string> = {
     idle:     "Ready",
-    fetching: "Step 1 of 3 â€” Fetching shift data\u2026",
-    running:  "Step 2 of 3 â€” Running allocation engine\u2026",
-    applying: "Step 3 of 3 â€” Applying assignments\u2026",
+    fetching: "Step 1 of 3 — Fetching shift data\u2026",
+    running:  "Step 2 of 3 — Running allocation engine\u2026",
+    applying: "Step 3 of 3 — Applying assignments\u2026",
     done:     "Done!",
     error:    "Failed",
   }
@@ -1444,7 +1444,7 @@ function AutoAllocateModal({ open, onClose, onDone }: {
                   <p className="text-2xl font-bold tabular-nums">{result.updated}</p>
                   <p className="text-xs text-muted-foreground">trips assigned</p>
                   {result.unassigned > 0 && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">âš  {result.unassigned} trips could not be assigned</p>
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">⚠ {result.unassigned} trips could not be assigned</p>
                   )}
                 </div>
               </div>
@@ -1485,7 +1485,7 @@ type LegData = {
   legType:  "pickup" | "waypoint" | "dropoff"
 }
 
-// Pure function â€” no component state needed
+// Pure function — no component state needed
 function buildLegs(order: Order): LegData[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const payload = order.payload as any
@@ -1553,12 +1553,12 @@ export default function TripsPage() {
   const [selectedCount, setSelectedCount] = React.useState(0)
   const [showCards, setShowCards] = React.useState(false)
   const [expandedRows, setExpandedRows] = React.useState<Set<string>>(new Set())
-  // Stable ref â€” always up-to-date, doesn't cause gridContext to recreate
+  // Stable ref — always up-to-date, doesn't cause gridContext to recreate
   const expandedRowsRef = React.useRef<Set<string>>(new Set())
   const [searchFocused, setSearchFocused] = React.useState(false)
   const [showAllocate, setShowAllocate] = React.useState(false)
 
-  // Detect dark mode reactively â€” declared here so detailCellRendererParams can use it
+  // Detect dark mode reactively — declared here so detailCellRendererParams can use it
   const [isDark, setIsDark] = React.useState(() =>
     typeof window !== "undefined" && document.documentElement.classList.contains("dark")
   )
@@ -1573,7 +1573,7 @@ export default function TripsPage() {
   // Tabs
   const [tab, setTab] = React.useState<"current" | "history">("current")
 
-  // Last Sunday 00:00 â€” default start for Current tab
+  // Last Sunday 00:00 — default start for Current tab
   const lastSunday = React.useMemo(() => {
     const now = new Date()
     return new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay())
@@ -1746,7 +1746,7 @@ export default function TripsPage() {
     }, 0)
   }, [])
 
-  // Stable context â€” only changes when drivers/vehicles/handlers change, NOT on row expand
+  // Stable context — only changes when drivers/vehicles/handlers change, NOT on row expand
   const gridContext = React.useMemo<RowCallbacks & { expandedRowsRef: React.MutableRefObject<Set<string>>; toggleRow: (id: string) => void }>(() => ({
     onDelete:          handleDelete,
     onDispatch:        handleDispatch,
@@ -1795,7 +1795,7 @@ export default function TripsPage() {
       cellRenderer: StatusCellRenderer,
     },
     {
-      headerName: "Operator ID",
+      headerName: "Driver",
       field: "driver_assigned",
       filter: "agTextColumnFilter",
       filterValueGetter: ({ data }) =>
@@ -1805,7 +1805,7 @@ export default function TripsPage() {
       cellRenderer: DriverCellRenderer,
     },
     {
-      headerName: "VR ID",
+      headerName: "Tractor",
       valueGetter: ({ data }) => data?.vehicle_assigned?.plate_number ?? data?.vehicle_assigned?.name ?? "",
       filter: "agTextColumnFilter",
       width: 140,
@@ -1843,11 +1843,11 @@ export default function TripsPage() {
         if (stops.length === 0) return <span className="text-muted-foreground text-xs">No route</span>
 
         const isExpanded = context?.expandedRowsRef?.current?.has(data.uuid)
-        const from = stops[0]?.name ?? "â€”"
-        const to = stops[stops.length - 1]?.name ?? "â€”"
+        const from = stops[0]?.name ?? "—"
+        const to = stops[stops.length - 1]?.name ?? "—"
 
         if (!isExpanded) {
-          // Compact: From â†’ To with expand chevron
+          // Compact: From → To with expand chevron
           return (
             <div className="flex items-center gap-1.5">
               <button
@@ -1859,7 +1859,7 @@ export default function TripsPage() {
               </button>
               <span className="flex items-center gap-1 text-[12px]">
                 <span className="font-medium truncate max-w-[120px]" title={from}>{from}</span>
-                <span className="text-muted-foreground shrink-0">â†’</span>
+                <span className="text-muted-foreground shrink-0">→</span>
                 <span className="font-medium truncate max-w-[120px]" title={to}>{to}</span>
                 {stops.length > 2 && (
                   <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
@@ -1892,7 +1892,7 @@ export default function TripsPage() {
                   {i < visible.length - 1 && <span className="w-px flex-1 bg-border" style={{ minHeight: 12 }} />}
                 </div>
                 <div className="pb-2">
-                  <span className="text-[12px] font-medium leading-tight">{s.name ?? "â€”"}</span>
+                  <span className="text-[12px] font-medium leading-tight">{s.name ?? "—"}</span>
                   {s.publicId && <span className="ml-1 font-mono text-[10px] text-muted-foreground">({s.publicId})</span>}
                 </div>
               </div>
@@ -1907,7 +1907,7 @@ export default function TripsPage() {
       },
     },
     {
-      headerName: "Yard Arrival",
+      headerName: "Scheduled At",
       field: "scheduled_at",
       filter: "agDateColumnFilter",
       width: 140,
@@ -1917,7 +1917,7 @@ export default function TripsPage() {
       ),
     },
     {
-      headerName: "CPT",
+      headerName: "Est. End Time",
       field: "estimated_end_date",
       filter: "agDateColumnFilter",
       width: 148,
@@ -1930,7 +1930,7 @@ export default function TripsPage() {
               title="This trip has no estimated end time. Compliance gap calculations use a 2h fallback."
               className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
             >
-              âš  No end time
+              ⚠ No end time
             </span>
           )
         }
@@ -1938,11 +1938,11 @@ export default function TripsPage() {
       },
     },
     {
-      headerName: "Carrier",
+      headerName: "Fleet",
       valueGetter: ({ data }) => data ? fleetLabel(data) : "",
       filter: "agTextColumnFilter",
       width: 110,
-      cellRenderer: ({ value }: ICellRendererParams) => value || <span className="text-muted-foreground">â€”</span>,
+      cellRenderer: ({ value }: ICellRendererParams) => value || <span className="text-muted-foreground">—</span>,
     },
   ], [showCompleted])
 
@@ -1954,7 +1954,7 @@ export default function TripsPage() {
     floatingFilter: false,
   }), [showFilters])
 
-  // Grid ref â€” declared early so both effects below can reference it
+  // Grid ref — declared early so both effects below can reference it
   const gridRef = React.useRef<AgGridReact<Order>>(null)
 
   // Force AG Grid to re-apply defaultColDef when filters toggle changes
@@ -2046,7 +2046,7 @@ export default function TripsPage() {
             ))}
           </div>
 
-          {/* History date range â€” sits right beside the History tab, defines what you're viewing */}
+          {/* History date range — sits right beside the History tab, defines what you're viewing */}
           {tab === "history" && (
             <>
               <span className="h-6 w-px bg-border" />
@@ -2062,7 +2062,7 @@ export default function TripsPage() {
                   }}
                   className="h-8 rounded-lg border bg-background px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
                 />
-                <span className="text-xs text-muted-foreground">â†’</span>
+                <span className="text-xs text-muted-foreground">→</span>
                 <input
                   type="date"
                   value={dateTo}
@@ -2090,10 +2090,10 @@ export default function TripsPage() {
             </>
           )}
 
-          {/* Flex spacer â€” everything below is pushed to the right */}
+          {/* Flex spacer — everything below is pushed to the right */}
           <div className="flex-1" />
 
-          {/* Delete selected â€” appears when rows are checked */}
+          {/* Delete selected — appears when rows are checked */}
           {selectedCount > 0 && (
             <button
               onClick={handleDeleteSelected}
@@ -2104,7 +2104,7 @@ export default function TripsPage() {
             </button>
           )}
 
-          {/* Search â€” expands on focus */}
+          {/* Search — expands on focus */}
           <div className={`relative transition-all duration-200 ${searchFocused ? "w-72" : "w-40"}`}>
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -2118,7 +2118,7 @@ export default function TripsPage() {
             />
           </div>
 
-          {/* Pill toggles â€” view options grouped together */}
+          {/* Pill toggles — view options grouped together */}
           <div className="flex items-center gap-0.5 rounded-lg border bg-muted/30 p-0.5">
             <button
               onClick={() => setShowCompleted(v => !v)}
@@ -2146,7 +2146,7 @@ export default function TripsPage() {
               </svg>
               {c.filter}
             </button>
-            {/* Stats toggle â€” shows/hides summary cards */}
+            {/* Stats toggle — shows/hides summary cards */}
             <button
               onClick={() => setShowCards(v => !v)}
               title={showCards ? "Hide summary stats" : "Show summary stats"}
@@ -2212,7 +2212,7 @@ export default function TripsPage() {
             Auto-Allocate
           </button>
 
-          {/* Help â€” icon only */}
+          {/* Help — icon only */}
           <button
             onClick={() => setShowHelp(true)}
             title="Page guide"
@@ -2238,7 +2238,7 @@ export default function TripsPage() {
       {loading ? (
         <div className="flex items-center justify-center rounded-xl border bg-card py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          <span className="ml-2 text-sm text-muted-foreground">Loading tripsâ€¦</span>
+          <span className="ml-2 text-sm text-muted-foreground">Loading trips…</span>
         </div>
       ) : (
         <div ref={gridContainerRef} data-help="grid" className="flex-1 min-h-0" style={{ height: "100%", width: "100%" }}>
