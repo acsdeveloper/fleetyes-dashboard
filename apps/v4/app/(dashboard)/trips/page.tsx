@@ -761,32 +761,34 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
           {step === "upload" && (
             <>
               <div className="rounded-xl border bg-muted/30 p-4">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Required columns (Trips Sheet format)</p>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Required columns — exact field names the API expects</p>
                 <div className="grid grid-cols-1 gap-y-1.5 text-xs">
                   {([
-                    ["Block ID",               "Groups rows into one trip (e.g. TK-HVHSNR4MS)"],
-                    ["VR ID",                  "Vehicle registration plate number"],
-                    ["Facility Sequence",       "Route as From→To codes (e.g. LCY42→LCY3)"],
-                    ["Stop 1 Yard Arrival",    "Pickup date/time (UTC, e.g. 3/21/2026 20:30)"],
-                    ["Stop 1 Yard Departure",  "Pickup departure time"],
-                    ["Stop 2 Yard Arrival",    "Drop-off / next stop arrival time"],
-                    ["Carrier",                "Fleet / carrier name (e.g. AZFNR)"],
-                    ["Operator ID",            "Driver identifier (e.g. AZFNR_UK-London_SOLO7_2)"],
-                    ["Trip ID",                "Internal trip reference (optional)"],
-                    ["Equipment Type",         "Trailer type — passed as notes (optional)"],
-                    ["Trailer Id",             "Trailer ID — passed as tracking ref (optional)"],
-                    ["Contract ID",            "Contract reference (optional)"],
-                  ] as [string, string][]).map(([col, desc]) => (
-                    <div key={col} className="flex gap-2">
-                      <span className="font-mono font-medium shrink-0 w-44">{col}</span>
+                    ["block_id",           "required", "Groups rows into one trip (e.g. TK-HVHSNR4MS)"],
+                    ["fleet_name",         "required", "Fleet / carrier name (e.g. AZFNR)"],
+                    ["driver_name",        "required", "Driver full name — fuzzy-matched against existing drivers"],
+                    ["plate_number",       "required", "Vehicle plate number — fuzzy-matched"],
+                    ["scheduled_at",       "required", "Pickup date/time (UTC, e.g. 2026-03-21 20:30)"],
+                    ["estimated_end_date", "required", "Estimated completion date/time (UTC)"],
+                    ["pickup_code",        "required", "Place code for pickup location"],
+                    ["dropoff_code",       "required", "Place code for drop-off location"],
+                  ] as [string, string, string][]).map(([col, badge, desc]) => (
+                    <div key={col} className="flex items-start gap-2">
+                      <span className="font-mono font-medium shrink-0 w-40">{col}</span>
+                      <span className={`shrink-0 rounded px-1 py-0.5 text-[10px] font-semibold leading-none ${
+                        badge === "required"
+                          ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+                          : "bg-muted text-muted-foreground"
+                      }`}>{badge}</span>
                       <span className="text-muted-foreground">{desc}</span>
                     </div>
                   ))}
                 </div>
                 <p className="mt-3 text-[11px] text-muted-foreground border-t pt-2">
-                  Multi-stop trips: use <span className="font-mono">Stop 3 / Stop 4 …</span> columns for waypoints. Rows sharing the same <span className="font-mono">Block ID</span> are merged into a single trip.
+                  Column names must be <span className="font-mono font-semibold">exact</span> (lowercase, underscores). Rows sharing the same <span className="font-mono">block_id</span> are grouped into one trip.
                 </p>
               </div>
+
 
               {/* Drop zone */}
               <div
