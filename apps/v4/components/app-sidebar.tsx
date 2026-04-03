@@ -54,6 +54,16 @@ function IconImportHub() {
   )
 }
 
+function IconIssues() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 shrink-0">
+      <path d="M10 3 L18 16 L2 16 Z" fill="rgba(239,68,68,0.12)" stroke="#ef4444" strokeWidth="1.5" strokeLinejoin="round"/>
+      <path d="M10 8 L10 12" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round"/>
+      <circle cx="10" cy="14.5" r="0.75" fill="#ef4444"/>
+    </svg>
+  )
+}
+
 function IconCalendar() {
   return (
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 shrink-0">
@@ -280,6 +290,7 @@ function buildNav(t: NavTranslations): NavEntry[] {
     groupIcon: IconTrips,
     items: [
       { label: t.nav.trips,             href: "/trips",              icon: IconTrips,       iconColor: "#6366f1" },
+      { label: "Issues",                href: "/issues",             icon: IconIssues,      iconColor: "#ef4444" },
       { label: t.nav.rota,              href: "/rota",               icon: IconRota,        iconColor: "#6366f1" },
       { label: t.nav.calendar,          href: "/calendar",           icon: IconCalendar,    iconColor: "#3b82f6" },
       { label: t.nav.maintenanceTrips,  href: "/maintenance-trips",  icon: IconMaintenance, iconColor: "#f59e0b" },

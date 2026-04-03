@@ -23,6 +23,11 @@ import { dedupBy } from "@/lib/utils"
 import { getDriverAvailability, upsertRota, getRotaEntry, type RotaEntry } from "@/lib/rota-store"
 import { ontrackFetch } from "@/lib/ontrack-api"
 import { prospectiveComplianceCheck } from "@/lib/compliance-engine"
+import {
+  getShiftAssignmentData,
+  initiateAsyncAllocation,
+  applyAllocations,
+} from "@/lib/auto-allocation-api"
 
 import { AgGridReact } from "ag-grid-react"
 import {
@@ -1288,6 +1293,174 @@ function VehicleCellRenderer({ data, context }: ICellRendererParams<Order> & { c
   return <span className="font-mono text-xs">{plate}</span>
 }
 
+// ─── Auto-Allocate Modal ─────────────────────────────────────────────────────
+
+type AllocStep = "idle" | "fetching" | "running" | "applying" | "done" | "error"
+
+function AutoAllocateModal({ open, onClose, onDone }: {
+  open: boolean; onClose: () => void; onDone: () => void
+}) {
+  const today = () => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+  }
+  const [from,    setFrom]    = React.useState(today)
+  const [to,      setTo]      = React.useState(today)
+  const [step,    setStep]    = React.useState<AllocStep>("idle")
+  const [result,  setResult]  = React.useState<{ updated: number; unassigned: number } | null>(null)
+  const [errMsg,  setErrMsg]  = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (!open) { setStep("idle"); setResult(null); setErrMsg(null) }
+  }, [open])
+
+  const runAllocation = async () => {
+    if (!from || !to) { setErrMsg("Please select a date range."); return }
+    if (from > to) { setErrMsg("End date must be on or after start date."); return }
+    setErrMsg(null)
+    try {
+      // Step 1: Fetch input data
+      setStep("fetching")
+      const data = await getShiftAssignmentData({ start_date: from, end_date: to })
+
+      // Step 2: Run the allocation engine
+      setStep("running")
+      const payload = await initiateAsyncAllocation(data)
+
+      // Step 3: Apply results to Ontrack
+      setStep("applying")
+      const applied = await applyAllocations(payload)
+
+      setResult({
+        updated:    applied.data?.updated_orders    ?? 0,
+        unassigned: applied.data?.unassigned_orders ?? 0,
+      })
+      setStep("done")
+    } catch (e) {
+      setErrMsg(e instanceof Error ? e.message : "Allocation failed")
+      setStep("error")
+    }
+  }
+
+  if (!open) return null
+
+  const STEPS_LABELS: Record<AllocStep, string> = {
+    idle:     "Ready",
+    fetching: "Step 1 of 3 — Fetching shift data\u2026",
+    running:  "Step 2 of 3 — Running allocation engine\u2026",
+    applying: "Step 3 of 3 — Applying assignments\u2026",
+    done:     "Done!",
+    error:    "Failed",
+  }
+
+  const isRunning = step === "fetching" || step === "running" || step === "applying"
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={isRunning ? undefined : onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-sm rounded-2xl border bg-background shadow-2xl">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b px-5 py-4">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
+                <svg className="h-4 w-4 text-violet-600 dark:text-violet-400" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </span>
+              <h2 className="text-sm font-bold">Auto-Allocate Trips</h2>
+            </div>
+            {!isRunning && (
+              <button onClick={onClose} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+            )}
+          </div>
+
+          <div className="px-5 py-4 space-y-4">
+            {/* Date range */}
+            {(step === "idle" || step === "error") && (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Select the date range to auto-assign drivers to unallocated trips. The engine respects shift preferences, availability, and compliance rules.
+                </p>
+                {errMsg && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">
+                    {errMsg}
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">From</label>
+                    <input type="date" value={from} onChange={e => setFrom(e.target.value)} max={to}
+                      className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">To</label>
+                    <input type="date" value={to} onChange={e => setTo(e.target.value)} min={from}
+                      className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Progress */}
+            {isRunning && (
+              <div className="flex flex-col items-center gap-3 py-4">
+                <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+                <p className="text-sm font-medium">{STEPS_LABELS[step]}</p>
+                <div className="w-full rounded-full bg-muted h-1.5">
+                  <div
+                    className="h-1.5 rounded-full bg-violet-500 transition-all duration-500"
+                    style={{ width: step === "fetching" ? "30%" : step === "running" ? "65%" : "90%" }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">Do not close this window</p>
+              </div>
+            )}
+
+            {/* Result */}
+            {step === "done" && result && (
+              <div className="flex flex-col items-center gap-3 py-2">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+                  <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <p className="text-sm font-bold">Allocation Complete</p>
+                <div className="w-full rounded-xl border bg-muted/40 p-3 text-center space-y-1">
+                  <p className="text-2xl font-bold tabular-nums">{result.updated}</p>
+                  <p className="text-xs text-muted-foreground">trips assigned</p>
+                  {result.unassigned > 0 && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">⚠ {result.unassigned} trips could not be assigned</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-end gap-2 border-t px-5 py-3">
+            {step === "done" ? (
+              <button onClick={() => { onDone(); onClose() }}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
+                <RefreshCw className="h-3.5 w-3.5" /> Refresh Trips
+              </button>
+            ) : step === "idle" || step === "error" ? (
+              <>
+                <button onClick={onClose} className="h-9 rounded-lg border bg-background px-4 text-sm text-muted-foreground hover:bg-muted">Cancel</button>
+                <button onClick={runAllocation}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-violet-600 px-4 text-sm font-semibold text-white hover:bg-violet-700">
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Run Allocation
+                </button>
+              </>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 type LegData = {
   legIndex: number
   vrId:     string    // waypoint public_id or generated
@@ -1367,6 +1540,7 @@ export default function TripsPage() {
   // Stable ref — always up-to-date, doesn't cause gridContext to recreate
   const expandedRowsRef = React.useRef<Set<string>>(new Set())
   const [searchFocused, setSearchFocused] = React.useState(false)
+  const [showAllocate, setShowAllocate] = React.useState(false)
 
   // Detect dark mode reactively — declared here so detailCellRendererParams can use it
   const [isDark, setIsDark] = React.useState(() =>
@@ -2011,6 +2185,17 @@ export default function TripsPage() {
             <Plus className="h-3.5 w-3.5" /> {c.addNew}
           </button>
 
+          {/* Auto-Allocate */}
+          <button
+            onClick={() => setShowAllocate(true)}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-violet-300 bg-violet-50 px-3 text-sm font-semibold text-violet-700 shadow-sm transition-colors hover:bg-violet-100 dark:border-violet-700/60 dark:bg-violet-900/20 dark:text-violet-300 dark:hover:bg-violet-900/40"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Auto-Allocate
+          </button>
+
           {/* Help — icon only */}
           <button
             onClick={() => setShowHelp(true)}
@@ -2091,6 +2276,11 @@ export default function TripsPage() {
           onCreated={() => fetchOrders()}
         />
       )}
+      <AutoAllocateModal
+        open={showAllocate}
+        onClose={() => setShowAllocate(false)}
+        onDone={() => fetchOrders()}
+      />
     </div>
   )
 }

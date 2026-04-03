@@ -4,10 +4,10 @@ import * as React from "react"
 import {
   Search, RefreshCw, Plus, Upload, Download,
   LayoutGrid, List,
-  Phone, MapPin, UserCheck, UserX, Trash2, AlertTriangle,
+  Phone, MapPin, UserCheck, UserX, Trash2, AlertTriangle, X, Loader2, ChevronDown,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
-import { listDrivers, bulkDeleteDrivers, type Driver, type DriverStatus } from "@/lib/drivers-api"
+import { listDrivers, createDriver, updateDriver, updateDriverStatus, exportDrivers, deleteDriver, type Driver, type DriverStatus } from "@/lib/drivers-api"
 import { listFleets, type Fleet } from "@/lib/fleets-api"
 
 import { AgGridReact } from "ag-grid-react"
@@ -120,12 +120,188 @@ function StatusCell({ data }: ICellRendererParams<DriverRow>) {
 }
 
 
+// ─── Driver Drawer ────────────────────────────────────────────────────────────
+
+function DriverDrawer({
+  open, driver, fleets, onClose, onSaved,
+}: {
+  open: boolean
+  driver: Driver | null
+  fleets: Fleet[]
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const isEdit = !!driver
+  const [name,         setName]         = React.useState("")
+  const [email,        setEmail]        = React.useState("")
+  const [phone,        setPhone]        = React.useState("")
+  const [licence,      setLicence]      = React.useState("")
+  const [statusVal,    setStatusVal]    = React.useState<DriverStatus>("active")
+  const [selectedFleets, setSelectedFleets] = React.useState<string[]>([])
+  const [maxTrips,     setMaxTrips]     = React.useState<string>("")
+  const [consecDays,   setConsecDays]   = React.useState<string>("")
+  const [saving,       setSaving]       = React.useState(false)
+  const [error,        setError]        = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (driver) {
+      setName(driver.name ?? "")
+      setEmail(driver.email ?? "")
+      setPhone(driver.phone ?? "")
+      setLicence(driver.drivers_license_number ?? "")
+      setStatusVal(driver.status ?? "active")
+      setSelectedFleets(driver.fleet_uuid ?? [])
+      setMaxTrips(driver.maximum_trips_per_week != null ? String(driver.maximum_trips_per_week) : "")
+      setConsecDays(driver.number_of_consecutive_working_days != null ? String(driver.number_of_consecutive_working_days) : "")
+    } else {
+      setName(""); setEmail(""); setPhone(""); setLicence("")
+      setStatusVal("active"); setSelectedFleets([]); setMaxTrips(""); setConsecDays("")
+    }
+    setError(null)
+  }, [driver, open])
+
+  const toggleFleet = (uuid: string) =>
+    setSelectedFleets(prev => prev.includes(uuid) ? prev.filter(f => f !== uuid) : [...prev, uuid])
+
+  const handleSave = async () => {
+    if (!name.trim()) { setError("Driver name is required."); return }
+    setSaving(true); setError(null)
+    try {
+      const payload = {
+        name:                                name.trim(),
+        email:                               email || undefined,
+        phone:                               phone || undefined,
+        drivers_license_number:             licence || undefined,
+        status:                              statusVal,
+        fleet_uuid:                          selectedFleets.length ? selectedFleets : undefined,
+        maximum_trips_per_week:             maxTrips ? Number(maxTrips) : undefined,
+        number_of_consecutive_working_days: consecDays ? Number(consecDays) : undefined,
+      }
+      if (isEdit && driver) {
+        await updateDriver(driver.uuid, payload)
+      } else {
+        await createDriver(payload)
+      }
+      onSaved()
+      onClose()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleStatusToggle = async () => {
+    if (!driver) return
+    setSaving(true); setError(null)
+    try {
+      await updateDriverStatus(driver.uuid, driver.status === "active" ? "inactive" : "active")
+      onSaved()
+      onClose()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Status update failed")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <>
+      <div className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity ${open ? "opacity-100" : "opacity-0 pointer-events-none"}`} onClick={onClose} />
+      <div className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l bg-background shadow-2xl transition-transform duration-300 ${open ? "translate-x-0" : "translate-x-full"}`}>
+        <div className="flex items-center justify-between border-b px-5 py-4">
+          <h2 className="text-sm font-bold">{isEdit ? `Edit Driver` : "Add New Driver"}</h2>
+          <button onClick={onClose} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">{error}</div>}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Name *</label>
+            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Full name"
+              className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Email</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="driver@example.com"
+                className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Phone</label>
+              <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+44..."
+                className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Licence Number</label>
+            <input type="text" value={licence} onChange={e => setLicence(e.target.value)} placeholder="XXXXXXXXXXXXXXXXXX"
+              className="h-9 w-full rounded-lg border bg-background px-3 text-sm font-mono outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Max Trips/Week</label>
+              <input type="number" min={1} max={99} value={maxTrips} onChange={e => setMaxTrips(e.target.value)} placeholder="e.g. 5"
+                className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Max Consec. Days</label>
+              <input type="number" min={1} max={7} value={consecDays} onChange={e => setConsecDays(e.target.value)} placeholder="e.g. 6"
+                className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</label>
+            <div className="flex gap-2">
+              {(["active", "inactive"] as DriverStatus[]).map(s => (
+                <button key={s} onClick={() => setStatusVal(s)}
+                  className={`flex-1 h-8 rounded-lg border text-xs font-semibold capitalize transition-all ${statusVal === s ? s === "active" ? "bg-emerald-500 text-white border-emerald-500" : "bg-rose-500 text-white border-rose-500" : "bg-background text-muted-foreground hover:bg-muted"}`}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+          {fleets.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Fleets</label>
+              <div className="grid grid-cols-2 gap-1.5 max-h-40 overflow-y-auto pr-1">
+                {fleets.filter(f => f.status === "active").map(f => (
+                  <button key={f.uuid} onClick={() => toggleFleet(f.uuid)}
+                    className={`h-8 rounded-lg border px-2 text-xs text-left transition-all truncate ${selectedFleets.includes(f.uuid) ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground hover:bg-muted"}`}>
+                    {f.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {isEdit && (
+            <div className="pt-2 border-t">
+              <button onClick={handleStatusToggle} disabled={saving}
+                className={`h-8 w-full rounded-lg border text-xs font-semibold transition-all ${driver?.status === "active" ? "border-rose-300 text-rose-600 hover:bg-rose-50" : "border-emerald-300 text-emerald-600 hover:bg-emerald-50"}`}>
+                {driver?.status === "active" ? "Deactivate Driver" : "Reactivate Driver"}
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t px-5 py-4">
+          <button onClick={onClose} className="h-9 rounded-lg border bg-background px-4 text-sm text-muted-foreground hover:bg-muted">Cancel</button>
+          <button onClick={handleSave} disabled={saving}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-50">
+            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {isEdit ? "Save Changes" : "Add Driver"}
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DriversPage() {
   const { t } = useLang()
   const c = t.common
   const [drivers,       setDrivers]       = React.useState<Driver[]>([])
+  const [fleets,        setFleetList]     = React.useState<Fleet[]>([])
   const [fleetMap,      setFleetMap]      = React.useState<Record<string, string>>({})
   const [loading,       setLoading]       = React.useState(true)
   const [error,         setError]         = React.useState<string | null>(null)
@@ -136,6 +312,8 @@ export default function DriversPage() {
   const [searchFocused, setSearchFocused] = React.useState(false)
   const [selectedCount, setSelectedCount] = React.useState(0)
   const [deleting,      setDeleting]      = React.useState(false)
+  const [drawerOpen,    setDrawerOpen]    = React.useState(false)
+  const [editDriver,    setEditDriver]    = React.useState<Driver | null>(null)
 
   // Dark mode
   const [isDark, setIsDark] = React.useState(() =>
@@ -162,6 +340,7 @@ export default function DriversPage() {
       const map: Record<string, string> = {}
       ;(fleetsRes.fleets ?? []).forEach((f: Fleet) => { map[f.uuid] = f.name })
       setFleetMap(map)
+      setFleetList(fleetsRes.fleets ?? [])
       setDrivers(driversRes.drivers ?? [])
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load drivers")
@@ -175,7 +354,9 @@ export default function DriversPage() {
     setDeleting(true)
     try {
       const uuids = (gridRef.current?.api?.getSelectedRows() ?? []).map(r => r.uuid)
-      const { deleted, errors } = await bulkDeleteDrivers(uuids)
+      const results = await Promise.allSettled(uuids.map(uuid => deleteDriver(uuid)))
+      const deleted = results.filter(r => r.status === "fulfilled").length
+      const errors  = results.filter(r => r.status === "rejected").map(r => (r as PromiseRejectedResult).reason)
       setSelectedCount(0)
       await load()
       if (errors.length) setError(`Deleted ${deleted}, ${errors.length} failed: ${errors[0]}`)
@@ -242,7 +423,8 @@ export default function DriversPage() {
   }), [showFilters])
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
+    <>
+      <div className="flex h-full flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
 
       {/* ── Toolbar ── */}
       <div className="flex items-center gap-2">
@@ -330,14 +512,14 @@ export default function DriversPage() {
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <Upload className="h-3.5 w-3.5" />
         </button>
-        <button title="Export" onClick={() => gridRef.current?.api?.exportDataAsCsv()}
+        <button title="Export" onClick={async () => { try { const blob = await exportDrivers(); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `drivers-export.xlsx`; a.click(); URL.revokeObjectURL(url) } catch(e) { setError(e instanceof Error ? e.message : "Export failed") } }}
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <Download className="h-3.5 w-3.5" />
         </button>
 
         <span className="h-6 w-px bg-border" />
 
-        <button className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
+        <button onClick={() => { setEditDriver(null); setDrawerOpen(true) }} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
           <Plus className="h-3.5 w-3.5" /> {c.addNew}
         </button>
       </div>
@@ -368,6 +550,8 @@ export default function DriversPage() {
             onSelectionChanged={() =>
               setSelectedCount(gridRef.current?.api?.getSelectedRows().length ?? 0)
             }
+            onRowClicked={({ data }) => { if (data) { setEditDriver(data); setDrawerOpen(true) } }}
+            rowClass="cursor-pointer"
             overlayLoadingTemplate='<span class="text-sm text-muted-foreground">Loading drivers…</span>'
             overlayNoRowsTemplate='<span class="text-sm text-muted-foreground">No drivers found.</span>'
           />
@@ -440,5 +624,14 @@ export default function DriversPage() {
         </div>
       )}
     </div>
+
+    <DriverDrawer
+      open={drawerOpen}
+      driver={editDriver}
+      fleets={fleets}
+      onClose={() => setDrawerOpen(false)}
+      onSaved={load}
+    />
+    </>
   )
 }

@@ -3,10 +3,11 @@
 import * as React from "react"
 import {
   Search, RefreshCw, Plus, Upload, Download,
-  LayoutGrid, List, Car, Trash2,
+  LayoutGrid, List, Car, Trash2, X, Loader2, ChevronDown,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
-import { listVehicles, bulkDeleteVehicles, type Vehicle } from "@/lib/vehicles-api"
+import { listVehicles, createVehicle, updateVehicle, exportVehicles, bulkDeleteVehicles, type Vehicle } from "@/lib/vehicles-api"
+import { listFleets, type Fleet } from "@/lib/fleets-api"
 
 import { AgGridReact } from "ag-grid-react"
 import {
@@ -129,12 +130,180 @@ function StatusCell({ data }: ICellRendererParams<Vehicle>) {
   )
 }
 
+// ─── Vehicle Drawer ────────────────────────────────────────────────────────────
+
+function VehicleDrawer({ open, vehicle, fleets, onClose, onSaved }: {
+  open: boolean; vehicle: Vehicle | null; fleets: Fleet[]; onClose: () => void; onSaved: () => void
+}) {
+  const isEdit = !!vehicle
+  const [plate,     setPlate]     = React.useState("")
+  const [make,      setMake]      = React.useState("")
+  const [model,     setModel]     = React.useState("")
+  const [year,      setYear]      = React.useState("")
+  const [colour,    setColour]    = React.useState("")
+  const [fleetUuid, setFleetUuid] = React.useState("")
+  const [pmiDate,   setPmiDate]   = React.useState("")
+  const [tachoDate, setTachoDate] = React.useState("")
+  const [statusVal, setStatusVal] = React.useState<VehicleStatus>("active")
+  const [saving,    setSaving]    = React.useState(false)
+  const [error,     setError]     = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (vehicle) {
+      setPlate(vehicle.plate_number ?? "")
+      setMake(vehicle.make ?? "")
+      setModel(vehicle.model ?? "")
+      setYear(vehicle.year != null ? String(vehicle.year) : "")
+      setColour(vehicle.colour ?? vehicle.color ?? "")
+      setFleetUuid(vehicle.fleet_uuid ?? "")
+      setPmiDate(vehicle.last_pmi_date?.slice(0,10) ?? "")
+      setTachoDate(vehicle.tachograph_cal_date?.slice(0,10) ?? "")
+      setStatusVal(vehicle.status ?? "active")
+    } else {
+      setPlate(""); setMake(""); setModel(""); setYear(""); setColour("")
+      setFleetUuid(""); setPmiDate(""); setTachoDate(""); setStatusVal("active")
+    }
+    setError(null)
+  }, [vehicle, open])
+
+  const handleSave = async () => {
+    if (!plate.trim() || !make.trim()) { setError("Plate number and make are required."); return }
+    setSaving(true); setError(null)
+    try {
+      if (isEdit && vehicle) {
+        await updateVehicle(vehicle.uuid, {
+          plate_number:         plate.trim().toUpperCase(),
+          make:                 make.trim(),
+          model:                model       || undefined,
+          year:                 year        || undefined,
+          colour:               colour      || undefined,
+          fleet_uuid:           fleetUuid   || undefined,
+          last_pmi_date:        pmiDate     || undefined,
+          tachograph_cal_date:  tachoDate   || undefined,
+          status:               statusVal === "active" ? "active" : "inactive",
+        })
+      } else {
+        await createVehicle({
+          plate_number:         plate.trim().toUpperCase(),
+          make:                 make.trim(),
+          model:                model      || undefined,
+          year:                 year       || undefined,
+          fleet_uuid:           fleetUuid  || undefined,
+          last_pmi_date:        pmiDate    || undefined,
+          tachograph_cal_date:  tachoDate  || undefined,
+          status:               statusVal === "active" ? "active" : "inactive",
+        })
+      }
+      onSaved(); onClose()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const sixMonthsAgo = new Date(); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+  const isPmiOverdue   = pmiDate   && new Date(pmiDate)   < sixMonthsAgo
+  const isTachoOverdue = tachoDate && new Date(tachoDate) < sixMonthsAgo
+
+  return (
+    <>
+      <div className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity ${open ? "opacity-100" : "opacity-0 pointer-events-none"}`} onClick={onClose} />
+      <div className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l bg-background shadow-2xl transition-transform duration-300 ${open ? "translate-x-0" : "translate-x-full"}`}>
+        <div className="flex items-center justify-between border-b px-5 py-4">
+          <h2 className="text-sm font-bold">{isEdit ? "Edit Vehicle" : "Add New Vehicle"}</h2>
+          <button onClick={onClose} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">{error}</div>}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Plate Number *</label>
+            <input type="text" value={plate} onChange={e => setPlate(e.target.value.toUpperCase())} placeholder="AB12 CDE"
+              className="h-9 w-full rounded-lg border bg-background px-3 text-sm font-mono outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Make *</label>
+              <input type="text" value={make} onChange={e => setMake(e.target.value)} placeholder="Mercedes"
+                className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Model</label>
+              <input type="text" value={model} onChange={e => setModel(e.target.value)} placeholder="Sprinter"
+                className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Year</label>
+              <input type="number" min={1990} max={2030} value={year} onChange={e => setYear(e.target.value)} placeholder="2022"
+                className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Colour</label>
+              <input type="text" value={colour} onChange={e => setColour(e.target.value)} placeholder="White"
+                className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Fleet</label>
+            <div className="relative">
+              <select value={fleetUuid} onChange={e => setFleetUuid(e.target.value)}
+                className="h-9 w-full appearance-none rounded-lg border bg-background px-3 pr-8 text-sm outline-none focus:ring-2 focus:ring-ring">
+                <option value="">No fleet</option>
+                {fleets.map(f => <option key={f.uuid} value={f.uuid}>{f.name}</option>)}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className={`text-xs font-semibold uppercase tracking-wide ${isPmiOverdue ? "text-amber-600" : "text-muted-foreground"}`}>
+                Last PMI {isPmiOverdue && "⚠"}
+              </label>
+              <input type="date" value={pmiDate} onChange={e => setPmiDate(e.target.value)}
+                className={`h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring ${isPmiOverdue ? "border-amber-400" : ""}`} />
+            </div>
+            <div className="space-y-1.5">
+              <label className={`text-xs font-semibold uppercase tracking-wide ${isTachoOverdue ? "text-amber-600" : "text-muted-foreground"}`}>
+                Tachograph Cal. {isTachoOverdue && "⚠"}
+              </label>
+              <input type="date" value={tachoDate} onChange={e => setTachoDate(e.target.value)}
+                className={`h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring ${isTachoOverdue ? "border-amber-400" : ""}`} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</label>
+            <div className="flex gap-2">
+              {(["active", "inactive"] as VehicleStatus[]).map(s => (
+                <button key={s} onClick={() => setStatusVal(s)}
+                  className={`flex-1 h-8 rounded-lg border text-xs font-semibold capitalize transition-all ${statusVal === s ? s === "active" ? "bg-emerald-500 text-white border-emerald-500" : "bg-rose-500 text-white border-rose-500" : "bg-background text-muted-foreground hover:bg-muted"}`}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t px-5 py-4">
+          <button onClick={onClose} className="h-9 rounded-lg border bg-background px-4 text-sm text-muted-foreground hover:bg-muted">Cancel</button>
+          <button onClick={handleSave} disabled={saving}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-50">
+            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {isEdit ? "Save Changes" : "Add Vehicle"}
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function VehiclesPage() {
   const { t } = useLang()
   const c = t.common
   const [vehicles,      setVehicles]      = React.useState<Vehicle[]>([])
+  const [fleets,        setFleetList]     = React.useState<Fleet[]>([])
   const [loading,       setLoading]       = React.useState(true)
   const [error,         setError]         = React.useState<string | null>(null)
   const [search,        setSearch]        = React.useState("")
@@ -144,6 +313,8 @@ export default function VehiclesPage() {
   const [searchFocused, setSearchFocused] = React.useState(false)
   const [selectedCount, setSelectedCount] = React.useState(0)
   const [deleting,      setDeleting]      = React.useState(false)
+  const [drawerOpen,    setDrawerOpen]    = React.useState(false)
+  const [editVehicle,   setEditVehicle]   = React.useState<Vehicle | null>(null)
 
   // Dark mode
   const [isDark, setIsDark] = React.useState(() =>
@@ -163,8 +334,12 @@ export default function VehiclesPage() {
   const load = React.useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const res = await listVehicles({ limit: 500 })
-      setVehicles(res.vehicles ?? [])
+      const [vehiclesRes, fleetsRes] = await Promise.all([
+        listVehicles({ limit: 500 }),
+        listFleets({ limit: 500 }),
+      ])
+      setVehicles(vehiclesRes.vehicles ?? [])
+      setFleetList(fleetsRes.fleets ?? [])
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load vehicles")
     } finally {
@@ -178,10 +353,10 @@ export default function VehiclesPage() {
     setDeleting(true)
     try {
       const uuids = (gridRef.current?.api?.getSelectedRows() ?? []).map(r => r.uuid)
-      const { deleted, errors } = await bulkDeleteVehicles(uuids)
+      const res = await bulkDeleteVehicles(uuids)
       setSelectedCount(0)
       await load()
-      if (errors.length) setError(`Deleted ${deleted}, ${errors.length} failed: ${errors[0]}`)
+      if (res.status !== "success") setError(res.message ?? "Some deletes failed")
     } catch (e) {
       setError(e instanceof Error ? e.message : "Delete failed")
     } finally {
@@ -219,10 +394,20 @@ export default function VehiclesPage() {
 
   // ── Column defs ──
   const colDefs = React.useMemo<ColDef<Vehicle>[]>(() => [
-    { headerName: c.vehicle, field: "plate_number", cellRenderer: PlateCell, flex: 1.5, minWidth: 160, filter: "agTextColumnFilter" },
-    { headerName: "Make / Model", field: "make", cellRenderer: MakeModelCell, flex: 2, minWidth: 160, filter: "agTextColumnFilter" },
+    { headerName: c.vehicle, field: "plate_number", cellRenderer: PlateCell, flex: 1.5, minWidth: 160 },
+    { headerName: "Make / Model", field: "make", cellRenderer: MakeModelCell, flex: 2, minWidth: 160 },
     { headerName: "Year", field: "year", width: 90, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="font-mono text-sm">{value}</span> : <span className="text-muted-foreground">—</span> },
     { headerName: "Colour", field: "colour", width: 120, valueGetter: ({ data }) => data?.colour ?? data?.color, cellRenderer: ({ value }: ICellRendererParams) => value ? <div className="flex items-center gap-2 h-full"><span className="text-sm">{value}</span></div> : <span className="text-muted-foreground">—</span> },
+    { headerName: "Last PMI", field: "last_pmi_date", width: 130, cellRenderer: ({ value }: ICellRendererParams) => {
+      if (!value) return <span className="text-muted-foreground text-xs">—</span>
+      const d = new Date(value); const ago = new Date(); ago.setMonth(ago.getMonth() - 6)
+      return <span className={`text-xs tabular-nums ${d < ago ? "text-amber-600 font-semibold" : "text-muted-foreground"}`}>{value.slice(0,10)}</span>
+    }},
+    { headerName: "Tachograph Cal.", field: "tachograph_cal_date", width: 145, cellRenderer: ({ value }: ICellRendererParams) => {
+      if (!value) return <span className="text-muted-foreground text-xs">—</span>
+      const d = new Date(value); const ago = new Date(); ago.setMonth(ago.getMonth() - 6)
+      return <span className={`text-xs tabular-nums ${d < ago ? "text-amber-600 font-semibold" : "text-muted-foreground"}`}>{value.slice(0,10)}</span>
+    }},
     { headerName: c.driver, field: "driver_name", flex: 1.5, minWidth: 140, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="text-sm">{value}</span> : <span className="text-muted-foreground text-xs italic">—</span> },
     { headerName: c.status, field: "status", width: 140, cellRenderer: StatusCell },
   ], [c])
@@ -237,7 +422,8 @@ export default function VehiclesPage() {
   }), [showFilters])
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
+    <>
+      <div className="flex h-full flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
 
       {/* ── Toolbar ── */}
       <div className="flex items-center gap-2">
@@ -323,14 +509,14 @@ export default function VehiclesPage() {
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <Upload className="h-3.5 w-3.5" />
         </button>
-        <button title="Export" onClick={() => gridRef.current?.api?.exportDataAsCsv()}
+        <button title="Export" onClick={async () => { try { const blob = await exportVehicles(); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `vehicles-export.xlsx`; a.click(); URL.revokeObjectURL(url) } catch(e) { setError(e instanceof Error ? e.message : "Export failed") } }}
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <Download className="h-3.5 w-3.5" />
         </button>
 
         <span className="h-6 w-px bg-border" />
 
-        <button className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
+        <button onClick={() => { setEditVehicle(null); setDrawerOpen(true) }} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
           <Plus className="h-3.5 w-3.5" /> {c.addNew}
         </button>
       </div>
@@ -358,11 +544,11 @@ export default function VehiclesPage() {
             suppressCellFocus
             getRowId={({ data }) => data.uuid}
             rowSelection={{ mode: "multiRow", enableClickSelection: false }}
-            onSelectionChanged={() =>
-              setSelectedCount(gridRef.current?.api?.getSelectedRows().length ?? 0)
-            }
-            overlayLoadingTemplate='<span class="text-sm text-muted-foreground">Loading vehicles…</span>'
-            overlayNoRowsTemplate='<span class="text-sm text-muted-foreground">No vehicles found.</span>'
+            onRowClicked={({ data }) => { if (data) { setEditVehicle(data); setDrawerOpen(true) } }}
+            rowClass="cursor-pointer"
+            onSelectionChanged={() => setSelectedCount(gridRef.current?.api?.getSelectedRows().length ?? 0)}
+            overlayLoadingTemplate='<span class="ag-custom-loading">Loading vehicles…</span>'
+            overlayNoRowsTemplate='<span class="ag-custom-no-rows">No vehicles found.</span>'
           />
         </div>
       )}
@@ -430,5 +616,13 @@ export default function VehiclesPage() {
         </div>
       )}
     </div>
+    <VehicleDrawer
+      open={drawerOpen}
+      vehicle={editVehicle}
+      fleets={fleets}
+      onClose={() => setDrawerOpen(false)}
+      onSaved={load}
+    />
+    </>
   )
 }
