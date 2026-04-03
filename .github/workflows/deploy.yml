@@ -22,9 +22,9 @@ jobs:
             echo "🚀 Triggering deployment..."
 
             # Ensure script is executable
-            chmod +x /home/ubuntu/deploy.sh
+            chmod +x /home/ubuntu/deploy_fleetyes_dashboard.sh
 
             # Run deployment script
-            sh /home/ubuntu/deploy.sh
+            sh /home/ubuntu/deploy_fleetyes_dashboard.sh
 
             echo "✅ Deployment finished!"
