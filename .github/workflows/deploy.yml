@@ -1,0 +1,30 @@
+name: 🚀 Deploy to Server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy via SSH
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🚀 Execute deploy script on server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.TEST_SSH_HOST }}
+          username: ${{ secrets.TEST_SSH_USERNAME }}
+          key: ${{ secrets.TEST_SSH_KEY }}
+          port: ${{ secrets.TEST_SSH_PORT }}
+          script: |
+            echo "🚀 Triggering deployment..."
+
+            # Ensure script is executable
+            chmod +x /home/ubuntu/deploy.sh
+
+            # Run deployment script
+            sh /home/ubuntu/deploy.sh
+
+            echo "✅ Deployment finished!"
