@@ -857,11 +857,11 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
                   </p>
                 </div>
               </div>
-              {result.errors.length > 0 && (
+              {(result.errors?.length ?? 0) > 0 && (
                 <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-4">
-                  <p className="mb-2 text-xs font-semibold text-amber-700 dark:text-amber-400">{result.errors.length} rows had errors</p>
+                  <p className="mb-2 text-xs font-semibold text-amber-700 dark:text-amber-400">{result.errors!.length} rows had errors</p>
                   <div className="space-y-1 max-h-40 overflow-y-auto">
-                    {result.errors.map((e, i) => (
+                    {result.errors!.map((e, i) => (
                       <p key={i} className="text-xs text-amber-600 dark:text-amber-400">Row {e.row}: {e.message}</p>
                     ))}
                   </div>
