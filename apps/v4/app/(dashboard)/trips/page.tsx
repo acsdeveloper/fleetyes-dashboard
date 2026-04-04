@@ -664,7 +664,7 @@ function FilterPanel({
 
 // ─── CSV Import Wizard ───────────────────────────────────────────────────
 
-type ImportStep = "upload" | "creating-places" | "importing" | "done" | "error"
+type ImportStep = "upload" | "uploading-file" | "creating-places" | "importing" | "done" | "error"
 
 function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const [step, setStep] = React.useState<ImportStep>("upload")
@@ -680,40 +680,54 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
   } | null>(null)
   const [copied, setCopied] = React.useState(false)
   const fileRef = React.useRef<HTMLInputElement>(null)
+  // Track the current step name for error attribution (ref so catch can read latest value)
+  const stepRef = React.useRef<ImportStep>("upload")
 
   const runImport = async () => {
     if (!file) return
     setErrInfo(null)
+
+    const setS = (s: ImportStep) => { setStep(s); stepRef.current = s }
+
     try {
-      // Step 1 — create missing places
-      setStep("creating-places")
-      const fd1 = new FormData()
-      fd1.append("file", file)
-      const pr = await ontrackFetch<{ created: number; errors: {row:number;message:string}[] }>(
+      // ── Step 1: Upload file → get file UUID ───────────────────────────────
+      setS("uploading-file")
+      const fd = new FormData()
+      fd.append("file", file)
+      const uploaded = await ontrackFetch<{ uuid: string }>(
+        "/files/upload",
+        { method: "POST", body: fd }
+      )
+      const fileUuid = uploaded.uuid
+
+      // ── Step 2: Create missing places ─────────────────────────────────────
+      setS("creating-places")
+      const pr = await ontrackFetch<{ created: number; skipped?: number; errors: {row:number;message:string}[] }>(
         "/orders/process-import-create-missing-places",
-        { method: "POST", body: fd1 }
+        { method: "POST", body: JSON.stringify({ file_uuid: fileUuid }) }
       )
       setPlaceResult(pr)
 
-      // Step 2 — import orders
-      setStep("importing")
-      const fd2 = new FormData()
-      fd2.append("file", file)
+      // ── Step 3: Import orders ─────────────────────────────────────────────
+      setS("importing")
       const ir = await ontrackFetch<{ created: number; updated: number; errors: {row:number;message:string}[]; failed_rows_file?: string }>(
         "/orders/process-import-orders",
-        { method: "POST", body: fd2 }
+        { method: "POST", body: JSON.stringify({ file_uuid: fileUuid }) }
       )
       setResult(ir)
-      setStep("done")
+      setS("done")
     } catch (e: unknown) {
       const isApiError = e instanceof OnTrackApiError
-      const failedStep = step === "creating-places" ? "Step 1 — Create missing places" : "Step 2 — Import orders"
+      const failedStep =
+        stepRef.current === "uploading-file"   ? "Step 1 — Upload file" :
+        stepRef.current === "creating-places"  ? "Step 2 — Create missing places" :
+                                                 "Step 3 — Import orders"
 
       let hint: string | undefined
       if (isApiError) {
         if (e.status === 401 || e.status === 403) hint = "Your session may have expired. Try logging out and back in."
-        else if (e.status === 422) hint = "The file structure does not match the expected Trips Sheet format. Check that the column headers are exactly as shown above."
-        else if (e.status === 400) hint = "The request was rejected by the server. Check that a valid file was selected."
+        else if (e.status === 422) hint = "The file structure does not match the expected format. Ensure column headers are exactly as listed above (lowercase, underscored)."
+        else if (e.status === 400) hint = "The request was rejected. Check that a valid file was selected and the column names are correct."
         else if (e.status >= 500) hint = "A server error occurred. This is not a problem with your file — please try again in a moment."
       }
 
@@ -724,7 +738,7 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
         body: isApiError ? e.body : undefined,
         hint,
       })
-      setStep("error")
+      setS("error")
     }
   }
 
@@ -808,11 +822,15 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
           )}
 
           {/* Progress */}
-          {(step === "creating-places" || step === "importing") && (
+          {(step === "uploading-file" || step === "creating-places" || step === "importing") && (
             <div className="flex flex-col items-center gap-4 py-10">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <div className="text-center">
-                <p className="font-medium">{step === "creating-places" ? "Step 1 / 2 — Creating missing places…" : "Step 2 / 2 — Importing trips…"}</p>
+                <p className="font-medium">
+                  {step === "uploading-file"  && "Step 1 / 3 — Uploading file…"}
+                  {step === "creating-places" && "Step 2 / 3 — Creating missing places…"}
+                  {step === "importing"       && "Step 3 / 3 — Importing trips…"}
+                </p>
                 <p className="text-xs text-muted-foreground mt-1">This may take a moment for large files</p>
               </div>
               {placeResult && step === "importing" && (

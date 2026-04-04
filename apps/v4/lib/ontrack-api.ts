@@ -75,8 +75,11 @@ export async function ontrackFetch<T>(
 ): Promise<T> {
   const token = getToken()
 
+  // When body is FormData the browser must set Content-Type itself so it can
+  // append the multipart boundary — never force it to application/json in that case.
+  const isFormData = options.body instanceof FormData
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...((options.headers as Record<string, string>) ?? {}),
   }
