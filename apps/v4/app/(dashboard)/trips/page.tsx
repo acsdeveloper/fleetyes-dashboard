@@ -694,29 +694,28 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
       setS("uploading-file")
       const fd = new FormData()
       fd.append("file", file)
-      const uploaded = await ontrackFetch<{ uuid: string }>(
+      const uploaded = await ontrackFetch<{ file: { uuid: string } }>(
         "/files/upload",
         { method: "POST", body: fd }
       )
-      const fileUuid = uploaded.uuid
+      // Response is wrapped: { file: { uuid: "..." } }
+      const fileUuid = uploaded.file?.uuid
+      if (!fileUuid) throw new Error("File upload succeeded but returned no UUID")
 
       // ── Step 2: Create missing places ─────────────────────────────────────
+      // Server reads: $request->input('files') as an array of UUIDs (JSON body)
       setS("creating-places")
-      const fd2 = new FormData()
-      fd2.append("file_uuid", fileUuid)
       const pr = await ontrackFetch<{ created: number; skipped?: number; errors: {row:number;message:string}[] }>(
         "/orders/process-import-create-missing-places",
-        { method: "POST", body: fd2 }
+        { method: "POST", body: JSON.stringify({ files: [fileUuid] }) }
       )
       setPlaceResult(pr)
 
       // ── Step 3: Import orders ─────────────────────────────────────────────
       setS("importing")
-      const fd3 = new FormData()
-      fd3.append("file_uuid", fileUuid)
       const ir = await ontrackFetch<{ created: number; updated: number; errors: {row:number;message:string}[]; failed_rows_file?: string }>(
         "/orders/process-import-orders",
-        { method: "POST", body: fd3 }
+        { method: "POST", body: JSON.stringify({ files: [fileUuid] }) }
       )
       setResult(ir)
       setS("done")
