@@ -702,17 +702,21 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
 
       // ── Step 2: Create missing places ─────────────────────────────────────
       setS("creating-places")
+      const fd2 = new FormData()
+      fd2.append("file_uuid", fileUuid)
       const pr = await ontrackFetch<{ created: number; skipped?: number; errors: {row:number;message:string}[] }>(
         "/orders/process-import-create-missing-places",
-        { method: "POST", body: JSON.stringify({ file_uuid: fileUuid }) }
+        { method: "POST", body: fd2 }
       )
       setPlaceResult(pr)
 
       // ── Step 3: Import orders ─────────────────────────────────────────────
       setS("importing")
+      const fd3 = new FormData()
+      fd3.append("file_uuid", fileUuid)
       const ir = await ontrackFetch<{ created: number; updated: number; errors: {row:number;message:string}[]; failed_rows_file?: string }>(
         "/orders/process-import-orders",
-        { method: "POST", body: JSON.stringify({ file_uuid: fileUuid }) }
+        { method: "POST", body: fd3 }
       )
       setResult(ir)
       setS("done")
