@@ -8,8 +8,10 @@ import {
   MoreHorizontal, Search, Download,
   X, Loader2, AlertCircle, Send, Trash2, UserCheck, Plus, ChevronDown,
   RefreshCw, Upload, HelpCircle, CheckCircle2, FileText,
-  ChevronRight as ArrowRight, XCircle,
+  ChevronRight as ArrowRight, XCircle, CalendarIcon,
 } from "lucide-react"
+import { DayPicker } from "react-day-picker"
+import "react-day-picker/style.css"
 import { useLang } from "@/components/lang-context"
 
 import {
@@ -233,6 +235,105 @@ function PlaceSearchSelect({
   )
 }
 
+// ─── Date + Time Picker ───────────────────────────────────────────────────────
+// Calendar popover (react-day-picker v9) + time input, side by side.
+// value / onChange use "YYYY-MM-DDTHH:MM" strings (same as datetime-local).
+
+function DateTimePicker({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: string   // "YYYY-MM-DDTHH:MM" or ""
+  onChange: (val: string) => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  const ref = React.useRef<HTMLDivElement>(null)
+
+  // Close on outside click
+  React.useEffect(() => {
+    if (!open) return
+    const h = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", h)
+    return () => document.removeEventListener("mousedown", h)
+  }, [open])
+
+  const datePart = value?.slice(0, 10) ?? ""
+  const timePart = value?.slice(11, 16) ?? "09:00"
+  const selected  = datePart ? new Date(datePart + "T00:00:00") : undefined
+
+  const displayDate = selected
+    ? selected.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+    : "Pick a date"
+
+  const handleDayClick = (day: Date) => {
+    const y = day.getFullYear()
+    const m = String(day.getMonth() + 1).padStart(2, "0")
+    const d = String(day.getDate()).padStart(2, "0")
+    onChange(`${y}-${m}-${d}T${timePart}`)
+    setOpen(false)
+  }
+
+  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const t = e.target.value || "00:00"
+    if (datePart) onChange(`${datePart}T${t}`)
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <label className="mb-1 block text-xs font-medium text-muted-foreground">{label}</label>
+      <div className="flex gap-2">
+        {/* Date button */}
+        <button
+          type="button"
+          onClick={() => setOpen(v => !v)}
+          className="inline-flex h-9 flex-1 items-center gap-2 rounded-lg border bg-background px-3 text-sm text-left transition-colors hover:bg-muted"
+        >
+          <CalendarIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <span className={datePart ? "text-foreground" : "text-muted-foreground"}>{displayDate}</span>
+        </button>
+        {/* Time input */}
+        <input
+          type="time"
+          value={timePart}
+          onChange={handleTimeChange}
+          className="h-9 w-[90px] shrink-0 rounded-lg border bg-background px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+        />
+      </div>
+
+      {/* Calendar popover */}
+      {open && (
+        <div className="absolute left-0 top-full z-50 mt-1 rounded-xl border bg-card shadow-xl">
+          <DayPicker
+            mode="single"
+            selected={selected}
+            onSelect={(day) => day && handleDayClick(day)}
+            classNames={{
+              root: "p-3",
+              month_caption: "flex justify-center items-center mb-2 text-sm font-semibold",
+              nav: "flex items-center justify-between mb-1",
+              button_previous: "inline-flex h-7 w-7 items-center justify-center rounded-lg border text-muted-foreground hover:bg-muted",
+              button_next: "inline-flex h-7 w-7 items-center justify-center rounded-lg border text-muted-foreground hover:bg-muted",
+              weekdays: "flex",
+              weekday: "w-8 text-center text-[11px] font-medium text-muted-foreground py-1",
+              weeks: "flex flex-col gap-0.5",
+              week: "flex",
+              day: "w-8 h-8 flex items-center justify-center text-sm rounded-lg hover:bg-muted cursor-pointer transition-colors",
+              selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
+              today: "font-bold text-primary",
+              outside: "text-muted-foreground opacity-40",
+              disabled: "opacity-30 cursor-not-allowed",
+              chevron: "fill-current",
+            }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
 // â”€â”€â”€ Assign Driver Dropdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function AssignDriverDropdown({
@@ -1429,25 +1530,17 @@ function NewTripDrawer({
             </div>
 
             {/* Dates */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">Scheduled At</label>
-                <input
-                  type="datetime-local"
-                  value={form.scheduled_at?.slice(0, 16) ?? ""}
-                  onChange={(e) => set("scheduled_at", e.target.value || null as never)}
-                  className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">Est. End Date</label>
-                <input
-                  type="datetime-local"
-                  value={form.estimated_end_date?.slice(0, 16) ?? ""}
-                  onChange={(e) => set("estimated_end_date", e.target.value || null as never)}
-                  className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-                />
-              </div>
+            <div className="flex flex-col gap-3">
+              <DateTimePicker
+                label="Scheduled At"
+                value={form.scheduled_at?.slice(0, 16) ?? ""}
+                onChange={(v) => set("scheduled_at", v || null as never)}
+              />
+              <DateTimePicker
+                label="Est. End Date"
+                value={form.estimated_end_date?.slice(0, 16) ?? ""}
+                onChange={(v) => set("estimated_end_date", v || null as never)}
+              />
             </div>
 
             {/* Notes */}
