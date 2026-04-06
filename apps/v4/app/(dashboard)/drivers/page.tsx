@@ -2,13 +2,17 @@
 
 import * as React from "react"
 import {
-  Search, RefreshCw, Plus, Upload, Download,
+  Search, RefreshCw, Upload, Download,
   LayoutGrid, List,
-  Phone, MapPin, UserCheck, UserX, Trash2, AlertTriangle, X, Loader2, ChevronDown,
+  MapPin, UserCheck, UserX, Trash2, X, Loader2, ChevronDown, Car,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
-import { listDrivers, createDriver, updateDriver, updateDriverStatus, exportDrivers, deleteDriver, importDrivers, type Driver, type DriverStatus } from "@/lib/drivers-api"
+import {
+  listDrivers, createDriver, updateDriver, updateDriverStatus, exportDrivers, deleteDriver, importDrivers,
+  type Driver, type DriverStatus, type ShiftPreferences,
+} from "@/lib/drivers-api"
 import { listFleets, type Fleet } from "@/lib/fleets-api"
+import { listVehicles, type Vehicle } from "@/lib/vehicles-api"
 import { ImportModal } from "@/components/import-modal"
 
 import { AgGridReact } from "ag-grid-react"
@@ -82,7 +86,7 @@ const STATUS_STYLE: Record<DriverStatus, { badge: string; dot: string; label: st
 
 // ─── Cell renderers ───────────────────────────────────────────────────────────
 
-type DriverRow = Driver & { _fleetNames: string }
+type DriverRow = Driver & { _fleetNames: string; _vehiclePlate: string }
 
 function NameCell({ data }: ICellRendererParams<DriverRow>) {
   if (!data) return null
@@ -123,26 +127,34 @@ function StatusCell({ data }: ICellRendererParams<DriverRow>) {
 
 // ─── Driver Drawer ────────────────────────────────────────────────────────────
 
+const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const
+
 function DriverDrawer({
-  open, driver, fleets, onClose, onSaved,
+  open, driver, fleets, vehicles, onClose, onSaved,
 }: {
   open: boolean
   driver: Driver | null
   fleets: Fleet[]
+  vehicles: Vehicle[]
   onClose: () => void
   onSaved: () => void
 }) {
   const isEdit = !!driver
-  const [name,         setName]         = React.useState("")
-  const [email,        setEmail]        = React.useState("")
-  const [phone,        setPhone]        = React.useState("")
-  const [licence,      setLicence]      = React.useState("")
-  const [statusVal,    setStatusVal]    = React.useState<DriverStatus>("active")
+  const [name,           setName]           = React.useState("")
+  const [email,          setEmail]          = React.useState("")
+  const [phone,          setPhone]          = React.useState("")
+  const [licence,        setLicence]        = React.useState("")
+  const [statusVal,      setStatusVal]      = React.useState<DriverStatus>("active")
   const [selectedFleets, setSelectedFleets] = React.useState<string[]>([])
-  const [maxTrips,     setMaxTrips]     = React.useState<string>("")
-  const [consecDays,   setConsecDays]   = React.useState<string>("")
-  const [saving,       setSaving]       = React.useState(false)
-  const [error,        setError]        = React.useState<string | null>(null)
+  const [vehicleUuid,    setVehicleUuid]    = React.useState("")
+  const [maxTrips,       setMaxTrips]       = React.useState<string>("")
+  const [consecDays,     setConsecDays]     = React.useState<string>("")
+  // Shift preferences — all_days window
+  const [shiftStart,     setShiftStart]     = React.useState("")
+  const [shiftEnd,       setShiftEnd]       = React.useState("")
+  const [shiftMode,      setShiftMode]      = React.useState<"none" | "all_days">("none")
+  const [saving,         setSaving]         = React.useState(false)
+  const [error,          setError]          = React.useState<string | null>(null)
 
   React.useEffect(() => {
     if (driver) {
@@ -151,12 +163,28 @@ function DriverDrawer({
       setPhone(driver.phone ?? "")
       setLicence(driver.drivers_license_number ?? "")
       setStatusVal(driver.status ?? "active")
-      setSelectedFleets(driver.fleet_uuid ?? [])
+      // Fleet UUIDs — prefer embedded fleets objects, fall back to fleet_uuid array
+      const fleetIds = driver.fleets?.map(f => f.uuid) ?? driver.fleet_uuid ?? []
+      setSelectedFleets(fleetIds)
+      setVehicleUuid(driver.vehicle_uuid ?? "")
       setMaxTrips(driver.maximum_trips_per_week != null ? String(driver.maximum_trips_per_week) : "")
       setConsecDays(driver.number_of_consecutive_working_days != null ? String(driver.number_of_consecutive_working_days) : "")
+      // Shift preferences
+      const allDays = driver.shift_preferences?.all_days
+      if (allDays) {
+        setShiftMode("all_days")
+        setShiftStart(allDays.start ?? allDays.start_time ?? "")
+        setShiftEnd(allDays.end ?? "")
+      } else {
+        setShiftMode("none")
+        setShiftStart("")
+        setShiftEnd("")
+      }
     } else {
       setName(""); setEmail(""); setPhone(""); setLicence("")
-      setStatusVal("active"); setSelectedFleets([]); setMaxTrips(""); setConsecDays("")
+      setStatusVal("active"); setSelectedFleets([]); setVehicleUuid("")
+      setMaxTrips(""); setConsecDays("")
+      setShiftMode("none"); setShiftStart(""); setShiftEnd("")
     }
     setError(null)
   }, [driver, open])
@@ -164,19 +192,31 @@ function DriverDrawer({
   const toggleFleet = (uuid: string) =>
     setSelectedFleets(prev => prev.includes(uuid) ? prev.filter(f => f !== uuid) : [...prev, uuid])
 
+  const buildShiftPreferences = (): ShiftPreferences | undefined => {
+    if (shiftMode === "none" || (!shiftStart && !shiftEnd)) return undefined
+    return {
+      all_days: {
+        ...(shiftStart ? { start: shiftStart, start_time: shiftStart } : {}),
+        ...(shiftEnd   ? { end: shiftEnd }                              : {}),
+      },
+    }
+  }
+
   const handleSave = async () => {
     if (!name.trim()) { setError("Driver name is required."); return }
     setSaving(true); setError(null)
     try {
-      const payload = {
+      const payload: Partial<Driver> = {
         name:                                name.trim(),
         email:                               email || undefined,
         phone:                               phone || undefined,
         drivers_license_number:             licence || undefined,
         status:                              statusVal,
-        fleet_uuid:                          selectedFleets.length ? selectedFleets : undefined,
+        fleet_uuid:                          selectedFleets.length ? selectedFleets : [],
+        vehicle_uuid:                        vehicleUuid || undefined,
         maximum_trips_per_week:             maxTrips ? Number(maxTrips) : undefined,
         number_of_consecutive_working_days: consecDays ? Number(consecDays) : undefined,
+        shift_preferences:                  buildShiftPreferences(),
       }
       if (isEdit && driver) {
         await updateDriver(driver.uuid, payload)
@@ -206,6 +246,8 @@ function DriverDrawer({
     }
   }
 
+  const activeFleets = fleets.filter(f => f.status === "active")
+
   return (
     <>
       <div className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity ${open ? "opacity-100" : "opacity-0 pointer-events-none"}`} onClick={onClose} />
@@ -216,11 +258,15 @@ function DriverDrawer({
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">{error}</div>}
+
+          {/* Name */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Name *</label>
             <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Full name"
               className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
           </div>
+
+          {/* Email + Phone */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Email</label>
@@ -233,11 +279,32 @@ function DriverDrawer({
                 className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
             </div>
           </div>
+
+          {/* Licence */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Licence Number</label>
             <input type="text" value={licence} onChange={e => setLicence(e.target.value)} placeholder="XXXXXXXXXXXXXXXXXX"
               className="h-9 w-full rounded-lg border bg-background px-3 text-sm font-mono outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
           </div>
+
+          {/* Vehicle */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Vehicle</label>
+            <div className="relative">
+              <select value={vehicleUuid} onChange={e => setVehicleUuid(e.target.value)}
+                className="h-9 w-full appearance-none rounded-lg border bg-background px-3 pr-8 text-sm outline-none focus:ring-2 focus:ring-ring">
+                <option value="">No vehicle assigned</option>
+                {vehicles.map(v => (
+                  <option key={v.uuid} value={v.uuid}>
+                    {v.plate_number}{v.make ? ` — ${v.make}${v.model ? ` ${v.model}` : ""}` : ""}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            </div>
+          </div>
+
+          {/* Max Trips + Consec Days */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Max Trips/Week</label>
@@ -250,6 +317,8 @@ function DriverDrawer({
                 className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
             </div>
           </div>
+
+          {/* Status */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</label>
             <div className="flex gap-2">
@@ -261,11 +330,44 @@ function DriverDrawer({
               ))}
             </div>
           </div>
-          {fleets.length > 0 && (
+
+          {/* Shift Preferences */}
+          <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Shift Preference</label>
+              <div className="flex gap-1">
+                <button onClick={() => setShiftMode("none")}
+                  className={`h-6 rounded px-2 text-[11px] font-medium transition-all ${shiftMode === "none" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>
+                  None
+                </button>
+                <button onClick={() => setShiftMode("all_days")}
+                  className={`h-6 rounded px-2 text-[11px] font-medium transition-all ${shiftMode === "all_days" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>
+                  All Days
+                </button>
+              </div>
+            </div>
+            {shiftMode === "all_days" && (
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1">
+                  <label className="text-[11px] text-muted-foreground">Shift Start</label>
+                  <input type="time" value={shiftStart} onChange={e => setShiftStart(e.target.value)}
+                    className="h-8 w-full rounded-lg border bg-background px-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] text-muted-foreground">Shift End</label>
+                  <input type="time" value={shiftEnd} onChange={e => setShiftEnd(e.target.value)}
+                    className="h-8 w-full rounded-lg border bg-background px-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Fleets */}
+          {activeFleets.length > 0 && (
             <div className="space-y-2">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Fleets</label>
               <div className="grid grid-cols-2 gap-1.5 max-h-40 overflow-y-auto pr-1">
-                {fleets.filter(f => f.status === "active").map(f => (
+                {activeFleets.map(f => (
                   <button key={f.uuid} onClick={() => toggleFleet(f.uuid)}
                     className={`h-8 rounded-lg border px-2 text-xs text-left transition-all truncate ${selectedFleets.includes(f.uuid) ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground hover:bg-muted"}`}>
                     {f.name}
@@ -274,6 +376,8 @@ function DriverDrawer({
               </div>
             </div>
           )}
+
+          {/* Deactivate/Reactivate */}
           {isEdit && (
             <div className="pt-2 border-t">
               <button onClick={handleStatusToggle} disabled={saving}
@@ -303,7 +407,9 @@ export default function DriversPage() {
   const c = t.common
   const [drivers,       setDrivers]       = React.useState<Driver[]>([])
   const [fleets,        setFleetList]     = React.useState<Fleet[]>([])
+  const [vehicles,      setVehicleList]   = React.useState<Vehicle[]>([])
   const [fleetMap,      setFleetMap]      = React.useState<Record<string, string>>({})
+  const [vehicleMap,    setVehicleMap]    = React.useState<Record<string, string>>({})
   const [loading,       setLoading]       = React.useState(true)
   const [error,         setError]         = React.useState<string | null>(null)
   const [search,        setSearch]        = React.useState("")
@@ -335,14 +441,21 @@ export default function DriversPage() {
   const load = React.useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const [driversRes, fleetsRes] = await Promise.all([
+      const [driversRes, fleetsRes, vehiclesRes] = await Promise.all([
         listDrivers({ limit: 500 }),
         listFleets({ limit: 500 }),
+        listVehicles({ limit: 500 }),
       ])
-      const map: Record<string, string> = {}
-      ;(fleetsRes.fleets ?? []).forEach((f: Fleet) => { map[f.uuid] = f.name })
-      setFleetMap(map)
+      // Build fleet lookup map
+      const fMap: Record<string, string> = {}
+      ;(fleetsRes.fleets ?? []).forEach((f: Fleet) => { fMap[f.uuid] = f.name })
+      setFleetMap(fMap)
       setFleetList(fleetsRes.fleets ?? [])
+      // Build vehicle lookup map
+      const vMap: Record<string, string> = {}
+      ;(vehiclesRes.vehicles ?? []).forEach((v: Vehicle) => { vMap[v.uuid] = v.plate_number })
+      setVehicleMap(vMap)
+      setVehicleList(vehiclesRes.vehicles ?? [])
       setDrivers(driversRes.drivers ?? [])
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load drivers")
@@ -395,24 +508,32 @@ export default function DriversPage() {
   const rowData = React.useMemo<DriverRow[]>(() => {
     return drivers
       .filter(d => statusFilter === "all" || d.status === statusFilter)
-      .map(d => ({
-        ...d,
-        _fleetNames: (d.fleet_uuid ?? []).map(id => fleetMap[id]).filter(Boolean).join(", "),
-      }))
-  }, [drivers, fleetMap, statusFilter])
+      .map(d => {
+        // Fleet names: prefer embedded .fleets objects, fall back to fleet_uuid → fleetMap
+        let fleetNames = ""
+        if (d.fleets && d.fleets.length > 0) {
+          fleetNames = d.fleets.map(f => f.name).filter(Boolean).join(", ")
+        } else if (d.fleet_uuid && d.fleet_uuid.length > 0) {
+          fleetNames = d.fleet_uuid.map(id => fleetMap[id]).filter(Boolean).join(", ")
+        }
+        // Vehicle plate
+        const vehiclePlate = d.vehicle_uuid ? (vehicleMap[d.vehicle_uuid] ?? d.vehicle_uuid) : ""
+        return { ...d, _fleetNames: fleetNames, _vehiclePlate: vehiclePlate }
+      })
+  }, [drivers, fleetMap, vehicleMap, statusFilter])
 
   const activeCount   = drivers.filter(d => d.status === "active").length
   const inactiveCount = drivers.filter(d => d.status === "inactive").length
 
   // ── Column defs ──
   const colDefs = React.useMemo<ColDef<DriverRow>[]>(() => [
-    { headerName: c.driver, field: "name", cellRenderer: NameCell, flex: 2, minWidth: 180, filter: "agTextColumnFilter" },
-    { headerName: "Email", field: "email", flex: 2, minWidth: 180, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="text-muted-foreground text-xs">{value}</span> : <span className="text-muted-foreground">—</span> },
-    { headerName: c.phone, field: "phone", width: 160, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="text-muted-foreground text-xs">{value}</span> : <span className="text-muted-foreground">—</span> },
-    { headerName: c.fleet, field: "_fleetNames", flex: 1.5, minWidth: 140, cellRenderer: FleetCell },
-    { headerName: c.location, valueGetter: ({ data }) => [data?.city, data?.country].filter(Boolean).join(", ") || "—", width: 160, cellRenderer: ({ value }: ICellRendererParams) => <span className="text-muted-foreground text-xs">{value}</span> },
-    { headerName: c.licence, field: "drivers_license_number", width: 150, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="font-mono text-xs">{value}</span> : <span className="text-muted-foreground">—</span> },
-    { headerName: c.status, field: "status", width: 120, cellRenderer: StatusCell },
+    { headerName: c.driver,   field: "name",             cellRenderer: NameCell,   flex: 2, minWidth: 180, filter: "agTextColumnFilter" },
+    { headerName: "Email",    field: "email",             flex: 2, minWidth: 160,   cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="text-muted-foreground text-xs">{value}</span> : <span className="text-muted-foreground">—</span> },
+    { headerName: c.phone,    field: "phone",             width: 150,              cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="text-muted-foreground text-xs">{value}</span> : <span className="text-muted-foreground">—</span> },
+    { headerName: c.fleet,    field: "_fleetNames",       flex: 1.5, minWidth: 140, cellRenderer: FleetCell },
+    { headerName: "Vehicle",  field: "_vehiclePlate",     width: 140,              cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="flex items-center gap-1 text-xs font-mono"><Car className="h-3 w-3 text-muted-foreground" />{value}</span> : <span className="text-muted-foreground">—</span> },
+    { headerName: c.licence,  field: "drivers_license_number", width: 150,         cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="font-mono text-xs">{value}</span> : <span className="text-muted-foreground">—</span> },
+    { headerName: c.status,   field: "status",            width: 120,              cellRenderer: StatusCell },
   ], [c])
 
   const defaultColDef = React.useMemo<ColDef>(() => ({
@@ -449,7 +570,7 @@ export default function DriversPage() {
 
         <div className="flex-1" />
 
-        {/* Delete selected — appears when rows are checked (same pattern as Trips) */}
+        {/* Delete selected */}
         {selectedCount > 0 && view === "list" && (
           <button
             onClick={handleDeleteSelected}
@@ -510,7 +631,7 @@ export default function DriversPage() {
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40">
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
         </button>
-        <button title="Import" onClick={() => setShowImport(true)}
+        <button id="driver-import-btn" title="Import" onClick={() => setShowImport(true)}
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <Upload className="h-3.5 w-3.5" />
         </button>
@@ -586,7 +707,9 @@ export default function DriversPage() {
                 {rowData.map(d => {
                   const st = STATUS_STYLE[d.status] ?? STATUS_STYLE.inactive
                   return (
-                    <div key={d.uuid} className="group flex flex-col gap-2 rounded-xl border bg-card p-3 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5">
+                    <div key={d.uuid}
+                      onClick={() => { setEditDriver(d); setDrawerOpen(true) }}
+                      className="group flex flex-col gap-2 rounded-xl border bg-card p-3 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 cursor-pointer">
                       <div className="flex items-center gap-2.5">
                         <div className="relative shrink-0">
                           <span className={`flex h-9 w-9 items-center justify-center rounded-full text-[11px] font-bold text-white ${avatarColor(d.uuid)}`}>
@@ -600,17 +723,17 @@ export default function DriversPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                        {d._vehiclePlate && (
+                          <span className="flex items-center gap-1 truncate">
+                            <Car className="h-2.5 w-2.5 shrink-0 text-sky-400" />
+                            <span className="truncate font-mono">{d._vehiclePlate}</span>
+                          </span>
+                        )}
+                        {d._vehiclePlate && (d.city ?? d.country) && <span className="text-border shrink-0">·</span>}
                         {(d.city ?? d.country) && (
                           <span className="flex items-center gap-1 truncate">
                             <MapPin className="h-2.5 w-2.5 shrink-0 text-indigo-400" />
                             <span className="truncate">{[d.city, d.country].filter(Boolean).join(", ")}</span>
-                          </span>
-                        )}
-                        {d.phone && (d.city ?? d.country) && <span className="text-border shrink-0">·</span>}
-                        {d.phone && (
-                          <span className="flex items-center gap-1 truncate">
-                            <Phone className="h-2.5 w-2.5 shrink-0 text-teal-400" />
-                            <span className="truncate">{d.phone}</span>
                           </span>
                         )}
                       </div>
@@ -631,6 +754,7 @@ export default function DriversPage() {
       open={drawerOpen}
       driver={editDriver}
       fleets={fleets}
+      vehicles={vehicles}
       onClose={() => setDrawerOpen(false)}
       onSaved={load}
     />

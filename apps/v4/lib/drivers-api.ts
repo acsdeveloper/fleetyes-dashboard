@@ -43,6 +43,8 @@ export interface Driver {
   drivers_license_number?: string
   vehicle_uuid?:         string
   fleet_uuid?:           string[]
+  /** API sometimes returns fleet objects inline rather than just UUIDs */
+  fleets?:               { uuid: string; name: string; status?: string }[]
   status:                DriverStatus
   priority?:             number
   shift_preferences?:    ShiftPreferences
