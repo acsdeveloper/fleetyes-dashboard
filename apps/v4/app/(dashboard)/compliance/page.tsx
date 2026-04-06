@@ -1071,8 +1071,8 @@ function WalkaroundTab({
             <span className="font-semibold text-sm">Recent Walkaround Checks</span>
             {checksLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
           </div>
-          <button onClick={() => setView("form")} className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90">
-            <Plus className="h-3.5 w-3.5" /> New Check
+          <button onClick={() => setView("form")} className="inline-flex h-7 items-center rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90">
+            New Check
           </button>
         </div>
         <div className="divide-y">
@@ -1393,7 +1393,7 @@ function CpcSection({ driver }: { driver: Driver }) {
 
       {/* Actions */}
       <div className="flex items-center gap-2 flex-wrap">
-        <button className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-indigo-600 px-3 text-xs font-medium text-white hover:bg-indigo-700"><Plus className="h-3.5 w-3.5"/>Log completed course</button>
+        <button className="inline-flex h-8 items-center rounded-lg bg-indigo-600 px-3 text-xs font-medium text-white hover:bg-indigo-700">Log completed course</button>
         <button onClick={()=>setShowPrev(p=>!p)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs hover:bg-muted">{showPrev?"▴":"▾"} Previous cycle</button>
       </div>
       {showPrev&&<div className="rounded-lg border bg-muted/20 p-3"><p className="text-xs font-semibold mb-1 text-muted-foreground">Previous cycle (5 years prior)</p><p className="text-xs text-green-700 dark:text-green-400 flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5"/>35h completed — DQC renewed on time</p></div>}
@@ -1416,7 +1416,7 @@ function TrainingSection({ driver }: { driver: Driver }) {
     <div className="rounded-xl border bg-card p-5 shadow-sm flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold flex items-center gap-2"><BadgeCheck className="h-4 w-4 text-indigo-500"/>Training &amp; Qualifications</h3>
-        <button className="inline-flex h-7 items-center gap-1 rounded-lg border px-2 text-xs hover:bg-muted"><Plus className="h-3 w-3"/>Add record</button>
+        <button className="inline-flex h-7 items-center rounded-lg border px-2 text-xs hover:bg-muted">Add record</button>
       </div>
       {driver.training.length===0&&<p className="text-sm text-muted-foreground">No training records.</p>}
       {driver.training.map((t,i)=>(
@@ -2444,9 +2444,9 @@ function DocumentsTab() {
           ) : (
             <button onClick={() => setAddingCol(true)}
               title="Add a new document type column — each column tracks a specific compliance document (e.g. ADR Certificate, Fleet Insurance) across all entries in this tab"
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-dashed border-indigo-400 px-3 text-sm font-medium text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 transition-colors"
+              className="inline-flex h-9 items-center rounded-lg border border-dashed border-indigo-400 px-3 text-sm font-medium text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 transition-colors"
             >
-              <Plus className="h-4 w-4" /> New Doc Type
+              New Doc Type
             </button>
           ))}
         </div>
@@ -2613,7 +2613,7 @@ function OverviewTab() {
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="flex items-center justify-between gap-2 border-b bg-muted/40 px-4 py-3">
           <h3 className="font-semibold flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-red-500" /> Accident & Incident Log (FNOL)</h3>
-          <button onClick={() => setIncidentOpen(true)} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-red-500 px-3 text-xs font-medium text-white hover:bg-red-600"><Plus className="h-3.5 w-3.5" /> Report Accident</button>
+          <button onClick={() => setIncidentOpen(true)} className="inline-flex h-8 items-center rounded-lg bg-red-500 px-3 text-xs font-medium text-white hover:bg-red-600">Report Accident</button>
         </div>
         <div className="divide-y">
           {incidents.map(inc => (

@@ -514,7 +514,7 @@ function VehiclesTab() {
           {["Solo","Tramper","FleetX"].map(f=><option key={f} value={f}>{f}</option>)}
         </select>
         <button className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 ml-auto">
-          <Plus className="h-4 w-4"/> Add Vehicle
+          Add Vehicle
         </button>
         <button className="inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm text-muted-foreground hover:bg-muted"><Download className="h-3.5 w-3.5"/> Export</button>
       </div>
@@ -590,7 +590,7 @@ function FleetsTab() {
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">{FLEETS.length} fleet groups</p>
         <button className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-          <Plus className="h-4 w-4"/> New Fleet
+          New Fleet
         </button>
       </div>
       <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">

@@ -206,7 +206,7 @@ function PartsTab() {
         </div>
         <div className="ml-auto flex gap-2">
           <button className="inline-flex h-9 items-center gap-1.5 rounded-lg border bg-background px-3 text-sm text-muted-foreground hover:bg-muted"><ScanLine className="h-3.5 w-3.5" /> Scan</button>
-          <button className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"><Plus className="h-3.5 w-3.5" /> Add Part</button>
+          <button className="inline-flex h-9 items-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">Add Part</button>
         </div>
       </div>
 
@@ -284,7 +284,7 @@ function JobCardsTab() {
       <div className="flex flex-wrap gap-2">
         <button onClick={()=>setScanMode(s=>!s)} className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors ${scanMode?"bg-indigo-500 text-white":"bg-background hover:bg-muted"}`}><ScanLine className="h-3.5 w-3.5" /> {scanMode?"Scanning…":"Scan Part"}</button>
         <button onClick={()=>setKitModal(true)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border bg-background px-3 text-sm hover:bg-muted"><Layers className="h-3.5 w-3.5" /> Issue Kit</button>
-        <button className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"><Plus className="h-3.5 w-3.5" /> New Job Card</button>
+        <button className="inline-flex h-9 items-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">New Job Card</button>
       </div>
 
       {scanMode && (
@@ -409,7 +409,7 @@ function PurchasingTab() {
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-2.5">
           <h3 className="font-semibold flex items-center gap-2"><ShoppingCart className="h-4 w-4 text-indigo-500" /> Purchase Orders</h3>
-          <button className="inline-flex h-7 items-center gap-1 rounded-lg bg-primary px-3 text-xs text-primary-foreground hover:bg-primary/90"><Plus className="h-3 w-3" /> New PO</button>
+          <button className="inline-flex h-7 items-center rounded-lg bg-primary px-3 text-xs text-primary-foreground hover:bg-primary/90">New PO</button>
         </div>
         <table className="w-full text-xs">
           <thead><tr className="border-b bg-muted/20">
@@ -457,7 +457,7 @@ function TyresAndFluidsTab() {
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-2.5">
           <h3 className="font-semibold flex items-center gap-2"><CircleDot className="h-4 w-4 text-indigo-500" /> Tyre Management</h3>
-          <button className="inline-flex h-7 items-center gap-1 rounded-lg border px-2 text-xs hover:bg-muted"><Plus className="h-3 w-3" /> Fit Tyre</button>
+          <button className="inline-flex h-7 items-center rounded-lg border px-2 text-xs hover:bg-muted">Fit Tyre</button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs min-w-[700px]">

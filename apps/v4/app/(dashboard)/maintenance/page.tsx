@@ -522,7 +522,7 @@ function SettingsTab() {
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-3">
           <h3 className="font-semibold flex items-center gap-2"><Truck className="h-4 w-4" /> Vehicle Profiles</h3>
-          <button className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"><Plus className="h-3.5 w-3.5" /> Add Vehicle</button>
+          <button className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90">Add Vehicle</button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -553,7 +553,7 @@ function SettingsTab() {
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-3">
           <h3 className="font-semibold flex items-center gap-2"><Users className="h-4 w-4" /> User Roles & Permissions</h3>
-          <button className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs hover:bg-muted"><Plus className="h-3.5 w-3.5" /> Invite User</button>
+          <button className="inline-flex h-8 items-center rounded-lg border px-3 text-xs hover:bg-muted">Invite User</button>
         </div>
         <div className="divide-y">
           {roles.map(r => (
@@ -599,7 +599,7 @@ function SettingsTab() {
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-3">
           <h3 className="font-semibold flex items-center gap-2"><ToggleLeft className="h-4 w-4" /> Custom Checklist Items</h3>
-          <button className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs hover:bg-muted"><Plus className="h-3.5 w-3.5" /> Add Item</button>
+          <button className="inline-flex h-8 items-center rounded-lg border px-3 text-xs hover:bg-muted">Add Item</button>
         </div>
         <div className="divide-y">
           {["Tail lift function & safety cutout","Refrigeration unit thermostat reading","Hiab crane slew ring bolts","Load securing straps condition"].map(item => (

@@ -721,8 +721,8 @@ export default function ImportHubPage() {
         <div>
           <PageHeader pageKey="importHub" />
         </div>
-        <button className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 self-start sm:self-auto">
-          <Plus className="h-4 w-4" /> Add Provider
+        <button className="inline-flex h-9 items-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 self-start sm:self-auto">
+          Add Provider
         </button>
       </div>
 

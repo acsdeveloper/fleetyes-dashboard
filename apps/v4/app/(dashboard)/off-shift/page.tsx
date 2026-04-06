@@ -529,9 +529,9 @@ export default function OffShiftPage() {
 
         <button
           onClick={() => { setEditPlan(null); setDrawerOpen(true) }}
-          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+          className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
         >
-          <Plus className="h-3.5 w-3.5" /> New Plan
+          New Plan
         </button>
       </div>
 
