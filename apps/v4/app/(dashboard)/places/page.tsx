@@ -7,7 +7,8 @@ import {
   Globe, Copy, Check, Trash2,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
-import { listPlaces, bulkDeletePlaces, type Place } from "@/lib/places-api"
+import { listPlaces, bulkDeletePlaces, importPlaces, type Place } from "@/lib/places-api"
+import { ImportModal } from "@/components/import-modal"
 
 import { AgGridReact } from "ag-grid-react"
 import {
@@ -268,6 +269,7 @@ export default function PlacesPage() {
   const [searchFocused, setSearchFocused] = React.useState(false)
   const [selectedCount, setSelectedCount] = React.useState(0)
   const [deleting,      setDeleting]      = React.useState(false)
+  const [showImport,    setShowImport]    = React.useState(false)
 
   const gridRef = React.useRef<AgGridReact<PlaceEx>>(null)
 
@@ -364,7 +366,8 @@ export default function PlacesPage() {
   }
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
+    <>
+      <div className="flex h-full flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
 
       {/* ── Toolbar ── */}
       <div className="flex items-center gap-2">
@@ -433,7 +436,7 @@ export default function PlacesPage() {
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40">
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
         </button>
-        <button title="Import"
+        <button title="Import" onClick={() => setShowImport(true)}
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <Upload className="h-3.5 w-3.5" />
         </button>
@@ -498,5 +501,15 @@ export default function PlacesPage() {
         )}
       </div>
     </div>
+    <ImportModal
+      open={showImport}
+      onClose={() => setShowImport(false)}
+      onDone={load}
+      entityName="Places"
+      uploadType="place_import"
+      uploadPath="place-imports"
+      importFn={importPlaces}
+    />
+    </>
   )
 }

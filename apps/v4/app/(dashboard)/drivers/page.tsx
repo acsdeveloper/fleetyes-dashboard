@@ -7,8 +7,9 @@ import {
   Phone, MapPin, UserCheck, UserX, Trash2, AlertTriangle, X, Loader2, ChevronDown,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
-import { listDrivers, createDriver, updateDriver, updateDriverStatus, exportDrivers, deleteDriver, type Driver, type DriverStatus } from "@/lib/drivers-api"
+import { listDrivers, createDriver, updateDriver, updateDriverStatus, exportDrivers, deleteDriver, importDrivers, type Driver, type DriverStatus } from "@/lib/drivers-api"
 import { listFleets, type Fleet } from "@/lib/fleets-api"
+import { ImportModal } from "@/components/import-modal"
 
 import { AgGridReact } from "ag-grid-react"
 import {
@@ -314,6 +315,7 @@ export default function DriversPage() {
   const [deleting,      setDeleting]      = React.useState(false)
   const [drawerOpen,    setDrawerOpen]    = React.useState(false)
   const [editDriver,    setEditDriver]    = React.useState<Driver | null>(null)
+  const [showImport,    setShowImport]    = React.useState(false)
 
   // Dark mode
   const [isDark, setIsDark] = React.useState(() =>
@@ -508,7 +510,7 @@ export default function DriversPage() {
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40">
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
         </button>
-        <button title="Import"
+        <button title="Import" onClick={() => setShowImport(true)}
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <Upload className="h-3.5 w-3.5" />
         </button>
@@ -631,6 +633,15 @@ export default function DriversPage() {
       fleets={fleets}
       onClose={() => setDrawerOpen(false)}
       onSaved={load}
+    />
+    <ImportModal
+      open={showImport}
+      onClose={() => setShowImport(false)}
+      onDone={load}
+      entityName="Drivers"
+      uploadType="driver_import"
+      uploadPath="driver-imports"
+      importFn={importDrivers}
     />
     </>
   )

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import {
-  Search, RefreshCw, Plus, Upload, Download,
+  Search, RefreshCw, Plus, Download,
   Truck, Trash2, Users, Activity,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
@@ -183,10 +183,10 @@ export default function FleetsPage() {
     setDeleting(true)
     try {
       const uuids = (gridRef.current?.api?.getSelectedRows() ?? []).map(r => r.uuid)
-      const { deleted, errors } = await bulkDeleteFleets(uuids)
+      const res = await bulkDeleteFleets(uuids)
       setSelectedCount(0)
       await load()
-      if (errors.length) setError(`Deleted ${deleted}, ${errors.length} failed: ${errors[0]}`)
+      if (res.status !== "success") setError(res.message ?? "Some deletes failed")
     } catch (e) {
       setError(e instanceof Error ? e.message : "Delete failed")
     } finally {
@@ -304,10 +304,6 @@ export default function FleetsPage() {
         <button onClick={load} disabled={loading} title="Refresh"
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40">
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-        </button>
-        <button title="Import"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-          <Upload className="h-3.5 w-3.5" />
         </button>
         <button title="Export" onClick={() => gridRef.current?.api?.exportDataAsCsv()}
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">

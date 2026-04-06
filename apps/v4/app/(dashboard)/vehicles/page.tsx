@@ -2,12 +2,13 @@
 
 import * as React from "react"
 import {
-  Search, RefreshCw, Plus, Upload, Download,
-  LayoutGrid, List, Car, Trash2, X, Loader2, ChevronDown,
+  Search, RefreshCw, Upload, Download,
+  LayoutGrid, List, Car, Trash2, X, Loader2, ChevronDown, CheckCircle2, AlertCircle,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
-import { listVehicles, createVehicle, updateVehicle, exportVehicles, bulkDeleteVehicles, type Vehicle } from "@/lib/vehicles-api"
+import { listVehicles, createVehicle, updateVehicle, exportVehicles, bulkDeleteVehicles, importVehicles, type Vehicle } from "@/lib/vehicles-api"
 import { listFleets, type Fleet } from "@/lib/fleets-api"
+import { ImportModal } from "@/components/import-modal"
 
 import { AgGridReact } from "ag-grid-react"
 import {
@@ -140,7 +141,6 @@ function VehicleDrawer({ open, vehicle, fleets, onClose, onSaved }: {
   const [make,      setMake]      = React.useState("")
   const [model,     setModel]     = React.useState("")
   const [year,      setYear]      = React.useState("")
-  const [colour,    setColour]    = React.useState("")
   const [fleetUuid, setFleetUuid] = React.useState("")
   const [pmiDate,   setPmiDate]   = React.useState("")
   const [tachoDate, setTachoDate] = React.useState("")
@@ -154,45 +154,36 @@ function VehicleDrawer({ open, vehicle, fleets, onClose, onSaved }: {
       setMake(vehicle.make ?? "")
       setModel(vehicle.model ?? "")
       setYear(vehicle.year != null ? String(vehicle.year) : "")
-      setColour(vehicle.colour ?? vehicle.color ?? "")
       setFleetUuid(vehicle.fleet_uuid ?? "")
       setPmiDate(vehicle.last_pmi_date?.slice(0,10) ?? "")
       setTachoDate(vehicle.tachograph_cal_date?.slice(0,10) ?? "")
       setStatusVal(vehicle.status ?? "active")
     } else {
-      setPlate(""); setMake(""); setModel(""); setYear(""); setColour("")
+      setPlate(""); setMake(""); setModel(""); setYear("")
       setFleetUuid(""); setPmiDate(""); setTachoDate(""); setStatusVal("active")
     }
     setError(null)
   }, [vehicle, open])
 
   const handleSave = async () => {
-    if (!plate.trim() || !make.trim()) { setError("Plate number and make are required."); return }
+    if (!plate.trim()) { setError("Plate number is required."); return }
+    if (!make.trim())  { setError("Make is required."); return }
     setSaving(true); setError(null)
     try {
+      const common = {
+        plate_number:         plate.trim().toUpperCase(),
+        make:                 make.trim(),
+        model:                model      || undefined,
+        year:                 year       || undefined,
+        fleet_uuid:           fleetUuid  || undefined,
+        last_pmi_date:        pmiDate    || undefined,
+        tachograph_cal_date:  tachoDate  || undefined,
+        status:               (statusVal === "active" ? "active" : "inactive") as "active" | "inactive",
+      }
       if (isEdit && vehicle) {
-        await updateVehicle(vehicle.uuid, {
-          plate_number:         plate.trim().toUpperCase(),
-          make:                 make.trim(),
-          model:                model       || undefined,
-          year:                 year        || undefined,
-          colour:               colour      || undefined,
-          fleet_uuid:           fleetUuid   || undefined,
-          last_pmi_date:        pmiDate     || undefined,
-          tachograph_cal_date:  tachoDate   || undefined,
-          status:               statusVal === "active" ? "active" : "inactive",
-        })
+        await updateVehicle(vehicle.uuid, common)
       } else {
-        await createVehicle({
-          plate_number:         plate.trim().toUpperCase(),
-          make:                 make.trim(),
-          model:                model      || undefined,
-          year:                 year       || undefined,
-          fleet_uuid:           fleetUuid  || undefined,
-          last_pmi_date:        pmiDate    || undefined,
-          tachograph_cal_date:  tachoDate  || undefined,
-          status:               statusVal === "active" ? "active" : "inactive",
-        })
+        await createVehicle(common)
       }
       onSaved(); onClose()
     } catch (e) {
@@ -233,17 +224,10 @@ function VehicleDrawer({ open, vehicle, fleets, onClose, onSaved }: {
                 className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Year</label>
-              <input type="number" min={1990} max={2030} value={year} onChange={e => setYear(e.target.value)} placeholder="2022"
-                className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Colour</label>
-              <input type="text" value={colour} onChange={e => setColour(e.target.value)} placeholder="White"
-                className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
-            </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Year</label>
+            <input type="number" min={1990} max={2030} value={year} onChange={e => setYear(e.target.value)} placeholder="2022"
+              className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Fleet</label>
@@ -315,6 +299,7 @@ export default function VehiclesPage() {
   const [deleting,      setDeleting]      = React.useState(false)
   const [drawerOpen,    setDrawerOpen]    = React.useState(false)
   const [editVehicle,   setEditVehicle]   = React.useState<Vehicle | null>(null)
+  const [showImport,    setShowImport]    = React.useState(false)
 
   // Dark mode
   const [isDark, setIsDark] = React.useState(() =>
@@ -397,7 +382,7 @@ export default function VehiclesPage() {
     { headerName: c.vehicle, field: "plate_number", cellRenderer: PlateCell, flex: 1.5, minWidth: 160 },
     { headerName: "Make / Model", field: "make", cellRenderer: MakeModelCell, flex: 2, minWidth: 160 },
     { headerName: "Year", field: "year", width: 90, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="font-mono text-sm">{value}</span> : <span className="text-muted-foreground">—</span> },
-    { headerName: "Colour", field: "colour", width: 120, valueGetter: ({ data }) => data?.colour ?? data?.color, cellRenderer: ({ value }: ICellRendererParams) => value ? <div className="flex items-center gap-2 h-full"><span className="text-sm">{value}</span></div> : <span className="text-muted-foreground">—</span> },
+    { headerName: "Fleet", field: "fleet_vehicles", flex: 1.5, minWidth: 130, valueGetter: ({ data }) => data?.fleet_vehicles?.map((fv: { fleet_name: string }) => fv.fleet_name).join(", ") ?? "", cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{value}</span> : <span className="text-muted-foreground">—</span> },
     { headerName: "Last PMI", field: "last_pmi_date", width: 130, cellRenderer: ({ value }: ICellRendererParams) => {
       if (!value) return <span className="text-muted-foreground text-xs">—</span>
       const d = new Date(value); const ago = new Date(); ago.setMonth(ago.getMonth() - 6)
@@ -505,7 +490,7 @@ export default function VehiclesPage() {
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40">
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
         </button>
-        <button title="Import"
+        <button title="Import" onClick={() => setShowImport(true)}
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <Upload className="h-3.5 w-3.5" />
         </button>
@@ -622,6 +607,15 @@ export default function VehiclesPage() {
       fleets={fleets}
       onClose={() => setDrawerOpen(false)}
       onSaved={load}
+    />
+    <ImportModal
+      open={showImport}
+      onClose={() => setShowImport(false)}
+      onDone={load}
+      entityName="Vehicles"
+      uploadType="vehicle_import"
+      uploadPath="vehicle-imports"
+      importFn={importVehicles}
     />
     </>
   )
