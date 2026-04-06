@@ -187,10 +187,12 @@ async function ontrackApiFetch<T>(path: string, options: RequestInit = {}): Prom
 }
 
 async function engineFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getToken()
   const res = await fetch(`${ALLOCATION_ENGINE}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...((options.headers as Record<string, string>) ?? {}),
     },
   })

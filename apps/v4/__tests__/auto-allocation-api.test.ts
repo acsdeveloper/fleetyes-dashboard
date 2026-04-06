@@ -123,6 +123,15 @@ describe("initiateAsyncAllocation", () => {
     expect(url).toContain("/initiate-async-allocation")
   })
 
+  it("sends Authorization header to the allocation engine", async () => {
+    mockFetch.mockResolvedValueOnce(makeOkResponse(mockAllocPayload))
+
+    await initiateAsyncAllocation(minimalShiftData)
+
+    const options = mockFetch.mock.calls[0][1] as RequestInit
+    expect((options.headers as Record<string, string>)["Authorization"]).toBe("Bearer test-bearer-token")
+  })
+
   it("sends POST method with JSON body", async () => {
     mockFetch.mockResolvedValueOnce(makeOkResponse(mockAllocPayload))
 
