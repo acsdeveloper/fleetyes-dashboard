@@ -126,7 +126,8 @@ export async function getDriver(uuid: string): Promise<Driver> {
 export async function createDriver(data: Partial<Driver>): Promise<Driver> {
   const res = await ontrackFetch<{ driver: Driver }>("/drivers", {
     method: "POST",
-    body:   JSON.stringify(data),
+    // Fleetbase's DriverController reads $request->input('driver'), so we must namespace the body
+    body:   JSON.stringify({ driver: data }),
   })
   return res.driver
 }
@@ -135,7 +136,8 @@ export async function createDriver(data: Partial<Driver>): Promise<Driver> {
 export async function updateDriver(uuid: string, patch: Partial<Driver>): Promise<Driver> {
   const res = await ontrackFetch<{ driver: Driver }>(`/drivers/${uuid}`, {
     method: "PUT",
-    body:   JSON.stringify(patch),
+    // Fleetbase's DriverController reads $request->input('driver'), so we must namespace the body
+    body:   JSON.stringify({ driver: patch }),
   })
   return res.driver
 }
