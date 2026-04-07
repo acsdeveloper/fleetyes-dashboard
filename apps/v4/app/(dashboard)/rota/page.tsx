@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import {
-  ChevronLeft, ChevronRight, Check, X,
+  Check, X,
   Sun, Loader2, MapPin, AlertTriangle, ShieldCheck, ShieldAlert, XCircle, BookOpen, Download,
 } from "lucide-react"
 import {
@@ -11,7 +11,7 @@ import {
   getAllPreferences, upsertPreference,
   weekStart, weekDates, weekKey, fmtDate, fmtDay, getISOWeek,
 } from "@/lib/rota-store"
-import { listOrders, updateOrder, type Order } from "@/lib/orders-api"
+import { listOrders, updateOrder, getPeriod, type Order, type AllocationPeriod } from "@/lib/orders-api"
 import { listDrivers, getDriver, type Driver } from "@/lib/drivers-api"
 import { listDriverLeave, type LeaveRequest } from "@/lib/leave-requests-api"
 import { dedupBy } from "@/lib/utils"
@@ -74,6 +74,30 @@ function isoLocalDate(iso: string): string {
 function isoLocalTime(iso: string): string {
   const d = new Date(iso)
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+}
+
+/** Enumerate "YYYY-MM-DD" strings for every calendar day from start to end inclusive */
+function periodDates(start: string, end: string): string[] {
+  const result: string[] = []
+  const cur = new Date(start + "T12:00:00")
+  const endD = new Date(end + "T12:00:00")
+  while (cur <= endD) {
+    result.push(
+      `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`
+    )
+    cur.setDate(cur.getDate() + 1)
+  }
+  return result
+}
+
+/**
+ * Fallback dates when get-period API is unavailable.
+ * Returns 7 days starting from next week's Sunday.
+ */
+function fallbackDates(): string[] {
+  const today = new Date()
+  const nextSun = weekStart(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7))
+  return weekDates(nextSun)
 }
 
 // ─── Cell Popover ─────────────────────────────────────────────────────────────
@@ -433,7 +457,7 @@ function TripsDockPanel({
                 activeDay === d ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
               }`}
             >
-              {DAYS[new Date(d + "T12:00:00").getDay()]}
+              {new Date(d + "T12:00:00").getDate()} – {DAYS[new Date(d + "T12:00:00").getDay()]}
             </button>
           ))}
         </div>
@@ -704,7 +728,7 @@ export default function RotaPage() {
   const { t } = useLang()
   const STATUS_CONFIG = buildStatusConfig(t.rota)
   const DAYS = buildDays(t.rota)
-  const [sunday, setSunday] = React.useState<Date>(() => weekStart(new Date()))
+  const [period, setPeriod] = React.useState<AllocationPeriod | null>(null)
   const [drivers, setDrivers] = React.useState<Driver[]>([])
   const [rotas, setRotas] = React.useState<RotaEntry[]>([])
   const [preferences, setPreferences] = React.useState<DriverPreference[]>([])
@@ -809,9 +833,12 @@ export default function RotaPage() {
     driver: Driver; date: string; rect: DOMRect
   } | null>(null)
 
-  const dates = React.useMemo(() => weekDates(sunday), [sunday])
-  const wk = React.useMemo(() => weekKey(sunday), [sunday])
-  const week = getISOWeek(sunday)
+  const dates = React.useMemo(
+    () => period ? periodDates(period.start_date, period.end_date) : fallbackDates(),
+    [period]
+  )
+  const wk = React.useMemo(() => weekKey(new Date(dates[0] + "T12:00:00")), [dates])
+  const week = getISOWeek(new Date(dates[0] + "T12:00:00"))
 
   // Load drivers on mount; then batch-fetch shift preferences in parallel (non-blocking)
   React.useEffect(() => {
@@ -834,6 +861,17 @@ export default function RotaPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false))
+  }, [])
+
+  // ── Fetch allocation period on mount ───────────────────────────────────────
+  // On success: sets period → dates recomputes to the API-supplied range (7 or 8 days).
+  // On failure: period stays null → dates falls back to next week's Sunday + 7 days.
+  React.useEffect(() => {
+    getPeriod()
+      .then(p => setPeriod(p))
+      .catch(() => {
+        // API not yet provisioned or unreachable — period stays null, fallbackDates() is used
+      })
   }, [])
 
   // Load rota + leaves on week change
@@ -935,14 +973,8 @@ export default function RotaPage() {
     return { totalViolations, totalWarnings, driversWithIssues }
   }, [complianceReports, dates])
 
-  const navWeek = (delta: number) => {
-    setSunday(prev => {
-      const d = new Date(prev)
-      d.setDate(d.getDate() + delta * 7)
-      return d
-    })
-    setPopover(null)
-  }
+  // Week navigation is intentionally removed — the allocation period
+  // is locked to what the API returns via get-period.
 
   const getEntry = (driverUuid: string, date: string): RotaEntry | undefined =>
     rotas.find((r) => r.driver_uuid === driverUuid && r.date === date)
@@ -1253,29 +1285,12 @@ export default function RotaPage() {
       {/* ── Toolbar ──────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 flex-wrap shrink-0">
 
-        {/* Week nav — ‹ Week 13 · 24 Mar – 30 Mar › */}
-        <div className="flex items-center gap-0 rounded-xl border bg-card px-1 py-1">
-          <button
-            onClick={() => navWeek(-1)}
-            className="flex h-7 w-7 items-center justify-center rounded-lg hover:bg-muted transition-colors"
-            title="Previous week"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => { setSunday(weekStart(new Date())); setPopover(null) }}
-            className="flex items-center px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-            title="Jump to current week"
-          >
-            Week {week} &nbsp;·&nbsp; {fmtDate(dates[0])} – {fmtDate(dates[6])}
-          </button>
-          <button
-            onClick={() => navWeek(1)}
-            className="flex h-7 w-7 items-center justify-center rounded-lg hover:bg-muted transition-colors"
-            title="Next week"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
+        {/* Allocation period — static display, no navigation */}
+        <div className="flex items-center gap-2 rounded-xl border bg-card px-3 py-1.5">
+          <span className="text-xs font-semibold text-foreground">
+            {fmtDate(dates[0])} – {fmtDate(dates[dates.length - 1])}
+          </span>
+          <span className="text-[10px] text-muted-foreground/60 font-medium">· Allocation Period</span>
         </div>
 
         {/* Status legend — pill style matching cells */}
@@ -1786,7 +1801,7 @@ export default function RotaPage() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold">Compliance Report</p>
                 <p className="text-[11px] text-muted-foreground">
-                  Week {week} · {complianceSummary.driversWithIssues} driver{complianceSummary.driversWithIssues !== 1 ? "s" : ""} with issues
+                  {fmtDate(dates[0])} – {fmtDate(dates[dates.length - 1])} · {complianceSummary.driversWithIssues} driver{complianceSummary.driversWithIssues !== 1 ? "s" : ""} with issues
                 </p>
               </div>
               <button

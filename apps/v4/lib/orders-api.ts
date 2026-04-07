@@ -302,3 +302,44 @@ export async function dispatchOrder(uuid: string): Promise<{ status: string; ord
     body: JSON.stringify({ uuid }),
   })
 }
+
+// ─── Allocation Period ─────────────────────────────────────────────────────────
+
+export interface AllocationPeriod {
+  /** Normalised to "YYYY-MM-DD" */
+  start_date: string
+  /** Normalised to "YYYY-MM-DD" */
+  end_date: string
+}
+
+/**
+ * Parse a date string in either known API format and return "YYYY-MM-DD".
+ *   "2026-04-13"            → "2026-04-13"
+ *   "04/12/2026  00:30:00"  → "2026-04-12"
+ */
+function normaliseDate(raw: string): string {
+  const s = raw.trim()
+  // Already YYYY-MM-DD (or starts with it)
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
+  // MM/DD/YYYY … (with optional time component)
+  const parts = s.split(/[\s/]+/).filter(Boolean)
+  if (parts.length >= 3) {
+    const [mm, dd, yyyy] = parts
+    return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`
+  }
+  // Fallback: return first 10 chars and hope for the best
+  return s.slice(0, 10)
+}
+
+/**
+ * Fetch the current allocation period from GET /get-period.
+ * Both date strings are normalised to "YYYY-MM-DD" before returning.
+ * Throws on network / API error — callers should handle with a fallback.
+ */
+export async function getPeriod(): Promise<AllocationPeriod> {
+  const raw = await ontrackFetch<{ start_date: string; end_date: string }>("/get-period")
+  return {
+    start_date: normaliseDate(raw.start_date),
+    end_date:   normaliseDate(raw.end_date),
+  }
+}
