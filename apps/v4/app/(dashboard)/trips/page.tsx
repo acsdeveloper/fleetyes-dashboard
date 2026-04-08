@@ -910,6 +910,23 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
   // Track the current step name for error attribution (ref so catch can read latest value)
   const stepRef = React.useRef<ImportStep>("upload")
 
+  // ─── Generate a downloadable error-log CSV from the errors array ───────────
+  const downloadErrorCsv = (
+    errors: { row: number; message: string }[],
+    filename = "trips-import-errors.csv"
+  ) => {
+    const header = "Row,Error Message"
+    const rows = errors.map(e => `${e.row},"${e.message.replace(/"/g, '""')}"`)
+    const csv = [header, ...rows].join("\n")
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const runImport = async () => {
     if (!file) return
     setErrInfo(null)
@@ -925,28 +942,63 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
         "/files/upload",
         { method: "POST", body: fd }
       )
-      // Response is wrapped: { file: { uuid: "..." } }
       const fileUuid = uploaded.file?.uuid
       if (!fileUuid) throw new Error("File upload succeeded but returned no UUID")
 
       // ── Step 2: Create missing places ─────────────────────────────────────
-      // Server reads: $request->input('files') as an array of UUIDs (JSON body)
       setS("creating-places")
-      const pr = await ontrackFetch<{ created: number; skipped?: number; errors: {row:number;message:string}[] }>(
-        "/orders/process-import-create-missing-places",
-        { method: "POST", body: JSON.stringify({ files: [fileUuid] }) }
-      )
+      let pr: { created: number; skipped?: number; errors: {row:number;message:string}[] } = { created: 0, errors: [] }
+      try {
+        pr = await ontrackFetch<typeof pr>(
+          "/orders/process-import-create-missing-places",
+          { method: "POST", body: JSON.stringify({ files: [fileUuid] }) }
+        )
+      } catch (placeErr) {
+        // Non-fatal: log but continue to order import
+        console.warn("[ImportWizard] place-creation step error (continuing):", placeErr)
+        pr = { created: 0, errors: [{ row: 0, message: placeErr instanceof Error ? placeErr.message : String(placeErr) }] }
+      }
       setPlaceResult(pr)
 
       // ── Step 3: Import orders ─────────────────────────────────────────────
+      // The API processes every row and returns { created, updated, errors[], failed_rows_file? }
+      // even when some rows fail — this is NOT a hard error.
       setS("importing")
-      const ir = await ontrackFetch<{ created: number; updated: number; errors: {row:number;message:string}[]; failed_rows_file?: string }>(
-        "/orders/process-import-orders",
-        { method: "POST", body: JSON.stringify({ files: [fileUuid] }) }
-      )
+      let ir: { created: number; updated: number; errors: {row:number;message:string}[]; failed_rows_file?: string } = { created: 0, updated: 0, errors: [] }
+      try {
+        ir = await ontrackFetch<typeof ir>(
+          "/orders/process-import-orders",
+          { method: "POST", body: JSON.stringify({ files: [fileUuid] }) }
+        )
+      } catch (importErr) {
+        // If the server threw a hard error but we already have place results,
+        // treat it as a full-failure import (0 created, all rows failed) and
+        // still land on the "done" screen so the user sees what went wrong.
+        const msg = importErr instanceof Error ? importErr.message : String(importErr)
+        const isApiError = importErr instanceof OnTrackApiError
+        const body = isApiError ? importErr.body : undefined
+
+        // Try to extract per-row errors from the API body (422 validation responses)
+        let rowErrors: { row: number; message: string }[] = []
+        if (
+          body && typeof body === "object" && body !== null &&
+          "errors" in body && Array.isArray((body as { errors: unknown }).errors)
+        ) {
+          rowErrors = (body as { errors: { row?: number; message?: string }[] }).errors.map((e, i) => ({
+            row: e.row ?? i + 1,
+            message: e.message ?? JSON.stringify(e),
+          }))
+        } else {
+          rowErrors = [{ row: 0, message: msg }]
+        }
+        ir = { created: 0, updated: 0, errors: rowErrors }
+      }
+
       setResult(ir)
       setS("done")
+      if (ir.created > 0 || ir.updated > 0) onDone()
     } catch (e: unknown) {
+      // Only hard infrastructure errors (upload failure, auth) land here
       const isApiError = e instanceof OnTrackApiError
       const failedStep =
         stepRef.current === "uploading-file"   ? "Step 1 — Upload file" :
@@ -1074,6 +1126,7 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
           {/* Done */}
           {step === "done" && result && (
             <div className="flex flex-col gap-4">
+              {/* Success summary */}
               <div className="flex items-center gap-3 rounded-xl bg-green-50 dark:bg-green-950/20 p-4">
                 <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400 shrink-0" />
                 <div>
@@ -1084,19 +1137,41 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
                   </p>
                 </div>
               </div>
+
+              {/* Row-level errors — always offer downloadable log */}
               {(result.errors?.length ?? 0) > 0 && (
                 <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-4">
-                  <p className="mb-2 text-xs font-semibold text-amber-700 dark:text-amber-400">{result.errors!.length} rows had errors</p>
-                  <div className="space-y-1 max-h-40 overflow-y-auto">
-                    {result.errors!.map((e, i) => (
-                      <p key={i} className="text-xs text-amber-600 dark:text-amber-400">Row {e.row}: {e.message}</p>
-                    ))}
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                      ⚠ {result.errors!.length} row{result.errors!.length !== 1 ? "s" : ""} failed to import
+                    </p>
+                    {/* Download button — prefer server-provided file, fall back to client-generated CSV */}
+                    <button
+                      onClick={() =>
+                        result.failed_rows_file
+                          ? (() => { const a = document.createElement("a"); a.href = result.failed_rows_file!; a.download = "trips-import-errors.csv"; a.click() })()
+                          : downloadErrorCsv(result.errors!)
+                      }
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-amber-900/20 px-2.5 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300 transition-colors hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                    >
+                      <Download className="h-3 w-3" />
+                      Download error log
+                    </button>
                   </div>
-                  {result.failed_rows_file && (
-                    <a href={result.failed_rows_file} className="mt-2 inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400 underline" target="_blank" rel="noreferrer">
-                      <FileText className="h-3 w-3" /> Download error log
-                    </a>
-                  )}
+                  {/* Inline preview — first 8 rows */}
+                  <div className="space-y-1 max-h-44 overflow-y-auto rounded-lg border border-amber-200 dark:border-amber-700 bg-white/60 dark:bg-black/20 p-2">
+                    {result.errors!.slice(0, 8).map((e, i) => (
+                      <div key={i} className="flex gap-2 text-xs">
+                        <span className="shrink-0 font-mono font-medium text-amber-600 dark:text-amber-400 w-14">Row {e.row}</span>
+                        <span className="text-amber-700 dark:text-amber-300 break-words">{e.message}</span>
+                      </div>
+                    ))}
+                    {result.errors!.length > 8 && (
+                      <p className="text-[11px] text-amber-500 dark:text-amber-500 text-center pt-1 border-t border-amber-200 dark:border-amber-700">
+                        …and {result.errors!.length - 8} more — download the full log above
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
