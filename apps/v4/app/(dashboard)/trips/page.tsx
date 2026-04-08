@@ -1967,6 +1967,7 @@ type RowCallbacks = {
   onDispatch:        (o: Order) => void
   onAssigned:        (o: Order, driverUuid: string) => void
   onVehicleAssigned: (o: Order, vehicleUuid: string) => void
+  onEdit:            (o: Order) => void
   drivers:           Driver[]
   vehicles:          Vehicle[]
   allOrders:         Order[]
@@ -2196,10 +2197,11 @@ export default function TripsPage() {
     onDispatch:        handleDispatch,
     onAssigned:        handleDriverAssigned,
     onVehicleAssigned: handleVehicleAssigned,
+    onEdit:            (o: Order) => { setEditOrder(o); setShowNewTrip(true) },
     drivers,
     vehicles,
     allOrders: orders,
-    expandedRowsRef, // stable ref, not reactive state
+    expandedRowsRef,
     toggleRow,
   }), [handleDelete, handleDispatch, handleDriverAssigned, handleVehicleAssigned, drivers, vehicles, toggleRow, orders])
 
@@ -2215,6 +2217,36 @@ export default function TripsPage() {
 
   // Column definitions
   const colDefs = React.useMemo<ColDef<Order>[]>(() => [
+    // ─── Edit action column ───────────────────────────────────────────────────
+    {
+      colId: "_edit",
+      headerName: "",
+      width: 40,
+      minWidth: 40,
+      maxWidth: 40,
+      sortable: false,
+      filter: false,
+      resizable: false,
+      pinned: "left" as const,
+      suppressMovable: true,
+      cellRenderer: ({ data, context }: ICellRendererParams<Order> & { context: RowCallbacks }) => {
+        if (!data) return null
+        return (
+          <button
+            onMouseDown={e => e.stopPropagation()}
+            onClick={e => { e.stopPropagation(); context.onEdit(data) }}
+            title="Edit trip"
+            className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z" />
+            </svg>
+          </button>
+        )
+      },
+    },
+    // ─── Data columns ──────────────────────────────────────────────────────────
     {
       headerName: "Block ID",
       field: "public_id",
@@ -2708,10 +2740,6 @@ export default function TripsPage() {
             animateRows
             suppressCellFocus
             getRowId={({ data }) => data.uuid}
-            onRowClicked={({ data }) => {
-              if (data) { setEditOrder(data); setShowNewTrip(true) }
-            }}
-            rowClass="cursor-pointer"
             onSelectionChanged={() => {
               const api = gridRef.current?.api
               setSelectedCount(api ? api.getSelectedRows().length : 0)
