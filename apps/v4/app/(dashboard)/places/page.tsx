@@ -5,9 +5,10 @@ import {
   Search, RefreshCw, Plus, Upload, Download,
   Map as MapIcon, List, MapPin,
   Globe, Copy, Check, Trash2,
+  X, Loader2,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
-import { listPlaces, bulkDeletePlaces, importPlaces, type Place } from "@/lib/places-api"
+import { listPlaces, createPlace, updatePlace, bulkDeletePlaces, importPlaces, type Place, type GeoPoint } from "@/lib/places-api"
 import { ImportModal } from "@/components/import-modal"
 
 import { AgGridReact } from "ag-grid-react"
@@ -254,6 +255,154 @@ function IdCell({ value }: ICellRendererParams) {
   )
 }
 
+// ─── Place Drawer ────────────────────────────────────────────────────────────
+
+function PlaceDrawer({
+  open, place, onClose, onSaved,
+}: {
+  open: boolean
+  place: Place | null
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const isEdit = !!place
+  const [name,       setName]       = React.useState("")
+  const [code,       setCode]       = React.useState("")
+  const [address,    setAddress]    = React.useState("")
+  const [city,       setCity]       = React.useState("")
+  const [stateVal,   setStateVal]   = React.useState("")
+  const [country,    setCountry]    = React.useState("")
+  const [postalCode, setPostalCode] = React.useState("")
+  const [phone,      setPhone]      = React.useState("")
+  const [saving,     setSaving]     = React.useState(false)
+  const [error,      setError]      = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (place) {
+      setName(place.name ?? "")
+      setCode(place.code ?? "")
+      setAddress(place.address ?? "")
+      setCity(place.city ?? "")
+      setStateVal(place.state ?? "")
+      setCountry(place.country ?? "")
+      setPostalCode(place.postal_code ?? "")
+      setPhone(place.phone ?? "")
+    } else {
+      setName(""); setCode(""); setAddress(""); setCity("")
+      setStateVal(""); setCountry(""); setPostalCode(""); setPhone("")
+    }
+    setError(null)
+  }, [place, open])
+
+  const handleSave = async () => {
+    if (!name.trim()) { setError("Place name is required."); return }
+    setSaving(true); setError(null)
+    try {
+      if (isEdit && place) {
+        await updatePlace(place.uuid, {
+          name:        name.trim(),
+          code:        code || undefined,
+          address:     address || undefined,
+          city:        city || undefined,
+          state:       stateVal || undefined,
+          country:     country || undefined,
+          postal_code: postalCode || undefined,
+          phone:       phone || undefined,
+        })
+      } else {
+        const location: GeoPoint = { type: "Point", coordinates: [0, 0] }
+        await createPlace({
+          name:        name.trim(),
+          location,
+          code:        code || undefined,
+          address:     address || undefined,
+          city:        city || undefined,
+          state:       stateVal || undefined,
+          country:     country || undefined,
+          postal_code: postalCode || undefined,
+          phone:       phone || undefined,
+        })
+      }
+      onSaved()
+      onClose()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <>
+      <div
+        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity ${open ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        onClick={onClose}
+      />
+      <div className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l bg-background shadow-2xl transition-transform duration-300 ${open ? "translate-x-0" : "translate-x-full"}`}>
+        <div className="flex items-center justify-between border-b px-5 py-4">
+          <h2 className="text-sm font-bold">{isEdit ? "Edit Place" : "Add New Place"}</h2>
+          <button onClick={onClose} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">{error}</div>}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Name *</label>
+            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Place name"
+              className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Code / ID</label>
+            <input type="text" value={code} onChange={e => setCode(e.target.value)} placeholder="e.g. LHR, DEP-01"
+              className="h-9 w-full rounded-lg border bg-background px-3 text-sm font-mono outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Address</label>
+            <input type="text" value={address} onChange={e => setAddress(e.target.value)} placeholder="Street address"
+              className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">City</label>
+              <input type="text" value={city} onChange={e => setCity(e.target.value)} placeholder="City"
+                className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Postal Code</label>
+              <input type="text" value={postalCode} onChange={e => setPostalCode(e.target.value)} placeholder="SW1A 1AA"
+                className="h-9 w-full rounded-lg border bg-background px-3 text-sm font-mono outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">State / County</label>
+              <input type="text" value={stateVal} onChange={e => setStateVal(e.target.value)} placeholder="e.g. England"
+                className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Country</label>
+              <input type="text" value={country} onChange={e => setCountry(e.target.value)} placeholder="UK"
+                className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Phone</label>
+            <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+44..."
+              className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t px-5 py-4">
+          <button onClick={onClose} className="h-9 rounded-lg border bg-background px-4 text-sm text-muted-foreground hover:bg-muted">Cancel</button>
+          <button onClick={handleSave} disabled={saving}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-50">
+            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {isEdit ? "Save Changes" : "Add Place"}
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PlacesPage() {
@@ -270,6 +419,8 @@ export default function PlacesPage() {
   const [selectedCount, setSelectedCount] = React.useState(0)
   const [deleting,      setDeleting]      = React.useState(false)
   const [showImport,    setShowImport]    = React.useState(false)
+  const [drawerOpen,    setDrawerOpen]    = React.useState(false)
+  const [editPlace,     setEditPlace]     = React.useState<Place | null>(null)
 
   const gridRef = React.useRef<AgGridReact<PlaceEx>>(null)
 
@@ -447,7 +598,9 @@ export default function PlacesPage() {
 
         <span className="h-6 w-px bg-border" />
 
-        <button className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
+        <button
+          onClick={() => { setEditPlace(null); setDrawerOpen(true) }}
+          className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
           {c.addNew}
         </button>
       </div>
@@ -477,7 +630,12 @@ export default function PlacesPage() {
               animateRows
               suppressCellFocus
               getRowId={({ data }) => data.uuid}
-              onRowClicked={({ data }) => data && handleRowSelect(data.uuid)}
+              onRowClicked={({ data }) => {
+                if (!data) return
+                handleRowSelect(data.uuid)
+                setEditPlace(data)
+                setDrawerOpen(true)
+              }}
               rowClass="cursor-pointer"
               rowSelection={{ mode: "multiRow", enableClickSelection: false }}
               onSelectionChanged={() =>
@@ -501,6 +659,12 @@ export default function PlacesPage() {
         )}
       </div>
     </div>
+    <PlaceDrawer
+      open={drawerOpen}
+      place={editPlace}
+      onClose={() => setDrawerOpen(false)}
+      onSaved={load}
+    />
     <ImportModal
       open={showImport}
       onClose={() => setShowImport(false)}

@@ -1365,16 +1365,19 @@ function HelpWalkthrough({ onClose }: { onClose: () => void }) {
 // â”€â”€â”€ New Trip Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function NewTripDrawer({
+  order,
   drivers,
   fleets,
   onClose,
-  onCreated,
+  onSaved,
 }: {
-  drivers: Driver[]
-  fleets: Fleet[]
-  onClose: () => void
-  onCreated: () => void
+  order:     Order | null
+  drivers:   Driver[]
+  fleets:    Fleet[]
+  onClose:   () => void
+  onSaved:   () => void
 }) {
+  const isEdit = !!order
   const [vehicles, setVehicles] = React.useState<Vehicle[]>([])
   const [form, setForm] = React.useState<CreateOrderPayload>({
     status: "created",
@@ -1391,6 +1394,29 @@ function NewTripDrawer({
     ).catch(() => {})
   }, [])
 
+  // Pre-populate form when editing an existing order
+  React.useEffect(() => {
+    if (order) {
+      setForm({
+        status:                order.status,
+        pod_required:          false,
+        dispatched:            false,
+        internal_id:           order.internal_id ?? undefined,
+        type:                  order.type ?? undefined,
+        fleet_uuid:            order.fleet_uuid ?? undefined,
+        driver_assigned_uuid:  order.driver_assigned_uuid ?? undefined,
+        vehicle_assigned_uuid: order.vehicle_assigned?.uuid ?? undefined,
+        scheduled_at:          order.scheduled_at ?? undefined,
+        estimated_end_date:    order.estimated_end_date ?? undefined,
+        notes:                 order.notes ?? undefined,
+        payload:               order.payload ?? undefined,
+      } as CreateOrderPayload)
+    } else {
+      setForm({ status: "created", pod_required: false, dispatched: false })
+    }
+    setError(null)
+  }, [order])
+
   const set = <K extends keyof CreateOrderPayload>(k: K, v: CreateOrderPayload[K]) =>
     setForm((f) => ({ ...f, [k]: v }))
 
@@ -1399,11 +1425,15 @@ function NewTripDrawer({
     setSubmitting(true)
     setError(null)
     try {
-      await createOrder(form)
-      onCreated()
+      if (isEdit && order) {
+        await updateOrder(order.uuid, form as Parameters<typeof updateOrder>[1])
+      } else {
+        await createOrder(form)
+      }
+      onSaved()
       onClose()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to create trip")
+      setError(err instanceof Error ? err.message : isEdit ? "Failed to update trip" : "Failed to create trip")
     } finally {
       setSubmitting(false)
     }
@@ -1419,8 +1449,8 @@ function NewTripDrawer({
         {/* Header */}
         <div className="flex items-center justify-between border-b px-5 py-4">
           <div>
-            <h2 className="font-bold text-base">New Trip</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Fill in the details to create a new order</p>
+            <h2 className="font-bold text-base">{isEdit ? "Edit Trip" : "New Trip"}</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">{isEdit ? "Update the trip details below" : "Fill in the details to create a new order"}</p>
           </div>
           <button
             onClick={onClose}
@@ -1578,8 +1608,8 @@ function NewTripDrawer({
               disabled={submitting}
               className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
             >
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              {submitting ? "Creating…" : "Create Trip"}
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isEdit ? null : <Plus className="h-4 w-4" />}
+              {submitting ? (isEdit ? "Saving…" : "Creating…") : isEdit ? "Save Changes" : "Create Trip"}
             </button>
           </div>
         </form>
@@ -1880,6 +1910,7 @@ export default function TripsPage() {
   const [total, setTotal] = React.useState(0)
   const [search, setSearch] = React.useState("")
   const [showNewTrip, setShowNewTrip] = React.useState(false)
+  const [editOrder,   setEditOrder]   = React.useState<Order | null>(null)
   const [drivers, setDrivers] = React.useState<Driver[]>([])
   const [vehicles, setVehicles] = React.useState<Vehicle[]>([])
   const [fleets, setFleets] = React.useState<Fleet[]>([])
@@ -2541,7 +2572,7 @@ export default function TripsPage() {
 
           {/* Primary CTA */}
           <button
-            onClick={() => setShowNewTrip(true)}
+            onClick={() => { setEditOrder(null); setShowNewTrip(true) }}
             className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
           >
             {c.addNew}
@@ -2602,6 +2633,10 @@ export default function TripsPage() {
             animateRows
             suppressCellFocus
             getRowId={({ data }) => data.uuid}
+            onRowClicked={({ data }) => {
+              if (data) { setEditOrder(data); setShowNewTrip(true) }
+            }}
+            rowClass="cursor-pointer"
             onSelectionChanged={() => {
               const api = gridRef.current?.api
               setSelectedCount(api ? api.getSelectedRows().length : 0)
@@ -2632,10 +2667,11 @@ export default function TripsPage() {
       {/* New Trip Drawer */}
       {showNewTrip && (
         <NewTripDrawer
+          order={editOrder}
           drivers={drivers}
           fleets={fleets}
-          onClose={() => setShowNewTrip(false)}
-          onCreated={() => fetchOrders()}
+          onClose={() => { setShowNewTrip(false); setEditOrder(null) }}
+          onSaved={() => fetchOrders()}
         />
       )}
       <AutoAllocateModal

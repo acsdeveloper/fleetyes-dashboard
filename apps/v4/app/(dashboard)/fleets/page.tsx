@@ -4,9 +4,10 @@ import * as React from "react"
 import {
   Search, RefreshCw, Plus, Download,
   Truck, Trash2, Users, Activity,
+  X, Loader2, ChevronDown,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
-import { listFleets, bulkDeleteFleets, type Fleet, type FleetStatus } from "@/lib/fleets-api"
+import { listFleets, createFleet, updateFleet, bulkDeleteFleets, type Fleet, type FleetStatus } from "@/lib/fleets-api"
 
 import { AgGridReact } from "ag-grid-react"
 import {
@@ -135,6 +136,114 @@ function StatusCell({ data }: ICellRendererParams<Fleet>) {
   )
 }
 
+// ─── Fleet Drawer ────────────────────────────────────────────────────────────
+
+function FleetDrawer({
+  open, fleet, onClose, onSaved,
+}: {
+  open: boolean
+  fleet: Fleet | null
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const isEdit = !!fleet
+  const [name,       setName]       = React.useState("")
+  const [task,       setTask]       = React.useState("")
+  const [tripLength, setTripLength] = React.useState("")
+  const [statusVal,  setStatusVal]  = React.useState<FleetStatus>("active")
+  const [saving,     setSaving]     = React.useState(false)
+  const [error,      setError]      = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (fleet) {
+      setName(fleet.name ?? "")
+      setTask(fleet.task ?? "")
+      setTripLength(fleet.trip_length != null ? String(fleet.trip_length) : "")
+      setStatusVal(fleet.status ?? "active")
+    } else {
+      setName(""); setTask(""); setTripLength(""); setStatusVal("active")
+    }
+    setError(null)
+  }, [fleet, open])
+
+  const handleSave = async () => {
+    if (!name.trim()) { setError("Fleet name is required."); return }
+    setSaving(true); setError(null)
+    try {
+      const payload = {
+        name:        name.trim(),
+        task:        task || undefined,
+        trip_length: tripLength ? Number(tripLength) : undefined,
+        status:      statusVal,
+      }
+      if (isEdit && fleet) {
+        await updateFleet(fleet.uuid, payload)
+      } else {
+        await createFleet(payload)
+      }
+      onSaved()
+      onClose()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <>
+      <div
+        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity ${open ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        onClick={onClose}
+      />
+      <div className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l bg-background shadow-2xl transition-transform duration-300 ${open ? "translate-x-0" : "translate-x-full"}`}>
+        <div className="flex items-center justify-between border-b px-5 py-4">
+          <h2 className="text-sm font-bold">{isEdit ? "Edit Fleet" : "Add New Fleet"}</h2>
+          <button onClick={onClose} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">{error}</div>}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Name *</label>
+            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Fleet name"
+              className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Task / Description</label>
+            <input type="text" value={task} onChange={e => setTask(e.target.value)} placeholder="e.g. Airport transfers"
+              className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Trip Length (hours)</label>
+            <input type="number" min={0} step={0.5} value={tripLength} onChange={e => setTripLength(e.target.value)} placeholder="e.g. 8"
+              className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</label>
+            <div className="relative">
+              <select value={statusVal} onChange={e => setStatusVal(e.target.value as FleetStatus)}
+                className="h-9 w-full appearance-none rounded-lg border bg-background px-3 pr-8 text-sm outline-none focus:ring-2 focus:ring-ring">
+                <option value="active">Active</option>
+                <option value="disabled">Disabled</option>
+                <option value="decommissioned">Decommissioned</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t px-5 py-4">
+          <button onClick={onClose} className="h-9 rounded-lg border bg-background px-4 text-sm text-muted-foreground hover:bg-muted">Cancel</button>
+          <button onClick={handleSave} disabled={saving}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-50">
+            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {isEdit ? "Save Changes" : "Add Fleet"}
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function FleetsPage() {
@@ -149,6 +258,8 @@ export default function FleetsPage() {
   const [searchFocused, setSearchFocused] = React.useState(false)
   const [selectedCount, setSelectedCount] = React.useState(0)
   const [deleting,      setDeleting]      = React.useState(false)
+  const [drawerOpen,    setDrawerOpen]    = React.useState(false)
+  const [editFleet,     setEditFleet]     = React.useState<Fleet | null>(null)
 
   // Dark mode
   const [isDark, setIsDark] = React.useState(() =>
@@ -312,7 +423,9 @@ export default function FleetsPage() {
 
         <span className="h-6 w-px bg-border" />
 
-        <button className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
+        <button
+          onClick={() => { setEditFleet(null); setDrawerOpen(true) }}
+          className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
           {c.addNew}
         </button>
       </div>
@@ -342,10 +455,18 @@ export default function FleetsPage() {
           onSelectionChanged={() =>
             setSelectedCount(gridRef.current?.api?.getSelectedRows().length ?? 0)
           }
+          onRowClicked={({ data }) => { if (data) { setEditFleet(data); setDrawerOpen(true) } }}
+          rowClass="cursor-pointer"
           overlayLoadingTemplate='<span class="text-sm text-muted-foreground">Loading fleets…</span>'
           overlayNoRowsTemplate='<span class="text-sm text-muted-foreground">No fleets found.</span>'
         />
       </div>
+      <FleetDrawer
+        open={drawerOpen}
+        fleet={editFleet}
+        onClose={() => setDrawerOpen(false)}
+        onSaved={load}
+      />
     </div>
   )
 }
