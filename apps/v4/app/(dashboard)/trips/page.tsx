@@ -929,7 +929,13 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
     filename = "trips-import-errors.csv"
   ) => {
     const header = "Row,Error Message"
-    const rows = errors.map(e => `${e.row},"${e.message.replace(/"/g, '""')}"`)
+    const rows = errors.map(e => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const raw = e as any
+      const rowNum = e.row ?? raw.row_number ?? raw.line ?? "?"
+      const msg = (e.message ?? raw.error ?? raw.msg ?? raw.description ?? JSON.stringify(e)) as string
+      return `${rowNum},"${msg.replace(/"/g, '""')}"`
+    })
     const csv = [header, ...rows].join("\n")
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
