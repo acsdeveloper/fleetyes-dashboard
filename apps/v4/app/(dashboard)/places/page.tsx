@@ -671,7 +671,6 @@ export default function PlacesPage() {
       onDone={load}
       entityName="Places"
       uploadType="place_import"
-      uploadPath="place-imports"
       importFn={importPlaces}
     />
     </>

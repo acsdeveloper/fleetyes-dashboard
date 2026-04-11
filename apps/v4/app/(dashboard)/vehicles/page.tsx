@@ -614,7 +614,6 @@ export default function VehiclesPage() {
       onDone={load}
       entityName="Vehicles"
       uploadType="vehicle_import"
-      uploadPath="vehicle-imports"
       importFn={importVehicles}
     />
     </>

@@ -19,14 +19,12 @@ type Step = "pick" | "uploading" | "importing" | "done" | "error"
 async function uploadFile(
   file: File,
   type: string,
-  path: string
 ): Promise<string> {
   const token = getToken()
   const fd = new FormData()
   fd.append("file", file)
   fd.append("type", type)
-  fd.append("path", path)
-  const res = await fetch("https://ontrack-api.agilecyber.com/int/v1/uploads", {
+  const res = await fetch("https://ontrack-api.agilecyber.com/int/v1/files/upload", {
     method: "POST",
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: fd,
@@ -50,16 +48,14 @@ interface ImportModalProps {
   onDone:     () => void
   /** Human label e.g. "Vehicles" */
   entityName: string
-  /** `type` field sent to /uploads */
+  /** `type` field sent to /files/upload (e.g. "driver_import") */
   uploadType: string
-  /** `path` field sent to /uploads */
-  uploadPath: string
   /** Function that calls the entity-specific import endpoint */
   importFn:   (fileUuids: string[]) => Promise<ImportResult>
 }
 
 export function ImportModal({
-  open, onClose, onDone, entityName, uploadType, uploadPath, importFn,
+  open, onClose, onDone, entityName, uploadType, importFn,
 }: ImportModalProps) {
   const [step,        setStep]        = React.useState<Step>("pick")
   const [file,        setFile]        = React.useState<File | null>(null)
@@ -91,7 +87,7 @@ export function ImportModal({
     if (!file) return
     try {
       setStep("uploading")
-      const uuid = await uploadFile(file, uploadType, uploadPath)
+      const uuid = await uploadFile(file, uploadType)
       setStep("importing")
       const res = await importFn([uuid])
       setResult(res)

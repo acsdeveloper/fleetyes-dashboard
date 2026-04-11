@@ -764,7 +764,6 @@ export default function DriversPage() {
       onDone={load}
       entityName="Drivers"
       uploadType="driver_import"
-      uploadPath="driver-imports"
       importFn={importDrivers}
     />
     </>
