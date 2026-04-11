@@ -85,7 +85,7 @@ export function DatePicker({
 
       {/* Dropdown calendar */}
       {open && (
-        <div className={`absolute top-full z-[70] mt-1 rounded-xl border bg-background shadow-xl ${align === "end" ? "right-0" : "left-0"}`} style={{ minWidth: 280 }}>
+        <div className={`absolute top-full z-[70] mt-1 rounded-xl border bg-background shadow-xl ${align === "end" ? "right-0" : "left-0"}`}>
           {/* Custom CSS for react-day-picker v9 — override its default styles */}
           <style>{`
             .rdp-root {
