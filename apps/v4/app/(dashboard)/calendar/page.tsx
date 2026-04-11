@@ -460,27 +460,33 @@ function WeekView({
                 <div key={h} className="absolute w-full border-t border-muted/30" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }} />
               ))}
 
-              {/* Trip cards at scheduled time */}
+              {/* Trip cards — starts at scheduled time, continuations at top */}
               {(() => {
-                const dayTrips = dayOrds.filter(o =>
-                  !!o.scheduled_at && isSameDay(new Date(o.scheduled_at), d)
-                )
-                if (dayTrips.length === 0) return null
-                const withSlots = dayTrips.map(o => ({
-                  ...o,
-                  _start: new Date(o.scheduled_at!).getTime(),
-                  _end: o.estimated_end_date
-                    ? new Date(o.estimated_end_date).getTime()
-                    : new Date(o.scheduled_at!).getTime() + 3_600_000,
-                }))
+                const allTrips = dayOrds.filter(o => !!o.scheduled_at)
+                if (allTrips.length === 0) return null
+
+                const withSlots = allTrips.map(o => {
+                  const isStartDay = isSameDay(new Date(o.scheduled_at!), d)
+                  return {
+                    ...o,
+                    _isStart: isStartDay,
+                    _start: isStartDay
+                      ? new Date(o.scheduled_at!).getTime()
+                      : new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0).getTime(),
+                    _end: o.estimated_end_date
+                      ? new Date(o.estimated_end_date).getTime()
+                      : new Date(o.scheduled_at!).getTime() + 3_600_000,
+                  }
+                })
                 const layout = columnizeEvents(withSlots, e => e._start, e => e._end)
 
                 return layout.map(({ item: o, col, totalCols }) => {
-                  const start    = new Date(o.scheduled_at!)
-                  const top      = ((start.getHours() - FIRST_HOUR) + start.getMinutes() / 60) * PX_PER_HOUR
                   const chip     = orderChip(o, hd, hv)
                   const slotFrac = 1 / totalCols
                   const leftFrac = col * slotFrac
+                  const top      = o._isStart
+                    ? ((new Date(o.scheduled_at!).getHours() - FIRST_HOUR) + new Date(o.scheduled_at!).getMinutes() / 60) * PX_PER_HOUR
+                    : 2  // continuation: pin to top of column
                   return (
                     <div
                       key={o.uuid}
@@ -489,13 +495,13 @@ function WeekView({
                       style={{
                         top,
                         height: 44,
-                        left:   `${(leftFrac  * 100).toFixed(1)}%`,
-                        width:  `${(slotFrac  * 100).toFixed(1)}%`,
+                        left:   `${(leftFrac * 100).toFixed(1)}%`,
+                        width:  `${(slotFrac * 100).toFixed(1)}%`,
                         zIndex: col + 1,
                       }}
                     >
                       <div className="font-semibold truncate leading-tight">
-                        {fmtTime(o.scheduled_at!)} {o.internal_id ?? o.public_id}
+                        {o._isStart ? fmtTime(o.scheduled_at!) : "→ cont."} {o.internal_id ?? o.public_id}
                       </div>
                       <div className="opacity-70 text-[8px] truncate leading-tight mt-0.5">
                         {driverName(o) ?? "No driver"} · {vehiclePlate(o) ?? "No vehicle"}
@@ -547,26 +553,58 @@ function DayView({
     return isInRange(anchor, l.start_date, l.end_date)
   })
 
-  // Leave events get left strips; the rest of the width is for orders
-  const leaveW = dayLeave.length > 0 ? Math.min(dayLeave.length * 72, 216) : 0
+  const allDayLeave = dayLeave  // leaves shown in all-day row
 
-  // Columnize overlapping orders so they sit side-by-side
-  const ordersWithSlot = dayOrders
-    .filter(o => !!o.scheduled_at)
-    .map(o => ({
+  // Trip cards — same logic as WeekView: start day at scheduled time, continuation at top
+  const allTrips = dayOrders.filter(o => !!o.scheduled_at).map(o => {
+    const isStartDay = isSameDay(new Date(o.scheduled_at!), anchor)
+    return {
       ...o,
-      // For non-start days, treat as starting at midnight for column-conflict purposes
-      _start: orderSpansDay(o, anchor) && !isSameDay(new Date(o.scheduled_at!), anchor)
-        ? anchor.setHours(0, 0, 0, 0)
-        : new Date(o.scheduled_at!).getTime(),
+      _isStart: isStartDay,
+      _start: isStartDay
+        ? new Date(o.scheduled_at!).getTime()
+        : new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate(), 0, 0, 0).getTime(),
       _end: o.estimated_end_date
         ? new Date(o.estimated_end_date).getTime()
         : new Date(o.scheduled_at!).getTime() + 3_600_000,
-    }))
-  const layout = columnizeEvents(ordersWithSlot, e => e._start, e => e._end)
+    }
+  })
+  const layout = columnizeEvents(allTrips, e => e._start, e => e._end)
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden min-h-0">
+
+      {/* ── All-day row (leaves + maintenance) ─────────────────────────── */}
+      {allDayLeave.length > 0 && (
+        <div className="flex border-b shrink-0 bg-muted/15">
+          <div className="w-14 shrink-0 border-r flex items-start justify-end pr-1 pt-1">
+            <span className="text-[8px] text-muted-foreground leading-none">all day</span>
+          </div>
+          <div className="flex-1 p-0.5 flex flex-wrap gap-0.5">
+            {allDayLeave.map(l => {
+              const isVehicle = l.unavailability_type === "vehicle"
+              const name      = l.vehicle_name ?? l.user?.name ?? "—"
+              const colorCls  = isVehicle
+                ? "border-l-2 border-neutral-500 bg-neutral-100/80 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"
+                : "border-l-2 border-red-400   bg-red-50/80    text-red-800   dark:bg-red-900/30  dark:text-red-300"
+              return (
+                <div
+                  key={l.uuid}
+                  title={`${leaveLabel(l)}: ${name}\n${l.start_date.slice(0,10)} → ${l.end_date.slice(0,10)}`}
+                  className={`overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-default min-w-[140px] ${colorCls}`}
+                >
+                  <div className="font-semibold truncate leading-tight">{leaveLabel(l)}: {name}</div>
+                  <div className="opacity-70 text-[8px] truncate leading-tight mt-0.5">
+                    {l.start_date.slice(0,10)} → {l.end_date.slice(0,10)}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Scrollable time grid ────────────────────────────────────────── */}
       <div ref={scrollRef} className="flex flex-1 overflow-y-auto min-h-0">
 
         {/* Time gutter */}
@@ -585,53 +623,33 @@ function DayView({
             <div key={h} className="absolute w-full border-t border-muted/30" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }} />
           ))}
 
-          {/* Full-day leave strips — left portion */}
-          {dayLeave.map((l, li) => {
-            const isVehicle = l.unavailability_type === "vehicle"
-            const stripPx   = leaveW / dayLeave.length
-            const name      = l.vehicle_name ?? l.user?.name ?? leaveLabel(l)
-            return (
-              <div
-                key={l.uuid}
-                className={`absolute top-0 overflow-hidden rounded-sm ${
-                  isVehicle
-                    ? "bg-neutral-700/15 border-l-2 border-neutral-700"
-                    : "bg-red-500/15 border-l-2 border-red-500"
-                }`}
-                style={{ left: li * stripPx, width: stripPx - 2, height: GRID_H }}
-              >
-                <div className={`sticky top-1 mx-0.5 rounded px-1.5 py-1 text-[9px] font-semibold leading-tight truncate ${
-                  isVehicle ? "bg-neutral-800 text-white" : "bg-red-500/80 text-white"
-                }`}>
-                  {leaveLabel(l)}: {name}
-                  <div className="text-[8px] font-normal opacity-80 mt-0.5">{l.start_date.slice(0,10)} → {l.end_date.slice(0,10)}</div>
-                </div>
-              </div>
-            )
-          })}
-
-          {/* Orders — columnized, multi-day aware */}
+          {/* Trip cards */}
           {layout.map(({ item: o, col, totalCols }) => {
-            const { top, height, isStart, isEnd } = effectiveSlot(o, anchor, PX_PER_HOUR, FIRST_HOUR, GRID_H)
-            const left  = `calc(${leaveW + 4}px + ${col} * (100% - ${leaveW + 8}px) / ${totalCols})`
-            const right = `calc((${totalCols - col - 1}) * (100% - ${leaveW + 8}px) / ${totalCols} + 2px)`
+            const chip     = orderChip(o, hd, hv)
+            const slotFrac = 1 / totalCols
+            const leftFrac = col * slotFrac
+            const top      = o._isStart
+              ? ((new Date(o.scheduled_at!).getHours() - FIRST_HOUR) + new Date(o.scheduled_at!).getMinutes() / 60) * PX_PER_HOUR
+              : 2
             return (
               <div
                 key={o.uuid}
-                className={`absolute rounded-lg px-2 py-1 text-xs font-medium shadow-sm overflow-hidden ${orderChip(o, hd, hv)}`}
-                style={{ top, height, left, right, zIndex: col + 1 }}
+                title={`${o.internal_id ?? o.public_id} — ${fmtTime(o.scheduled_at)}${o.estimated_end_date ? ` → ${fmtTime(o.estimated_end_date)}` : ""}`}
+                className={`absolute overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-default ${chip}`}
+                style={{
+                  top,
+                  height: 44,
+                  left:   `${(leftFrac * 100).toFixed(1)}%`,
+                  width:  `${(slotFrac * 100).toFixed(1)}%`,
+                  zIndex: col + 1,
+                }}
               >
-                <div className="font-semibold truncate text-[10px]">
-                  {isStart ? fmtTime(o.scheduled_at) : "00:00"}
-                  {isStart && o.estimated_end_date && isEnd ? ` – ${fmtTime(o.estimated_end_date)}` : ""}
-                  {!isStart && <span className="opacity-50 ml-0.5">(cont.)</span>}
-                  {" · "}{o.internal_id ?? o.public_id}
+                <div className="font-semibold truncate leading-tight">
+                  {o._isStart ? fmtTime(o.scheduled_at!) : "→ cont."} {o.internal_id ?? o.public_id}
                 </div>
-                {height > 28 && (
-                  <div className="opacity-70 text-[9px] truncate">
-                    {driverName(o) ?? "No driver"} · {vehiclePlate(o) ?? "No vehicle"}
-                  </div>
-                )}
+                <div className="opacity-70 text-[8px] truncate leading-tight mt-0.5">
+                  {driverName(o) ?? "No driver"} · {vehiclePlate(o) ?? "No vehicle"}
+                </div>
               </div>
             )
           })}
