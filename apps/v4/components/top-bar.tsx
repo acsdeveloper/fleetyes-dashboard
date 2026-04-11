@@ -2,7 +2,7 @@
 import * as React from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
-import { Sun, Moon, Monitor, LogOut, User, Settings, ChevronDown, Eye, EyeOff, Globe } from "lucide-react"
+import { Sun, Moon, Monitor, LogOut, User, Settings, ChevronDown, Globe } from "lucide-react"
 import { useLang, type Lang } from "@/components/lang-context"
 import { useNavVisibility } from "@/components/nav-visibility-context"
 import { cn } from "@/lib/utils"
@@ -235,21 +235,6 @@ export function TopBar() {
 
       {/* ── Right-side controls ──────────────────────────────────────────── */}
       <div className="ml-auto flex items-center gap-1.5">
-
-      {/* ── Hidden pages toggle ─────────────────────────────────────────── */}
-      <button
-        onClick={toggleHidden}
-        title={showHidden ? "Hide staging pages" : "Show staging pages"}
-        className={cn(
-          "flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors",
-          showHidden
-            ? "border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-700"
-            : "bg-muted/40 text-muted-foreground hover:text-foreground"
-        )}
-      >
-        {showHidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-        <span className="hidden sm:inline">Staging</span>
-      </button>
 
       {/* ── Language dropdown (6 langs) ─────────────────────────────────── */}
       <LangDropdown />

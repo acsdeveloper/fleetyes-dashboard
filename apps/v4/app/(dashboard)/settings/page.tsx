@@ -4,9 +4,10 @@ import * as React from "react"
 import {
   Clock, CalendarDays, UserCheck, Wrench,
   Route, CalendarCheck, Truck,
-  ChevronDown, Lock,
+  ChevronDown, Lock, Terminal, Eye, EyeOff,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
+import { useNavVisibility } from "@/components/nav-visibility-context"
 
 function Toggle({ on, onChange, locked }: { on: boolean; onChange?: () => void; locked?: boolean }) {
   return (
@@ -153,6 +154,104 @@ export default function AllocationSettingsPage() {
           />
         </div>
       </Panel>
+
+      {/* Section 3 – Developer Tools (secret: triple-click heading to reveal) */}
+      <DevToolsPanel />
+    </div>
+  )
+}
+
+// ─── Secret Developer Tools Panel ────────────────────────────────────────────
+// Unlock mechanic: triple-click the heading within 600ms between clicks.
+// Once unlocked, the staging toggle is revealed. State is NOT persisted —
+// closing the page resets it, so it cannot stay visible accidentally.
+
+function DevToolsPanel() {
+  const { showHidden, toggleHidden } = useNavVisibility()
+  const [unlocked, setUnlocked]     = React.useState(false)
+  const [clickCount, setClickCount] = React.useState(0)
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleHeadingClick = () => {
+    const next = clickCount + 1
+    setClickCount(next)
+    if (timerRef.current) clearTimeout(timerRef.current)
+    if (next >= 3) {
+      setUnlocked(true)
+      setClickCount(0)
+    } else {
+      timerRef.current = setTimeout(() => setClickCount(0), 600)
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-dashed border-muted bg-card/50 shadow-sm overflow-hidden">
+      {/* Heading — looks like a normal collapsed section, triple-click unlocks */}
+      <button
+        onClick={handleHeadingClick}
+        className="flex w-full items-center gap-3 px-5 py-3.5 text-left select-none"
+        title=""
+      >
+        <Terminal className="h-4 w-4 shrink-0 text-muted-foreground/40" />
+        <span className="text-sm font-medium text-muted-foreground/50">Developer Tools</span>
+        {/* Subtle dot counter — only visible while clicking */}
+        {clickCount > 0 && (
+          <span className="ml-auto flex gap-0.5">
+            {[0, 1, 2].map(i => (
+              <span key={i} className={`h-1.5 w-1.5 rounded-full transition-colors ${
+                i < clickCount ? "bg-muted-foreground/60" : "bg-muted-foreground/20"
+              }`} />
+            ))}
+          </span>
+        )}
+      </button>
+
+      {/* Content — only visible after triple-click */}
+      {unlocked && (
+        <div className="border-t border-dashed p-5">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="rounded-md bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+              ⚠ Internal use only
+            </span>
+          </div>
+          <p className="mb-4 text-xs text-muted-foreground">
+            These controls expose pages that are under active development and not ready for production.
+            Do not enable for end users.
+          </p>
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 p-4">
+            <div className="flex items-center gap-3">
+              {showHidden
+                ? <Eye className="h-4 w-4 shrink-0 text-amber-600" />
+                : <EyeOff className="h-4 w-4 shrink-0 text-muted-foreground" />
+              }
+              <div>
+                <p className="text-sm font-medium">Show staging pages in sidebar</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Reveals Compliance, Maintenance and Inventory modules currently in development.
+                </p>
+              </div>
+            </div>
+            <button
+              role="switch"
+              aria-checked={showHidden}
+              onClick={toggleHidden}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
+                showHidden ? "bg-amber-500" : "bg-muted border"
+              }`}
+            >
+              <span className={`inline-block h-5 w-5 translate-y-0.5 rounded-full bg-white shadow transition-transform ${
+                showHidden ? "translate-x-5" : "translate-x-0.5"
+              }`} />
+            </button>
+          </div>
+          <button
+            onClick={() => setUnlocked(false)}
+            className="mt-3 text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+          >
+            Hide developer tools
+          </button>
+        </div>
+      )}
     </div>
   )
 }
