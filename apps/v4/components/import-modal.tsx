@@ -8,34 +8,50 @@ import { ontrackFetch, getToken } from "@/lib/ontrack-api"
 
 export interface ImportResult {
   // Primary field names (per API docs)
-  imported?:      number
-  skipped?:       number
-  error_log_url?: string
+  imported?:        number
+  skipped?:         number
+  error_log_url?:   string
   // Alternative field names the API may actually return
-  created?:       number
-  created_count?: number
-  inserted?:      number
-  inserted_count?: number
-  total?:         number
-  count?:         number
+  created?:         number
+  created_count?:   number
+  // Entity-specific keys e.g. "created_vehicle", "created_driver", "created_place"
+  created_vehicle?: number
+  created_driver?:  number
+  created_place?:   number
+  inserted?:        number
+  inserted_count?:  number
+  total_processed?: number
+  total?:           number
+  count?:           number
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [key: string]:  any
+  [key: string]:    any
 }
 
 /** Normalise whatever the import endpoint returns into a consistent shape */
 function normaliseImportResult(raw: ImportResult): ImportResult {
   // Unwrap if the result is nested under a `data` key
   const r: ImportResult = (raw as ImportResult & { data?: ImportResult }).data ?? raw
+
+  // Entity-specific key scan: picks up any "created_*" field automatically
+  // e.g. created_vehicle, created_driver, created_place
+  const entityCreated = Object.entries(r)
+    .filter(([k]) => k.startsWith("created_") && typeof r[k] === "number")
+    .reduce((sum, [, v]) => sum + (v as number), 0) || undefined
+
   const importedCount =
     r.imported ??
+    entityCreated ??
     r.created ??
     r.created_count ??
     r.inserted ??
     r.inserted_count ??
+    r.total_processed ??
     r.total ??
     r.count ??
     0
+
   const skippedCount = r.skipped ?? r.skipped_count ?? 0
+
   return {
     imported:       importedCount,
     skipped:        skippedCount,
