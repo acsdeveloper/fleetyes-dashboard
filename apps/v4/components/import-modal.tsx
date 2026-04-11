@@ -7,9 +7,40 @@ import { ontrackFetch, getToken } from "@/lib/ontrack-api"
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface ImportResult {
+  // Primary field names (per API docs)
   imported?:      number
   skipped?:       number
   error_log_url?: string
+  // Alternative field names the API may actually return
+  created?:       number
+  created_count?: number
+  inserted?:      number
+  inserted_count?: number
+  total?:         number
+  count?:         number
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]:  any
+}
+
+/** Normalise whatever the import endpoint returns into a consistent shape */
+function normaliseImportResult(raw: ImportResult): ImportResult {
+  // Unwrap if the result is nested under a `data` key
+  const r: ImportResult = (raw as ImportResult & { data?: ImportResult }).data ?? raw
+  const importedCount =
+    r.imported ??
+    r.created ??
+    r.created_count ??
+    r.inserted ??
+    r.inserted_count ??
+    r.total ??
+    r.count ??
+    0
+  const skippedCount = r.skipped ?? r.skipped_count ?? 0
+  return {
+    imported:       importedCount,
+    skipped:        skippedCount,
+    error_log_url:  r.error_log_url,
+  }
 }
 
 type Step = "pick" | "uploading" | "importing" | "done" | "error"
@@ -89,7 +120,9 @@ export function ImportModal({
       setStep("uploading")
       const uuid = await uploadFile(file, uploadType)
       setStep("importing")
-      const res = await importFn([uuid])
+      const raw = await importFn([uuid])
+      console.log("[ImportModal] raw API response:", raw)
+      const res = normaliseImportResult(raw)
       setResult(res)
       setStep("done")
       onDone()
