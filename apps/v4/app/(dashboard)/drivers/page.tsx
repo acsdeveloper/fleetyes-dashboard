@@ -178,7 +178,7 @@ function FleetMultiSelect({
             </button>
           </span>
         ))}
-        <ChevronDown className={ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform } />
+        <ChevronDown className={`ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
       </div>
       {open && (
         <div className="absolute left-0 right-0 top-full z-[60] mt-1 max-h-40 overflow-y-auto rounded-lg border bg-background shadow-lg">

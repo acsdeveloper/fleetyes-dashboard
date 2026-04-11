@@ -2,10 +2,15 @@
 import * as React from "react"
 import {
   Search, RefreshCw, Plus, Download,
-  CheckCircle2, Clock, XCircle,
+  CheckCircle2, Clock, XCircle, X, Loader2, Trash2,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
-import { listDriverLeave, type LeaveRequest } from "@/lib/leave-requests-api"
+import {
+  listDriverLeave, createLeaveRequest, updateLeaveRequest,
+  approveLeaveRequest, rejectLeaveRequest, deleteLeaveRequest,
+  type LeaveRequest, type LeaveType, type LeaveStatus,
+} from "@/lib/leave-requests-api"
+import { listDrivers, type Driver } from "@/lib/drivers-api"
 
 import { AgGridReact } from "ag-grid-react"
 import {
@@ -16,7 +21,7 @@ import {
 
 ModuleRegistry.registerModules([AllCommunityModule])
 
-// ─── AG Grid themes (identical to trips / drivers / vehicles) ─────────────────
+// ─── AG Grid themes ────────────────────────────────────────────────────────────
 
 const baseParams = {
   fontFamily: "var(--font-sans, 'Montserrat', 'Inter', system-ui, sans-serif)",
@@ -60,12 +65,13 @@ const darkTheme = themeQuartz.withParams({
 const STATUS_META: Record<string, { icon: React.FC<{ className?: string }>; badge: string; dot: string }> = {
   Approved:  { icon: CheckCircle2, badge: "bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-700/40", dot: "bg-emerald-500" },
   Submitted: { icon: Clock,        badge: "bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-700/40",     dot: "bg-amber-500"  },
-  Rejected:  { icon: XCircle,      badge: "bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-rose-900/20 dark:text-rose-300 dark:border-rose-700/40",             dot: "bg-rose-500"   },
+  Pending:   { icon: Clock,        badge: "bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-700/40",     dot: "bg-amber-400"  },
+  Rejected:  { icon: XCircle,      badge: "bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-rose-900/20 dark:text-rose-300 dark:border-rose-700/40",           dot: "bg-rose-500"   },
 }
 
-function fmtDay(iso: string) {
-  return iso?.slice(0, 10) ?? "—"
-}
+const LEAVE_TYPES: LeaveType[] = ["Annual Leave", "Sick Leave", "Vacation", "Sick", "Other"]
+
+function fmtDay(iso: string) { return iso?.slice(0, 10) ?? "—" }
 
 // ─── Cell renderers ────────────────────────────────────────────────────────────
 
@@ -119,6 +125,232 @@ function DaysCell({ value }: ICellRendererParams) {
   return <span className="font-bold tabular-nums">{value}</span>
 }
 
+// ─── Holiday Drawer ────────────────────────────────────────────────────────────
+
+function HolidayDrawer({
+  open, leave, drivers, onClose, onSaved,
+}: {
+  open:     boolean
+  leave:    LeaveRequest | null
+  drivers:  Driver[]
+  onClose:  () => void
+  onSaved:  () => void
+}) {
+  const isEdit = !!leave
+
+  const [driverUuid, setDriverUuid] = React.useState("")
+  const [startDate,  setStartDate]  = React.useState("")
+  const [endDate,    setEndDate]    = React.useState("")
+  const [leaveType,  setLeaveType]  = React.useState<LeaveType>("Annual Leave")
+  const [reason,     setReason]     = React.useState("")
+  const [saving,     setSaving]     = React.useState(false)
+  const [deleting,   setDeleting]   = React.useState(false)
+  const [error,      setError]      = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (leave) {
+      setDriverUuid(leave.driver_uuid ?? leave.user_uuid ?? "")
+      setStartDate(leave.start_date?.slice(0, 10) ?? "")
+      setEndDate(leave.end_date?.slice(0, 10) ?? "")
+      setLeaveType((leave.leave_type as LeaveType) ?? "Annual Leave")
+      setReason(leave.reason ?? "")
+    } else {
+      setDriverUuid(""); setStartDate(""); setEndDate("")
+      setLeaveType("Annual Leave"); setReason("")
+    }
+    setError(null)
+  }, [leave, open])
+
+  const handleSave = async () => {
+    if (!startDate) { setError("Start date is required."); return }
+    if (!endDate)   { setError("End date is required.");   return }
+    setSaving(true); setError(null)
+    try {
+      if (isEdit && leave) {
+        await updateLeaveRequest(leave.uuid, {
+          start_date: startDate,
+          end_date:   endDate,
+          leave_type: leaveType,
+          reason:     reason || undefined,
+        })
+      } else {
+        await createLeaveRequest({
+          ...(driverUuid ? { driver_uuid: driverUuid } : {}),
+          start_date: startDate,
+          end_date:   endDate,
+          leave_type: leaveType,
+          reason:     reason || undefined,
+        })
+      }
+      onSaved(); onClose()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleApprove = async () => {
+    if (!leave) return
+    setSaving(true); setError(null)
+    try { await approveLeaveRequest(leave.uuid); onSaved(); onClose() }
+    catch (e) { setError(e instanceof Error ? e.message : "Approve failed") }
+    finally   { setSaving(false) }
+  }
+
+  const handleReject = async () => {
+    if (!leave) return
+    setSaving(true); setError(null)
+    try { await rejectLeaveRequest(leave.uuid); onSaved(); onClose() }
+    catch (e) { setError(e instanceof Error ? e.message : "Reject failed") }
+    finally   { setSaving(false) }
+  }
+
+  const handleDelete = async () => {
+    if (!leave) return
+    if (!confirm("Delete this leave request?")) return
+    setDeleting(true); setError(null)
+    try { await deleteLeaveRequest(leave.uuid); onSaved(); onClose() }
+    catch (e) { setError(e instanceof Error ? e.message : "Delete failed") }
+    finally   { setDeleting(false) }
+  }
+
+  const status = leave?.status
+
+  return (
+    <>
+      <div className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity ${open ? "opacity-100" : "opacity-0 pointer-events-none"}`} onClick={onClose} />
+      <div className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l bg-background shadow-2xl transition-transform duration-300 ${open ? "translate-x-0" : "translate-x-full"}`}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between border-b px-5 py-3">
+          <div>
+            <h2 className="text-sm font-semibold">{isEdit ? "Edit Leave Request" : "New Leave Request"}</h2>
+            {isEdit && leave && (
+              <p className="text-xs text-muted-foreground font-mono mt-0.5">{leave.public_id}</p>
+            )}
+          </div>
+          <button onClick={onClose} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3">
+          {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">{error}</div>}
+
+          {/* Status badge (edit only) */}
+          {isEdit && status && (() => {
+            const m = STATUS_META[status]
+            const Icon = m?.icon
+            return m ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</span>
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${m.badge}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} />
+                  {Icon && <Icon className="h-3 w-3" />}
+                  {status}
+                </span>
+              </div>
+            ) : null
+          })()}
+
+          {/* Driver */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Driver</label>
+            {isEdit ? (
+              <p className="text-sm font-medium">{leave?.user?.name ?? "—"}</p>
+            ) : (
+              <select value={driverUuid} onChange={e => setDriverUuid(e.target.value)}
+                className="h-8 w-full appearance-none rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring">
+                <option value="">All drivers / no driver</option>
+                {drivers.map(d => (
+                  <option key={d.uuid} value={d.uuid}>{d.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Start + End dates */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Start Date *</label>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+                className="h-8 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">End Date *</label>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} min={startDate}
+                className="h-8 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
+            </div>
+          </div>
+
+          {/* Leave Type */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Leave Type</label>
+            <div className="flex flex-wrap gap-1.5">
+              {LEAVE_TYPES.map(t => (
+                <button key={t} type="button" onClick={() => setLeaveType(t)}
+                  className={`h-7 rounded-full px-3 text-xs font-medium border transition-all ${
+                    leaveType === t
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-muted-foreground hover:bg-muted"
+                  }`}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Reason */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Reason</label>
+            <textarea value={reason} onChange={e => setReason(e.target.value)} rows={3}
+              placeholder="Optional notes or reason for the leave..."
+              className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring resize-none" />
+          </div>
+
+          {/* Approve / Reject actions (edit + non-approved) */}
+          {isEdit && status !== "Approved" && status !== "Rejected" && (
+            <div className="space-y-1 pt-1 border-t">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-2">Actions</p>
+              <div className="flex gap-2">
+                <button onClick={handleApprove} disabled={saving}
+                  className="flex-1 h-8 rounded-lg border border-emerald-300 text-emerald-700 text-sm font-medium hover:bg-emerald-50 disabled:opacity-50 transition-colors">
+                  ✓ Approve
+                </button>
+                <button onClick={handleReject} disabled={saving}
+                  className="flex-1 h-8 rounded-lg border border-rose-300 text-rose-700 text-sm font-medium hover:bg-rose-50 disabled:opacity-50 transition-colors">
+                  ✕ Reject
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-2 border-t px-5 py-3">
+          {isEdit ? (
+            <button onClick={handleDelete} disabled={deleting}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-rose-200 px-3 text-sm text-rose-600 hover:bg-rose-50 disabled:opacity-50 transition-colors">
+              {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              Delete
+            </button>
+          ) : <span />}
+          <div className="flex gap-2">
+            <button onClick={onClose} className="h-8 rounded-lg border bg-background px-4 text-sm text-muted-foreground hover:bg-muted">
+              Cancel
+            </button>
+            <button onClick={handleSave} disabled={saving}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-50">
+              {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {isEdit ? "Save Changes" : "Create Request"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function HolidaysPage() {
@@ -127,12 +359,15 @@ export default function HolidaysPage() {
   const h = t.holidays
 
   const [leaves,        setLeaves]        = React.useState<LeaveRequest[]>([])
+  const [drivers,       setDrivers]       = React.useState<Driver[]>([])
   const [loading,       setLoading]       = React.useState(true)
   const [error,         setError]         = React.useState<string | null>(null)
   const [search,        setSearch]        = React.useState("")
   const [statusFilter,  setStatusFilter]  = React.useState<"all" | "approved" | "submitted" | "rejected">("all")
   const [showFilters,   setShowFilters]   = React.useState(false)
   const [searchFocused, setSearchFocused] = React.useState(false)
+  const [drawerOpen,    setDrawerOpen]    = React.useState(false)
+  const [editLeave,     setEditLeave]     = React.useState<LeaveRequest | null>(null)
 
   // Dark mode detection
   const [isDark, setIsDark] = React.useState(() =>
@@ -152,8 +387,12 @@ export default function HolidaysPage() {
   const load = React.useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const res = await listDriverLeave({ per_page: 500, sort: "-start_date" })
-      setLeaves(res.data ?? [])
+      const [leavesRes, driversRes] = await Promise.all([
+        listDriverLeave({ per_page: 500, sort: "-start_date" }),
+        listDrivers({ limit: 500, sort: "name" }),
+      ])
+      setLeaves(leavesRes.data ?? [])
+      setDrivers(driversRes.drivers ?? [])
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load")
     } finally {
@@ -163,18 +402,15 @@ export default function HolidaysPage() {
 
   React.useEffect(() => { load() }, [load])
 
-  // Wire search to grid quick filter
   React.useEffect(() => {
     gridRef.current?.api?.setGridOption("quickFilterText", search)
   }, [search])
 
-  // Wire filters toggle to column headers
   React.useEffect(() => {
     const api = gridRef.current?.api
     if (!api) return
     api.setGridOption("defaultColDef", {
-      sortable: true,
-      resizable: true,
+      sortable: true, resizable: true,
       filter: "agTextColumnFilter",
       suppressHeaderMenuButton: !showFilters,
       suppressHeaderFilterButton: !showFilters,
@@ -182,6 +418,9 @@ export default function HolidaysPage() {
     })
     api.refreshHeader()
   }, [showFilters])
+
+  const openCreate = () => { setEditLeave(null); setDrawerOpen(true) }
+  const openEdit   = (row: LeaveRequest) => { setEditLeave(row); setDrawerOpen(true) }
 
   // ── Status-filtered row data ──
   const rowData = React.useMemo(() => {
@@ -215,10 +454,10 @@ export default function HolidaysPage() {
       filter: "agTextColumnFilter",
       cellRenderer: LeaveTypeCell,
     },
-    { headerName: h.start,  field: "start_date",       width: 120, filter: "agDateColumnFilter", sort: "desc", cellRenderer: DateCell },
-    { headerName: h.end,    field: "end_date",         width: 120, filter: "agDateColumnFilter", cellRenderer: DateCell },
-    { headerName: h.days,   field: "total_days",       width: 90, cellRenderer: DaysCell },
-    { headerName: h.reason, field: "reason",           flex: 2, minWidth: 160, cellRenderer: ({ value }: ICellRendererParams) => <span className="text-xs text-muted-foreground truncate">{value || "—"}</span> },
+    { headerName: h.start,  field: "start_date",  width: 120, filter: "agDateColumnFilter", sort: "desc", cellRenderer: DateCell },
+    { headerName: h.end,    field: "end_date",    width: 120, filter: "agDateColumnFilter", cellRenderer: DateCell },
+    { headerName: h.days,   field: "total_days",  width: 90,  cellRenderer: DaysCell },
+    { headerName: h.reason, field: "reason",      flex: 2, minWidth: 160, cellRenderer: ({ value }: ICellRendererParams) => <span className="text-xs text-muted-foreground truncate">{value || "—"}</span> },
     {
       headerName: c.status,
       field: "status",
@@ -238,7 +477,7 @@ export default function HolidaysPage() {
   }), [showFilters])
 
   const approvedCount  = leaves.filter(l => l.status === "Approved").length
-  const submittedCount = leaves.filter(l => l.status === "Submitted").length
+  const submittedCount = leaves.filter(l => l.status === "Submitted" || l.status === "Pending").length
   const rejectedCount  = leaves.filter(l => l.status === "Rejected").length
 
   return (
@@ -310,7 +549,9 @@ export default function HolidaysPage() {
 
         <span className="h-6 w-px bg-border" />
 
-        <button className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
+        <button onClick={openCreate}
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
+          <Plus className="h-3.5 w-3.5" />
           {c.addNew}
         </button>
       </div>
@@ -336,10 +577,20 @@ export default function HolidaysPage() {
           animateRows
           suppressCellFocus
           getRowId={({ data }) => data.uuid}
+          onRowClicked={({ data }) => data && openEdit(data)}
           overlayLoadingTemplate='<span class="text-sm text-muted-foreground">Loading leave requests…</span>'
           overlayNoRowsTemplate='<span class="text-sm text-muted-foreground">No leave requests found.</span>'
         />
       </div>
+
+      {/* ── Drawer ── */}
+      <HolidayDrawer
+        open={drawerOpen}
+        leave={editLeave}
+        drivers={drivers}
+        onClose={() => setDrawerOpen(false)}
+        onSaved={load}
+      />
     </div>
   )
 }
