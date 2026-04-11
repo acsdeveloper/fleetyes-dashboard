@@ -564,105 +564,141 @@ function DayView({
 
   const allDayLeave = dayLeave  // leaves shown in all-day row
 
-  // Trip cards — same logic as WeekView: start day at scheduled time, continuation at top
-  const allTrips = dayOrders.filter(o => !!o.scheduled_at).map(o => {
-    const isStartDay = isSameDay(new Date(o.scheduled_at!), anchor)
-    return {
+  // Separate: trips starting on this day vs continuations from previous days
+  const startingTrips = dayOrders
+    .filter(o => !!o.scheduled_at && isSameDay(new Date(o.scheduled_at!), anchor))
+    .map(o => ({
       ...o,
-      _isStart: isStartDay,
-      _start: isStartDay
-        ? new Date(o.scheduled_at!).getTime()
-        : new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate(), 0, 0, 0).getTime(),
+      _start: new Date(o.scheduled_at!).getTime(),
       _end: o.estimated_end_date
         ? new Date(o.estimated_end_date).getTime()
         : new Date(o.scheduled_at!).getTime() + 3_600_000,
-    }
-  })
-  const layout = columnizeEvents(allTrips, e => e._start, e => e._end)
+    }))
+
+  const continuationTrips = dayOrders
+    .filter(o => !!o.scheduled_at && !isSameDay(new Date(o.scheduled_at!), anchor))
+
+  // Only columnize the trips that actually start today — continuations never compete
+  const layout = columnizeEvents(startingTrips, e => e._start, e => e._end)
+
+  const anchorLabel = anchor.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden min-h-0">
 
-      {/* ── All-day row (leaves + maintenance) ─────────────────────────── */}
-      {allDayLeave.length > 0 && (
-        <div className="flex border-b shrink-0 bg-muted/15">
-          <div className="w-14 shrink-0 border-r flex items-start justify-end pr-1 pt-1">
-            <span className="text-[8px] text-muted-foreground leading-none">all day</span>
+      {/* Single scroll container — sticky header inside, same pattern as WeekView */}
+      <div ref={scrollRef} className="flex-1 overflow-y-scroll overflow-x-hidden min-h-0">
+
+        {/* ── Sticky header block ─────────────────────────────────────── */}
+        <div className="sticky top-0 z-20 flex flex-col border-b bg-card shadow-sm">
+
+          {/* Day title */}
+          <div className="flex border-b px-4 py-2 items-center gap-2">
+            <span className="font-semibold text-sm text-foreground">{anchorLabel}</span>
+            {isSameDay(anchor, today) && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-medium">Today</span>
+            )}
           </div>
-          <div className="flex-1 p-0.5 flex flex-wrap gap-0.5">
-            {allDayLeave.map(l => {
-              const isVehicle = l.unavailability_type === "vehicle"
-              const name      = l.vehicle_name ?? l.user?.name ?? "—"
-              const colorCls  = isVehicle
-                ? "border-l-2 border-neutral-500 bg-neutral-100/80 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"
-                : "border-l-2 border-red-400   bg-red-50/80    text-red-800   dark:bg-red-900/30  dark:text-red-300"
+
+          {/* All-day row — leaves + continuations */}
+          {(allDayLeave.length > 0 || continuationTrips.length > 0) && (
+            <div className="flex bg-muted/15">
+              <div className="w-14 shrink-0 border-r flex items-start justify-end pr-1 pt-1">
+                <span className="text-[8px] text-muted-foreground leading-none">all day</span>
+              </div>
+              <div className="flex-1 p-0.5 flex flex-wrap gap-0.5">
+                {/* Leave cards */}
+                {allDayLeave.map(l => {
+                  const isVehicle = l.unavailability_type === "vehicle"
+                  const name      = l.vehicle_name ?? l.user?.name ?? "—"
+                  const colorCls  = isVehicle
+                    ? "border-l-2 border-neutral-500 bg-neutral-100/80 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"
+                    : "border-l-2 border-red-400   bg-red-50/80 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                  return (
+                    <div
+                      key={l.uuid}
+                      title={`${leaveLabel(l)}: ${name}\n${l.start_date.slice(0,10)} → ${l.end_date.slice(0,10)}`}
+                      className={`overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-default min-w-[120px] ${colorCls}`}
+                    >
+                      <div className="font-semibold truncate leading-tight">{leaveLabel(l)}: {name}</div>
+                      <div className="opacity-70 text-[8px] truncate leading-tight mt-0.5">
+                        {l.start_date.slice(0,10)} → {l.end_date.slice(0,10)}
+                      </div>
+                    </div>
+                  )
+                })}
+                {/* Continuation trip cards */}
+                {continuationTrips.map(o => {
+                  const chip = orderChip(o, hd, hv)
+                  return (
+                    <div
+                      key={o.uuid}
+                      title={`${o.internal_id ?? o.public_id} (started ${fmtTime(o.scheduled_at)}${o.estimated_end_date ? ` → ${fmtTime(o.estimated_end_date)}` : ""})`}
+                      className={`overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-default min-w-[120px] ${chip}`}
+                    >
+                      <div className="font-semibold truncate leading-tight">→ cont. {o.internal_id ?? o.public_id}</div>
+                      <div className="opacity-70 text-[8px] truncate leading-tight mt-0.5">
+                        {driverName(o) ?? "No driver"} · {vehiclePlate(o) ?? "No vehicle"}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Time grid ───────────────────────────────────────────────── */}
+        <div className="flex">
+
+          {/* Time gutter */}
+          <div className="w-14 shrink-0 border-r relative" style={{ height: GRID_H }}>
+            {HOURS.map(h => (
+              <div key={h} className="absolute w-full border-t" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }}>
+                <span className="text-[9px] text-muted-foreground px-2">{fmtHour(h)}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Events area */}
+          <div className="flex-1 relative" style={{ height: GRID_H }}>
+            {/* Hour grid lines */}
+            {HOURS.map(h => (
+              <div key={h} className="absolute w-full border-t border-muted/30" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }} />
+            ))}
+
+            {/* Trip cards — only starting trips, correctly columnized */}
+            {layout.map(({ item: o, col, totalCols }) => {
+              const chip     = orderChip(o, hd, hv)
+              const slotFrac = 1 / totalCols
+              const leftFrac = col * slotFrac
+              const start    = new Date(o.scheduled_at!)
+              const top      = ((start.getHours() - FIRST_HOUR) + start.getMinutes() / 60) * PX_PER_HOUR
               return (
                 <div
-                  key={l.uuid}
-                  title={`${leaveLabel(l)}: ${name}\n${l.start_date.slice(0,10)} → ${l.end_date.slice(0,10)}`}
-                  className={`overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-default min-w-[140px] ${colorCls}`}
+                  key={o.uuid}
+                  title={`${o.internal_id ?? o.public_id} — ${fmtTime(o.scheduled_at)}${o.estimated_end_date ? ` → ${fmtTime(o.estimated_end_date)}` : ""}`}
+                  className={`absolute overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-default ${chip}`}
+                  style={{
+                    top,
+                    height: 44,
+                    left:   `${(leftFrac * 100).toFixed(1)}%`,
+                    width:  `${(slotFrac * 100).toFixed(1)}%`,
+                    zIndex: col + 1,
+                  }}
                 >
-                  <div className="font-semibold truncate leading-tight">{leaveLabel(l)}: {name}</div>
+                  <div className="font-semibold truncate leading-tight">
+                    {fmtTime(o.scheduled_at!)} {o.internal_id ?? o.public_id}
+                  </div>
                   <div className="opacity-70 text-[8px] truncate leading-tight mt-0.5">
-                    {l.start_date.slice(0,10)} → {l.end_date.slice(0,10)}
+                    {driverName(o) ?? "No driver"} · {vehiclePlate(o) ?? "No vehicle"}
                   </div>
                 </div>
               )
             })}
           </div>
         </div>
-      )}
 
-      {/* ── Scrollable time grid ────────────────────────────────────────── */}
-      <div ref={scrollRef} className="flex flex-1 overflow-y-scroll min-h-0">
-
-        {/* Time gutter */}
-        <div className="w-14 shrink-0 border-r relative" style={{ height: GRID_H }}>
-          {HOURS.map(h => (
-            <div key={h} className="absolute w-full border-t" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }}>
-              <span className="text-[9px] text-muted-foreground px-2">{fmtHour(h)}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Events area */}
-        <div className="flex-1 relative" style={{ height: GRID_H }}>
-          {/* Hour grid lines */}
-          {HOURS.map(h => (
-            <div key={h} className="absolute w-full border-t border-muted/30" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }} />
-          ))}
-
-          {/* Trip cards */}
-          {layout.map(({ item: o, col, totalCols }) => {
-            const chip     = orderChip(o, hd, hv)
-            const slotFrac = 1 / totalCols
-            const leftFrac = col * slotFrac
-            const top      = o._isStart
-              ? ((new Date(o.scheduled_at!).getHours() - FIRST_HOUR) + new Date(o.scheduled_at!).getMinutes() / 60) * PX_PER_HOUR
-              : 2
-            return (
-              <div
-                key={o.uuid}
-                title={`${o.internal_id ?? o.public_id} — ${fmtTime(o.scheduled_at)}${o.estimated_end_date ? ` → ${fmtTime(o.estimated_end_date)}` : ""}`}
-                className={`absolute overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-default ${chip}`}
-                style={{
-                  top,
-                  height: 44,
-                  left:   `${(leftFrac * 100).toFixed(1)}%`,
-                  width:  `${(slotFrac * 100).toFixed(1)}%`,
-                  zIndex: col + 1,
-                }}
-              >
-                <div className="font-semibold truncate leading-tight">
-                  {o._isStart ? fmtTime(o.scheduled_at!) : "→ cont."} {o.internal_id ?? o.public_id}
-                </div>
-                <div className="opacity-70 text-[8px] truncate leading-tight mt-0.5">
-                  {driverName(o) ?? "No driver"} · {vehiclePlate(o) ?? "No vehicle"}
-                </div>
-              </div>
-            )
-          })}
-        </div>
       </div>
     </div>
   )
