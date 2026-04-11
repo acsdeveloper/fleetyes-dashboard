@@ -125,6 +125,51 @@ function StatusCell({ data }: ICellRendererParams<DriverRow>) {
 }
 
 
+// ─── TimeSelect — replaces native <input type="time"> ────────────────────────
+// Renders two styled selects (HH : MM) with full app typography control.
+
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"))
+const MINS  = ["00", "15", "30", "45"]
+
+function TimeSelect({
+  value, onChange, disabled = false,
+}: {
+  value: string
+  onChange: (v: string) => void
+  disabled?: boolean
+}) {
+  // value format: "HH:MM" or "HH:MM:SS" or ""
+  const parts = value ? value.split(":") : ["", ""]
+  const hh = parts[0] ?? ""
+  const mm = parts[1]?.slice(0, 2) ?? ""
+
+  const emit = (newH: string, newM: string) => {
+    if (!newH && !newM) { onChange(""); return }
+    onChange(`${newH || "00"}:${newM || "00"}`)
+  }
+
+  const sel = [
+    "h-8 w-[3.4rem] appearance-none rounded-lg border bg-background",
+    "px-1.5 text-sm text-center outline-none",
+    "focus:ring-1 focus:ring-ring",
+    "disabled:opacity-30 disabled:cursor-not-allowed transition-opacity",
+  ].join(" ")
+
+  return (
+    <div className={`flex items-center gap-1 ${disabled ? "opacity-30 pointer-events-none" : ""}`}>
+      <select value={hh} onChange={e => emit(e.target.value, mm)} disabled={disabled} className={sel}>
+        <option value="">--</option>
+        {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
+      </select>
+      <span className="text-sm font-bold text-muted-foreground select-none">:</span>
+      <select value={mm} onChange={e => emit(hh || "00", e.target.value)} disabled={disabled} className={sel}>
+        <option value="">--</option>
+        {MINS.map(m => <option key={m} value={m}>{m}</option>)}
+      </select>
+    </div>
+  )
+}
+
 // ─── Driver Drawer ────────────────────────────────────────────────────────────
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const
@@ -384,26 +429,24 @@ function DriverDrawer({
 
             {/* All Days — single time window */}
             {shiftMode === "all_days" && (
-              <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="grid grid-cols-2 gap-4 pt-1">
                 <div className="space-y-1">
                   <label className="text-[11px] text-muted-foreground">Shift Start</label>
-                  <input type="time" value={shiftStart} onChange={e => setShiftStart(e.target.value)}
-                    className="h-8 w-full rounded-lg border bg-background px-2 text-sm font-sans outline-none focus:ring-2 focus:ring-ring" />
+                  <TimeSelect value={shiftStart} onChange={setShiftStart} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[11px] text-muted-foreground">Shift End</label>
-                  <input type="time" value={shiftEnd} onChange={e => setShiftEnd(e.target.value)}
-                    className="h-8 w-full rounded-lg border bg-background px-2 text-sm font-sans outline-none focus:ring-2 focus:ring-ring" />
+                  <TimeSelect value={shiftEnd} onChange={setShiftEnd} />
                 </div>
               </div>
             )}
 
-            {/* Custom — checkbox + full day name + time inputs */}
+            {/* Custom — checkbox + full day name + time selects */}
             {shiftMode === "custom" && (
               <div className="pt-1 space-y-1">
                 {/* Column headers */}
                 <div className="grid items-center gap-2 px-1 pb-0.5"
-                  style={{ gridTemplateColumns: "1.25rem 5.5rem 1fr 1fr" }}>
+                  style={{ gridTemplateColumns: "1.25rem 5rem 1fr 1fr" }}>
                   <span />
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Day</span>
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Start</span>
@@ -422,9 +465,8 @@ function DriverDrawer({
                       className={`grid items-center gap-2 rounded-lg border px-2 py-1.5 transition-colors ${
                         w.enabled ? "border-primary/30 bg-primary/5" : "border-transparent bg-muted/20"
                       }`}
-                      style={{ gridTemplateColumns: "1.25rem 5.5rem 1fr 1fr" }}>
+                      style={{ gridTemplateColumns: "1.25rem 5rem 1fr 1fr" }}>
 
-                      {/* Native checkbox — immediately obvious toggle */}
                       <input
                         type="checkbox"
                         id={`shift-day-${day}`}
@@ -433,7 +475,6 @@ function DriverDrawer({
                         className="h-3.5 w-3.5 rounded accent-primary cursor-pointer"
                       />
 
-                      {/* Full day name, also acts as label for the checkbox */}
                       <label
                         htmlFor={`shift-day-${day}`}
                         className={`text-sm font-medium cursor-pointer select-none transition-colors ${
@@ -442,24 +483,16 @@ function DriverDrawer({
                         {fullName}
                       </label>
 
-                      {/* Start time */}
-                      <input type="time" value={w.start}
+                      <TimeSelect
+                        value={w.start}
                         disabled={!w.enabled}
-                        onChange={e => setDayWindows(prev => ({
-                          ...prev,
-                          [day]: { ...prev[day], start: e.target.value }
-                        }))}
-                        className="h-8 w-full rounded-lg border bg-background px-2 text-sm font-sans outline-none focus:ring-1 focus:ring-ring disabled:opacity-30 disabled:cursor-not-allowed"
+                        onChange={v => setDayWindows(prev => ({ ...prev, [day]: { ...prev[day], start: v } }))}
                       />
 
-                      {/* End time */}
-                      <input type="time" value={w.end}
+                      <TimeSelect
+                        value={w.end}
                         disabled={!w.enabled}
-                        onChange={e => setDayWindows(prev => ({
-                          ...prev,
-                          [day]: { ...prev[day], end: e.target.value }
-                        }))}
-                        className="h-8 w-full rounded-lg border bg-background px-2 text-sm font-sans outline-none focus:ring-1 focus:ring-ring disabled:opacity-30 disabled:cursor-not-allowed"
+                        onChange={v => setDayWindows(prev => ({ ...prev, [day]: { ...prev[day], end: v } }))}
                       />
                     </div>
                   )
