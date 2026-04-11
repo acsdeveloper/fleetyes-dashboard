@@ -433,7 +433,7 @@ function WeekView({
       </div>
 
       {/* ── Scrollable time grid (trips only) ──────────────────────────── */}
-      <div ref={scrollRef} className="flex flex-1 overflow-y-auto min-h-0">
+      <div ref={scrollRef} className="flex flex-1 overflow-y-scroll min-h-0">
 
         {/* Time gutter */}
         <div className="w-14 shrink-0 border-r relative" style={{ height: GRID_H }}>
@@ -605,7 +605,7 @@ function DayView({
       )}
 
       {/* ── Scrollable time grid ────────────────────────────────────────── */}
-      <div ref={scrollRef} className="flex flex-1 overflow-y-auto min-h-0">
+      <div ref={scrollRef} className="flex flex-1 overflow-y-scroll min-h-0">
 
         {/* Time gutter */}
         <div className="w-14 shrink-0 border-r relative" style={{ height: GRID_H }}>
