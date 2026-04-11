@@ -454,55 +454,48 @@ function WeekView({
                 )
               })}
 
-              {/* Trips — compact chip at start + thin tail line for duration */}
+              {/* Trips — card at start time */}
               {(() => {
-                const withSlots = dayOrds
-                  .filter(o => !!o.scheduled_at)
-                  .map(o => ({
-                    ...o,
-                    _start: isSameDay(new Date(o.scheduled_at!), d)
-                      ? new Date(o.scheduled_at!).getTime()
-                      : new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0).getTime(),
-                    _end: o.estimated_end_date
-                      ? new Date(o.estimated_end_date).getTime()
-                      : new Date(o.scheduled_at!).getTime() + 3_600_000,
-                  }))
-                if (withSlots.length === 0) return null
+                const dayTrips = dayOrds.filter(o =>
+                  !!o.scheduled_at && isSameDay(new Date(o.scheduled_at), d)
+                )
+                if (dayTrips.length === 0) return null
+                const withSlots = dayTrips.map(o => ({
+                  ...o,
+                  _start: new Date(o.scheduled_at!).getTime(),
+                  _end: o.estimated_end_date
+                    ? new Date(o.estimated_end_date).getTime()
+                    : new Date(o.scheduled_at!).getTime() + 3_600_000,
+                }))
                 const layout = columnizeEvents(withSlots, e => e._start, e => e._end)
-                const CHIP_H   = 22
-                const leaveOff = dayLeave.length > 0 ? 0.30 : 0  // 30% reserved for leave strips
+                const leaveOff = dayLeave.length > 0 ? 0.30 : 0
 
                 return layout.map(({ item: o, col, totalCols }) => {
-                  const { top, height, isStart } = effectiveSlot(o, d, PX_PER_HOUR, FIRST_HOUR, GRID_H)
-                  const chip        = orderChip(o, hd, hv)
-                  const accentBg    = orderAccentBg(o, hd, hv)
-                  const slotFrac    = (1 - leaveOff) / totalCols
-                  const leftFrac    = leaveOff + col * slotFrac
-                  const leftPct     = `${(leftFrac * 100).toFixed(1)}%`
-                  const widthPct    = `${(slotFrac * 100).toFixed(1)}%`
-                  const tailTop     = isStart ? top + CHIP_H : 4
-                  const tailHeight  = Math.max(0, isStart ? height - CHIP_H : height - 4)
-
+                  const start    = new Date(o.scheduled_at!)
+                  const top      = ((start.getHours() - FIRST_HOUR) + start.getMinutes() / 60) * PX_PER_HOUR
+                  const chip     = orderChip(o, hd, hv)
+                  const slotFrac = (1 - leaveOff) / totalCols
+                  const leftFrac = leaveOff + col * slotFrac
                   return (
-                    <React.Fragment key={o.uuid}>
-                      {/* Start chip — compact, fixed height */}
-                      <div
-                        title={`${o.internal_id ?? o.public_id}\n${fmtTime(o.scheduled_at)}${o.estimated_end_date ? ` → ${fmtTime(o.estimated_end_date)}` : ""}`}
-                        className={`absolute overflow-hidden rounded px-1 text-[8px] font-semibold leading-tight cursor-default ${chip}`}
-                        style={{ top, height: CHIP_H, left: leftPct, width: widthPct, zIndex: col + 2 }}
-                      >
-                        <span className="truncate block pt-0.5">
-                          {isStart ? fmtTime(o.scheduled_at!) : "↓"} {o.internal_id ?? o.public_id}
-                        </span>
+                    <div
+                      key={o.uuid}
+                      title={`${o.internal_id ?? o.public_id} — ${fmtTime(o.scheduled_at)}${o.estimated_end_date ? ` → ${fmtTime(o.estimated_end_date)}` : ""}`}
+                      className={`absolute overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-default ${chip}`}
+                      style={{
+                        top,
+                        height: 44,
+                        left:   `${(leftFrac * 100).toFixed(1)}%`,
+                        width:  `${(slotFrac * 100).toFixed(1)}%`,
+                        zIndex: col + 1,
+                      }}
+                    >
+                      <div className="font-semibold truncate leading-tight">
+                        {fmtTime(o.scheduled_at!)} {o.internal_id ?? o.public_id}
                       </div>
-                      {/* Duration tail — thin 2px coloured line below the chip */}
-                      {tailHeight > 0 && (
-                        <div
-                          className={`absolute rounded-b-sm opacity-70 ${accentBg}`}
-                          style={{ top: tailTop, height: tailHeight, left: leftPct, width: 2, zIndex: col + 1 }}
-                        />
-                      )}
-                    </React.Fragment>
+                      <div className="opacity-70 text-[8px] truncate leading-tight mt-0.5">
+                        {driverName(o) ?? "No driver"} · {vehiclePlate(o) ?? "No vehicle"}
+                      </div>
+                    </div>
                   )
                 })
               })()}
