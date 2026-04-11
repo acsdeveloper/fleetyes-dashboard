@@ -7,6 +7,7 @@ import {
   MapPin, UserCheck, UserX, Trash2, X, Loader2, ChevronDown, Car,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
+import { ClockTimePicker } from "@/components/clock-time-picker"
 import {
   listDrivers, createDriver, updateDriver, updateDriverStatus, exportDrivers, deleteDriver, importDrivers,
   type Driver, type DriverStatus, type ShiftPreferences,
@@ -124,51 +125,6 @@ function StatusCell({ data }: ICellRendererParams<DriverRow>) {
   )
 }
 
-
-// ─── TimeSelect — replaces native <input type="time"> ────────────────────────
-// Renders two styled selects (HH : MM) with full app typography control.
-
-const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"))
-const MINS  = ["00", "15", "30", "45"]
-
-function TimeSelect({
-  value, onChange, disabled = false,
-}: {
-  value: string
-  onChange: (v: string) => void
-  disabled?: boolean
-}) {
-  // value format: "HH:MM" or "HH:MM:SS" or ""
-  const parts = value ? value.split(":") : ["", ""]
-  const hh = parts[0] ?? ""
-  const mm = parts[1]?.slice(0, 2) ?? ""
-
-  const emit = (newH: string, newM: string) => {
-    if (!newH && !newM) { onChange(""); return }
-    onChange(`${newH || "00"}:${newM || "00"}`)
-  }
-
-  const sel = [
-    "h-8 w-[3.4rem] appearance-none rounded-lg border bg-background",
-    "px-1.5 text-sm text-center outline-none",
-    "focus:ring-1 focus:ring-ring",
-    "disabled:opacity-30 disabled:cursor-not-allowed transition-opacity",
-  ].join(" ")
-
-  return (
-    <div className={`flex items-center gap-1 ${disabled ? "opacity-30 pointer-events-none" : ""}`}>
-      <select value={hh} onChange={e => emit(e.target.value, mm)} disabled={disabled} className={sel}>
-        <option value="">--</option>
-        {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
-      </select>
-      <span className="text-sm font-bold text-muted-foreground select-none">:</span>
-      <select value={mm} onChange={e => emit(hh || "00", e.target.value)} disabled={disabled} className={sel}>
-        <option value="">--</option>
-        {MINS.map(m => <option key={m} value={m}>{m}</option>)}
-      </select>
-    </div>
-  )
-}
 
 // ─── Driver Drawer ────────────────────────────────────────────────────────────
 
@@ -432,11 +388,11 @@ function DriverDrawer({
               <div className="grid grid-cols-2 gap-4 pt-1">
                 <div className="space-y-1">
                   <label className="text-[11px] text-muted-foreground">Shift Start</label>
-                  <TimeSelect value={shiftStart} onChange={setShiftStart} />
+                  <ClockTimePicker value={shiftStart} onChange={setShiftStart} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[11px] text-muted-foreground">Shift End</label>
-                  <TimeSelect value={shiftEnd} onChange={setShiftEnd} />
+                  <ClockTimePicker value={shiftEnd} onChange={setShiftEnd} />
                 </div>
               </div>
             )}
@@ -483,13 +439,13 @@ function DriverDrawer({
                         {fullName}
                       </label>
 
-                      <TimeSelect
+                      <ClockTimePicker
                         value={w.start}
                         disabled={!w.enabled}
                         onChange={v => setDayWindows(prev => ({ ...prev, [day]: { ...prev[day], start: v } }))}
                       />
 
-                      <TimeSelect
+                      <ClockTimePicker
                         value={w.end}
                         disabled={!w.enabled}
                         onChange={v => setDayWindows(prev => ({ ...prev, [day]: { ...prev[day], end: v } }))}
