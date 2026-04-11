@@ -344,13 +344,20 @@ function WeekView({
   const FIRST_HOUR  = HOURS[0]
   const GRID_H      = HOURS.length * PX_PER_HOUR
 
-  // Auto-scroll to 07:00 whenever the anchor week changes
+  // Scroll to the earliest trip in this week (or 07:00 if none) — before paint
   const scrollRef = React.useRef<HTMLDivElement>(null)
-  React.useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = 7 * PX_PER_HOUR - 16  // 07:00, slightly above
-    }
-  }, [anchor])
+  React.useLayoutEffect(() => {
+    if (!scrollRef.current) return
+    const weekStrs = week.map(d =>
+      `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`
+    )
+    const earliest = orders
+      .filter(o => o.scheduled_at && weekStrs.includes(isoLocalDateStr(o.scheduled_at)))
+      .map(o => isoHours(o.scheduled_at!))
+      .sort((a, b) => a - b)[0]
+    const targetHour = earliest !== undefined ? Math.max(0, earliest - 0.5) : 7
+    scrollRef.current.scrollTop = targetHour * PX_PER_HOUR
+  }, [anchor, orders])
 
   function ordersForDay(d: Date) {
     if (!showOrders) return []
@@ -522,13 +529,18 @@ function DayView({
   const FIRST_HOUR  = HOURS[0]
   const GRID_H      = HOURS.length * PX_PER_HOUR
 
-  // Auto-scroll to 07:00 on mount / anchor change
+  // Scroll to earliest trip or 07:00 — before paint
   const scrollRef = React.useRef<HTMLDivElement>(null)
-  React.useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = 7 * PX_PER_HOUR - 16
-    }
-  }, [anchor])
+  React.useLayoutEffect(() => {
+    if (!scrollRef.current) return
+    const anchorStr = `${anchor.getFullYear()}-${String(anchor.getMonth()+1).padStart(2,"0")}-${String(anchor.getDate()).padStart(2,"0")}`
+    const earliest = orders
+      .filter(o => o.scheduled_at && isoLocalDateStr(o.scheduled_at) === anchorStr)
+      .map(o => isoHours(o.scheduled_at!))
+      .sort((a, b) => a - b)[0]
+    const targetHour = earliest !== undefined ? Math.max(0, earliest - 0.5) : 7
+    scrollRef.current.scrollTop = targetHour * PX_PER_HOUR
+  }, [anchor, orders])
 
   const dayOrders = !showOrders ? [] : orders.filter(o => orderSpansDay(o, anchor))
   const dayLeave  = leaveEvents.filter(l => {
