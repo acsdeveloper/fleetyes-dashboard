@@ -154,8 +154,8 @@ function DriverDrawer({
   const [consecDays,     setConsecDays]     = React.useState<string>("")
   // Shift preferences
   type DayKey = typeof DAYS[number]
-  type DayWindow = { enabled: boolean; start: string; end: string }
-  const emptyDay = (): DayWindow => ({ enabled: false, start: "", end: "" })
+  type DayWindow = { start: string; end: string }
+  const emptyDay = (): DayWindow => ({ start: "", end: "" })
   const [shiftMode,  setShiftMode]  = React.useState<"none" | "all_days" | "custom">("none")
   const [shiftStart, setShiftStart] = React.useState("")
   const [shiftEnd,   setShiftEnd]   = React.useState("")
@@ -192,7 +192,7 @@ function DriverDrawer({
         const map = Object.fromEntries(DAYS.map(d => [
           d,
           prefs[d]?.[0]
-            ? { enabled: true, start: prefs[d]![0].start ?? prefs[d]![0].start_time ?? "", end: prefs[d]![0].end ?? "" }
+            ? { start: prefs[d]![0].start ?? prefs[d]![0].start_time ?? "", end: prefs[d]![0].end ?? "" }
             : emptyDay(),
         ])) as Record<DayKey, DayWindow>
         setDayWindows(map)
@@ -224,11 +224,11 @@ function DriverDrawer({
         },
       }
     }
-    // custom
+    // custom — include days that have at least a start or end time
     const result: ShiftPreferences = {}
     for (const d of DAYS) {
       const w = dayWindows[d]
-      if (w.enabled) {
+      if (w.start || w.end) {
         result[d] = [{
           ...(w.start ? { start: w.start, start_time: w.start } : {}),
           ...(w.end   ? { end: w.end }                           : {}),
@@ -397,79 +397,62 @@ function DriverDrawer({
               </div>
             )}
 
-            {/* Custom — checkbox + full day name + time selects */}
+            {/* Custom — day name + Start + End clock pickers, no checkbox */}
             {shiftMode === "custom" && (
               <div className="pt-1 space-y-1">
                 {/* Column headers */}
                 <div className="grid items-center gap-2 px-1 pb-0.5"
-                  style={{ gridTemplateColumns: "1.25rem 5rem 1fr 1fr" }}>
-                  <span />
+                  style={{ gridTemplateColumns: "5rem 1fr 1fr" }}>
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Day</span>
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Start</span>
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">End</span>
                 </div>
 
                 {DAYS.map(day => {
-                  const w = dayWindows[day]
+                  const w        = dayWindows[day]
+                  const hasTime  = !!(w.start || w.end)
                   const fullName = day.charAt(0).toUpperCase() + day.slice(1)
-                  const toggle = () => setDayWindows(prev => ({
-                    ...prev,
-                    [day]: { ...prev[day], enabled: !prev[day].enabled }
-                  }))
                   return (
                     <div key={day}
                       className={`grid items-center gap-2 rounded-lg border px-2 py-1.5 transition-colors ${
-                        w.enabled ? "border-primary/30 bg-primary/5" : "border-transparent bg-muted/20"
+                        hasTime ? "border-primary/30 bg-primary/5" : "border-transparent bg-muted/20"
                       }`}
-                      style={{ gridTemplateColumns: "1.25rem 5rem 1fr 1fr" }}>
+                      style={{ gridTemplateColumns: "5rem 1fr 1fr" }}>
 
-                      <input
-                        type="checkbox"
-                        id={`shift-day-${day}`}
-                        checked={w.enabled}
-                        onChange={toggle}
-                        className="h-3.5 w-3.5 rounded accent-primary cursor-pointer"
-                      />
-
-                      <label
-                        htmlFor={`shift-day-${day}`}
-                        className={`text-sm font-medium cursor-pointer select-none transition-colors ${
-                          w.enabled ? "text-foreground" : "text-muted-foreground"
-                        }`}>
+                      <span className={`text-sm font-medium select-none ${
+                        hasTime ? "text-foreground" : "text-muted-foreground"
+                      }`}>
                         {fullName}
-                      </label>
+                      </span>
 
                       <ClockTimePicker
                         value={w.start}
-                        disabled={!w.enabled}
                         onChange={v => setDayWindows(prev => ({ ...prev, [day]: { ...prev[day], start: v } }))}
                       />
 
                       <ClockTimePicker
                         value={w.end}
-                        disabled={!w.enabled}
                         onChange={v => setDayWindows(prev => ({ ...prev, [day]: { ...prev[day], end: v } }))}
                       />
                     </div>
                   )
                 })}
 
-                {/* Quick-fill helper */}
+                {/* Quick-fill: copy first day with a time to all other days */}
                 <button type="button"
                   onClick={() => {
-                    const enabledDays = DAYS.filter(d => dayWindows[d].enabled)
-                    if (enabledDays.length < 2) return
-                    const first = dayWindows[enabledDays[0]]
-                    if (!first.start && !first.end) return
+                    const daysWithTime = DAYS.filter(d => dayWindows[d].start || dayWindows[d].end)
+                    if (daysWithTime.length < 2) return
+                    const first = dayWindows[daysWithTime[0]]
                     setDayWindows(prev => ({
                       ...prev,
                       ...Object.fromEntries(
-                        enabledDays.slice(1).map(d => [d, { ...prev[d], start: first.start, end: first.end }])
+                        daysWithTime.slice(1).map(d => [d, { start: first.start, end: first.end }])
                       )
                     }))
                   }}
                   className="pt-0.5 text-[10px] text-muted-foreground hover:text-primary underline underline-offset-2 transition-colors">
-                  Copy first day&apos;s times to all enabled days
+                  Copy first day&apos;s times to all configured days
                 </button>
               </div>
             )}
