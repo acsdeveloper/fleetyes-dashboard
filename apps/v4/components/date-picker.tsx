@@ -17,12 +17,14 @@ import "react-day-picker/style.css"
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface DatePickerProps {
-  value:       string          // "YYYY-MM-DD" or ""
-  onChange:    (v: string) => void
+  value:        string          // "YYYY-MM-DD" or ""
+  onChange:     (v: string) => void
   placeholder?: string
-  minDate?:    Date
-  maxDate?:    Date
-  disabled?:   boolean
+  minDate?:     Date
+  maxDate?:     Date
+  disabled?:    boolean
+  /** "start" = left-anchored (default), "end" = right-anchored (won't overflow right edge) */
+  align?:       "start" | "end"
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -45,7 +47,7 @@ function fmt(d: Date): string {
 
 export function DatePicker({
   value, onChange, placeholder = "Pick a date",
-  minDate, maxDate, disabled = false,
+  minDate, maxDate, disabled = false, align = "start",
 }: DatePickerProps) {
   const [open, setOpen] = React.useState(false)
   const ref = React.useRef<HTMLDivElement>(null)
@@ -83,7 +85,7 @@ export function DatePicker({
 
       {/* Dropdown calendar */}
       {open && (
-        <div className="absolute left-0 top-full z-[70] mt-1 rounded-xl border bg-background shadow-xl" style={{ minWidth: 280 }}>
+        <div className={`absolute top-full z-[70] mt-1 rounded-xl border bg-background shadow-xl ${align === "end" ? "right-0" : "left-0"}`} style={{ minWidth: 280 }}>
           {/* Custom CSS for react-day-picker v9 — override its default styles */}
           <style>{`
             .rdp-root {

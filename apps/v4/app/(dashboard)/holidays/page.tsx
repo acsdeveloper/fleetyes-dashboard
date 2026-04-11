@@ -286,6 +286,7 @@ function HolidayDrawer({
                 value={endDate}
                 onChange={setEndDate}
                 placeholder="End date"
+                align="end"
               />
             </div>
           </div>
