@@ -340,7 +340,7 @@ function WeekView({
   showOrders: boolean; showDriverLeave: boolean; showVehicleLeave: boolean
 }) {
   const week        = getWeekDays(anchor)
-  const PX_PER_HOUR = 64   // 64px/hr × 24h = 1536px — proper density, scrollable
+  const PX_PER_HOUR = 32   // 32px/hr × 24h = 1536px — proper density, scrollable
   const FIRST_HOUR  = HOURS[0]
   const GRID_H      = HOURS.length * PX_PER_HOUR
 
@@ -391,13 +391,13 @@ function WeekView({
                   key={i}
                   onClick={() => setSelected(isSel ? null : d)}
                   className={[
-                    "flex-1 flex flex-col items-center py-2 text-center text-xs font-medium transition-colors hover:bg-muted/30",
+                    "flex-1 flex items-center justify-center gap-1.5 py-1.5 text-center text-xs font-medium transition-colors hover:bg-muted/30",
                     isSel ? "bg-primary/10" : "",
                   ].join(" ")}
                 >
                   <span className="text-muted-foreground uppercase tracking-wide text-[10px]">{DAYS[d.getDay()]}</span>
                   <span className={[
-                    "mt-0.5 flex h-6 w-6 items-center justify-center rounded-full font-semibold text-xs",
+                    "flex h-5 w-5 items-center justify-center rounded-full font-semibold text-[11px]",
                     isTod ? "bg-primary text-primary-foreground" : "text-foreground",
                   ].join(" ")}>{d.getDate()}</span>
                 </button>
@@ -501,7 +501,7 @@ function WeekView({
                         className={`absolute overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-default ${chip}`}
                         style={{
                           top,
-                          height: 44,
+                          height: 32,
                           left:   `${(leftFrac * 100).toFixed(1)}%`,
                           width:  `${(slotFrac * 100).toFixed(1)}%`,
                           zIndex: col + 1,
@@ -538,7 +538,7 @@ function DayView({
   hd: (o: Order) => boolean; hv: (o: Order) => boolean
   showOrders: boolean; showDriverLeave: boolean; showVehicleLeave: boolean
 }) {
-  const PX_PER_HOUR = 64   // 64px/hr × 24h = 1536px — proper density, scrollable
+  const PX_PER_HOUR = 32   // 32px/hr × 24h = 1536px — proper density, scrollable
   const FIRST_HOUR  = HOURS[0]
   const GRID_H      = HOURS.length * PX_PER_HOUR
 
@@ -681,7 +681,7 @@ function DayView({
                   className={`absolute overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-default ${chip}`}
                   style={{
                     top,
-                    height: 44,
+                    height: 32,
                     left:   `${(leftFrac * 100).toFixed(1)}%`,
                     width:  `${(slotFrac * 100).toFixed(1)}%`,
                     zIndex: col + 1,
