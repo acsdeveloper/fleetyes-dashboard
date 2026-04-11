@@ -388,62 +388,83 @@ function DriverDrawer({
                 <div className="space-y-1">
                   <label className="text-[11px] text-muted-foreground">Shift Start</label>
                   <input type="time" value={shiftStart} onChange={e => setShiftStart(e.target.value)}
-                    className="h-8 w-full rounded-lg border bg-background px-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
+                    className="h-8 w-full rounded-lg border bg-background px-2 text-sm font-sans outline-none focus:ring-2 focus:ring-ring" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[11px] text-muted-foreground">Shift End</label>
                   <input type="time" value={shiftEnd} onChange={e => setShiftEnd(e.target.value)}
-                    className="h-8 w-full rounded-lg border bg-background px-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
+                    className="h-8 w-full rounded-lg border bg-background px-2 text-sm font-sans outline-none focus:ring-2 focus:ring-ring" />
                 </div>
               </div>
             )}
 
-            {/* Custom — day-wise toggles + time inputs */}
+            {/* Custom — checkbox + full day name + time inputs */}
             {shiftMode === "custom" && (
-              <div className="pt-1 space-y-2">
+              <div className="pt-1 space-y-1">
+                {/* Column headers */}
+                <div className="grid items-center gap-2 px-1 pb-0.5"
+                  style={{ gridTemplateColumns: "1.25rem 5.5rem 1fr 1fr" }}>
+                  <span />
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Day</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Start</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">End</span>
+                </div>
+
                 {DAYS.map(day => {
                   const w = dayWindows[day]
-                  const label = day.charAt(0).toUpperCase() + day.slice(1, 3)
+                  const fullName = day.charAt(0).toUpperCase() + day.slice(1)
+                  const toggle = () => setDayWindows(prev => ({
+                    ...prev,
+                    [day]: { ...prev[day], enabled: !prev[day].enabled }
+                  }))
                   return (
-                    <div key={day} className={`rounded-lg border p-2 transition-colors ${
-                      w.enabled ? "border-primary/40 bg-primary/5" : "border-border bg-background"
-                    }`}>
-                      <div className="flex items-center gap-2">
-                        {/* Day pill toggle */}
-                        <button
-                          type="button"
-                          onClick={() => setDayWindows(prev => ({
-                            ...prev,
-                            [day]: { ...prev[day], enabled: !prev[day].enabled }
-                          }))}
-                          className={`shrink-0 w-9 h-6 rounded-md text-[11px] font-bold transition-all ${
-                            w.enabled
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-muted-foreground hover:bg-muted/80"
-                          }`}>
-                          {label}
-                        </button>
-                        {/* Time inputs — only visible when day is enabled */}
-                        <div className={`grid grid-cols-2 gap-2 flex-1 transition-opacity ${
-                          w.enabled ? "opacity-100" : "opacity-30 pointer-events-none"
+                    <div key={day}
+                      className={`grid items-center gap-2 rounded-lg border px-2 py-1.5 transition-colors ${
+                        w.enabled ? "border-primary/30 bg-primary/5" : "border-transparent bg-muted/20"
+                      }`}
+                      style={{ gridTemplateColumns: "1.25rem 5.5rem 1fr 1fr" }}>
+
+                      {/* Native checkbox — immediately obvious toggle */}
+                      <input
+                        type="checkbox"
+                        id={`shift-day-${day}`}
+                        checked={w.enabled}
+                        onChange={toggle}
+                        className="h-3.5 w-3.5 rounded accent-primary cursor-pointer"
+                      />
+
+                      {/* Full day name, also acts as label for the checkbox */}
+                      <label
+                        htmlFor={`shift-day-${day}`}
+                        className={`text-sm font-medium cursor-pointer select-none transition-colors ${
+                          w.enabled ? "text-foreground" : "text-muted-foreground"
                         }`}>
-                          <input type="time" value={w.start} placeholder="Start"
-                            onChange={e => setDayWindows(prev => ({
-                              ...prev,
-                              [day]: { ...prev[day], start: e.target.value }
-                            }))}
-                            className="h-7 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-1 focus:ring-ring" />
-                          <input type="time" value={w.end} placeholder="End"
-                            onChange={e => setDayWindows(prev => ({
-                              ...prev,
-                              [day]: { ...prev[day], end: e.target.value }
-                            }))}
-                            className="h-7 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-1 focus:ring-ring" />
-                        </div>
-                      </div>
+                        {fullName}
+                      </label>
+
+                      {/* Start time */}
+                      <input type="time" value={w.start}
+                        disabled={!w.enabled}
+                        onChange={e => setDayWindows(prev => ({
+                          ...prev,
+                          [day]: { ...prev[day], start: e.target.value }
+                        }))}
+                        className="h-8 w-full rounded-lg border bg-background px-2 text-sm font-sans outline-none focus:ring-1 focus:ring-ring disabled:opacity-30 disabled:cursor-not-allowed"
+                      />
+
+                      {/* End time */}
+                      <input type="time" value={w.end}
+                        disabled={!w.enabled}
+                        onChange={e => setDayWindows(prev => ({
+                          ...prev,
+                          [day]: { ...prev[day], end: e.target.value }
+                        }))}
+                        className="h-8 w-full rounded-lg border bg-background px-2 text-sm font-sans outline-none focus:ring-1 focus:ring-ring disabled:opacity-30 disabled:cursor-not-allowed"
+                      />
                     </div>
                   )
                 })}
+
                 {/* Quick-fill helper */}
                 <button type="button"
                   onClick={() => {
@@ -458,8 +479,8 @@ function DriverDrawer({
                       )
                     }))
                   }}
-                  className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors">
-                  Copy first day times to all enabled days
+                  className="pt-0.5 text-[10px] text-muted-foreground hover:text-primary underline underline-offset-2 transition-colors">
+                  Copy first day&apos;s times to all enabled days
                 </button>
               </div>
             )}
