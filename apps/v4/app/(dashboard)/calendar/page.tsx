@@ -340,9 +340,17 @@ function WeekView({
   showOrders: boolean; showDriverLeave: boolean; showVehicleLeave: boolean
 }) {
   const week        = getWeekDays(anchor)
-  const PX_PER_HOUR = 28   // 28px × 24h = 672px — fits 1080p without scrolling
+  const PX_PER_HOUR = 64   // 64px/hr × 24h = 1536px — proper density, scrollable
   const FIRST_HOUR  = HOURS[0]
   const GRID_H      = HOURS.length * PX_PER_HOUR
+
+  // Auto-scroll to 07:00 whenever the anchor week changes
+  const scrollRef = React.useRef<HTMLDivElement>(null)
+  React.useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 7 * PX_PER_HOUR - 16  // 07:00, slightly above
+    }
+  }, [anchor])
 
   function ordersForDay(d: Date) {
     if (!showOrders) return []
@@ -384,8 +392,8 @@ function WeekView({
         })}
       </div>
 
-      {/* Scrollable time grid — no separate all-day row; leave events live IN the column */}
-      <div className="flex flex-1 overflow-y-auto min-h-0">
+      {/* Scrollable time grid */}
+      <div ref={scrollRef} className="flex flex-1 overflow-y-auto min-h-0">
 
         {/* Time gutter */}
         <div className="w-14 shrink-0 border-r relative" style={{ height: GRID_H }}>
@@ -510,9 +518,17 @@ function DayView({
   hd: (o: Order) => boolean; hv: (o: Order) => boolean
   showOrders: boolean; showDriverLeave: boolean; showVehicleLeave: boolean
 }) {
-  const PX_PER_HOUR = 28   // matches week view — 28 × 24 = 672px, fits 1080p
+  const PX_PER_HOUR = 64   // 64px/hr × 24h = 1536px — proper density, scrollable
   const FIRST_HOUR  = HOURS[0]
   const GRID_H      = HOURS.length * PX_PER_HOUR
+
+  // Auto-scroll to 07:00 on mount / anchor change
+  const scrollRef = React.useRef<HTMLDivElement>(null)
+  React.useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 7 * PX_PER_HOUR - 16
+    }
+  }, [anchor])
 
   const dayOrders = !showOrders ? [] : orders.filter(o => orderSpansDay(o, anchor))
   const dayLeave  = leaveEvents.filter(l => {
@@ -541,7 +557,7 @@ function DayView({
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden min-h-0">
-      <div className="flex flex-1 overflow-y-auto min-h-0">
+      <div ref={scrollRef} className="flex flex-1 overflow-y-auto min-h-0">
 
         {/* Time gutter */}
         <div className="w-14 shrink-0 border-r relative" style={{ height: GRID_H }}>
