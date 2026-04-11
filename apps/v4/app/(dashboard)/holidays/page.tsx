@@ -315,22 +315,31 @@ function HolidayDrawer({
               className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring resize-none" />
           </div>
 
-          {/* Approve / Reject actions (edit + non-approved) */}
-          {isEdit && status !== "Approved" && status !== "Rejected" && (
-            <div className="space-y-1 pt-1 border-t">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-2">Actions</p>
+          {/* Approve / Reject — always available to managers in edit mode */}
+          {isEdit && (
+            <div className="space-y-1.5 pt-1 border-t">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-2">Decision</p>
               <div className="flex gap-2">
                 <button onClick={handleApprove} disabled={saving}
-                  className="flex-1 h-8 rounded-lg border border-emerald-300 text-emerald-700 text-sm font-medium hover:bg-emerald-50 disabled:opacity-50 transition-colors">
+                  className={`flex-1 h-8 rounded-lg border text-sm font-medium transition-colors disabled:opacity-50 ${
+                    status === "Approved"
+                      ? "bg-emerald-500 border-emerald-500 text-white"
+                      : "border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                  }`}>
                   ✓ Approve
                 </button>
                 <button onClick={handleReject} disabled={saving}
-                  className="flex-1 h-8 rounded-lg border border-rose-300 text-rose-700 text-sm font-medium hover:bg-rose-50 disabled:opacity-50 transition-colors">
+                  className={`flex-1 h-8 rounded-lg border text-sm font-medium transition-colors disabled:opacity-50 ${
+                    status === "Rejected"
+                      ? "bg-rose-500 border-rose-500 text-white"
+                      : "border-rose-300 text-rose-700 hover:bg-rose-50"
+                  }`}>
                   ✕ Reject
                 </button>
               </div>
             </div>
           )}
+
         </div>
 
         {/* Footer */}
