@@ -4,7 +4,7 @@ import * as React from "react"
 import {
   ChevronLeft, ChevronRight,
   Clock, CalendarIcon, Users, IdCard, Car, MapPin,
-  ChevronDown, ChevronUp, RefreshCw,
+  RefreshCw,
 } from "lucide-react"
 import { listOrders, type Order, type OrderStatus } from "@/lib/orders-api"
 import { listDriverLeave, listVehicleUnavailability, type LeaveRequest } from "@/lib/leave-requests-api"
@@ -602,10 +602,8 @@ export default function CalendarPage() {
   const [loading,     setLoading]     = React.useState(true)
   const [error,       setError]       = React.useState<string | null>(null)
 
-  // Sidebar
-  const [sidebarTab,     setSidebarTab]     = React.useState<"driver" | "vehicle">("driver")
-  const [assignedOpen,   setAssignedOpen]   = React.useState(true)
-  const [unassignedOpen, setUnassignedOpen] = React.useState(true)
+  // Sidebar removed — assignment filter replaces it
+  const [assignmentFilter, setAssignmentFilter] = React.useState<"all" | "assigned" | "unassigned">("all")
 
   // Category visibility filters
   const [showOrders,       setShowOrders]       = React.useState(true)
@@ -711,12 +709,14 @@ export default function CalendarPage() {
 
   // ─── Filtered data ────────────────────────────────────────────────────────────
 
-  // Orders filtered by entity selects (applies everywhere)
+  // Orders filtered by entity selects + assignment filter
   const filteredOrders = React.useMemo(() => orders.filter(o => {
     if (filterDriver  && driverName(o)   !== filterDriver)  return false
     if (filterVehicle && vehiclePlate(o) !== filterVehicle) return false
+    if (assignmentFilter === "assigned"   && !(hasDriver(o) && hasVehicle(o))) return false
+    if (assignmentFilter === "unassigned" && (hasDriver(o)  || hasVehicle(o))) return false
     return true
-  }), [orders, filterDriver, filterVehicle])
+  }), [orders, filterDriver, filterVehicle, assignmentFilter])
 
   // Leave events filtered by entity selects (driver filter applies to driver leaves)
   const filteredLeave = React.useMemo(() => leaveEvents.filter(l => {
@@ -743,11 +743,7 @@ export default function CalendarPage() {
   const selectedDayOrders = selected ? ordersForDay(selected) : []
   const selectedDayLeave  = selected ? leaveForDay(selected)  : []
 
-  // Sidebar groupings (reflect entity filter)
-  const driverAssigned    = filteredOrders.filter(o =>  hasDriver(o))
-  const driverUnassigned  = filteredOrders.filter(o => !hasDriver(o))
-  const vehicleAssigned   = filteredOrders.filter(o =>  hasVehicle(o))
-  const vehicleUnassigned = filteredOrders.filter(o => !hasVehicle(o))
+
 
   // ─── Filter pill helper ──────────────────────────────────────────────────────
   function FilterPill({ label, active, dot, onClick }: { label: string; active: boolean; dot: string; onClick: () => void }) {
@@ -767,100 +763,15 @@ export default function CalendarPage() {
     )
   }
 
-  // ─── Sidebar accordion section ───────────────────────────────────────────────
-  function SidebarSection({
-    title, dot, badgeCls, items, open, toggle, emptyMsg,
-  }: {
-    title: string; dot: string; badgeCls: string; items: Order[]
-    open: boolean; toggle: () => void; emptyMsg: string
-  }) {
-    return (
-      <div className={["flex flex-col min-h-0", open ? "flex-1" : "shrink-0"].join(" ")}>
-        <button
-          onClick={toggle}
-          className="flex w-full items-center gap-2 px-4 py-2.5 bg-muted/30 shrink-0 hover:bg-muted/50 transition-colors text-left border-t"
-        >
-          {open
-            ? <ChevronDown  className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
-          <span className={`h-2 w-2 rounded-full ${dot} shrink-0`} />
-          <span className="text-xs font-medium">{title}</span>
-          <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${badgeCls}`}>{items.length}</span>
-        </button>
-        {open && (
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            {items.length === 0
-              ? <p className="text-xs text-muted-foreground text-center py-6">{emptyMsg}</p>
-              : <div className="space-y-2 p-3">{items.map(o => <OrderCard key={o.uuid} order={o} />)}</div>
-            }
-          </div>
-        )}
-      </div>
-    )
-  }
-
   // ─── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex h-full flex-col gap-2 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
 
-      {/* ── Body: sidebar + calendar ── */}
-      <div className="flex flex-1 gap-4 min-h-0 flex-col lg:flex-row overflow-hidden">
+      {/* ── Calendar area (full width — sidebar removed) ── */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
 
-        {/* ── Left Sidebar ── */}
-        <div className="flex flex-col lg:w-80 xl:w-96 shrink-0 min-h-0 overflow-hidden rounded-xl border bg-card shadow-sm">
-
-          {/* Tab switcher — normal case */}
-          <div className="flex shrink-0 border-b">
-            {(["driver", "vehicle"] as const).map(tab => (
-              <button
-                key={tab}
-                onClick={() => setSidebarTab(tab)}
-                className={[
-                  "flex-1 py-2.5 text-xs font-semibold transition-colors",
-                  sidebarTab === tab
-                    ? "border-b-2 border-primary text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                ].join(" ")}
-              >
-                {tab === "driver" ? "Driver" : "Vehicle"}
-              </button>
-            ))}
-          </div>
-
-          {loading ? (
-            <div className="space-y-2 p-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="animate-pulse h-16 rounded-lg border bg-muted" />
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col min-h-0 overflow-hidden">
-              <SidebarSection
-                title="Assigned"
-                dot="bg-green-500"
-                badgeCls="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                items={sidebarTab === "driver" ? driverAssigned : vehicleAssigned}
-                open={assignedOpen}
-                toggle={() => setAssignedOpen(v => !v)}
-                emptyMsg={sidebarTab === "driver" ? "No assigned orders" : "No vehicle-assigned orders"}
-              />
-              <SidebarSection
-                title="Unassigned"
-                dot={sidebarTab === "driver" ? "bg-amber-500" : "bg-yellow-500"}
-                badgeCls={sidebarTab === "driver"
-                  ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-                  : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"}
-                items={sidebarTab === "driver" ? driverUnassigned : vehicleUnassigned}
-                open={unassignedOpen}
-                toggle={() => setUnassignedOpen(v => !v)}
-                emptyMsg={sidebarTab === "driver" ? "No unassigned orders" : "No vehicle-unassigned orders"}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* ── Calendar area ── */}
+        {/* ── Calendar ── */}
         <div className="flex flex-1 flex-col gap-3 min-w-0 overflow-hidden">
 
           {/* Calendar card */}
@@ -935,6 +846,24 @@ export default function CalendarPage() {
                     <option value="">All vehicles</option>
                     {vehicleOptions.map(v => <option key={v} value={v}>{v}</option>)}
                   </select>
+                </div>
+
+                <div className="w-px h-5 bg-border self-center" />
+
+                {/* Assignment filter */}
+                <div className="flex items-center gap-0.5 rounded-full border bg-muted/30 p-0.5 shrink-0">
+                  {(["all", "assigned", "unassigned"] as const).map(v => (
+                    <button key={v} onClick={() => setAssignmentFilter(v)}
+                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize transition-all ${
+                        assignmentFilter === v
+                          ? v === "assigned"   ? "bg-green-500 text-white shadow-sm"
+                          : v === "unassigned" ? "bg-blue-500 text-white shadow-sm"
+                          : "bg-foreground text-background shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}>
+                      {v}
+                    </button>
+                  ))}
                 </div>
 
                 <div className="w-px h-5 bg-border self-center" />
