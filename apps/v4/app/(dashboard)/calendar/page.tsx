@@ -374,145 +374,154 @@ function WeekView({
   return (
     <div className="flex flex-col flex-1 overflow-hidden min-h-0">
 
-      {/* ── Day header row ─────────────────────────────────────────────── */}
-      <div className="flex border-b shrink-0">
-        <div className="w-14 shrink-0 border-r" />
-        {week.map((d, i) => {
-          const isTod = isSameDay(d, today)
-          const isSel = !!selected && isSameDay(d, selected)
-          return (
-            <button
-              key={i}
-              onClick={() => setSelected(isSel ? null : d)}
-              className={[
-                "flex-1 flex flex-col items-center py-2 text-center text-xs font-medium transition-colors hover:bg-muted/30",
-                isSel ? "bg-primary/10" : "",
-              ].join(" ")}
-            >
-              <span className="text-muted-foreground uppercase tracking-wide text-[10px]">{DAYS[d.getDay()]}</span>
-              <span className={[
-                "mt-0.5 flex h-6 w-6 items-center justify-center rounded-full font-semibold text-xs",
-                isTod ? "bg-primary text-primary-foreground" : "text-foreground",
-              ].join(" ")}>{d.getDate()}</span>
-            </button>
-          )
-        })}
-      </div>
+      {/* Single scroll container — headers sticky inside, time grid scrolls */}
+      <div ref={scrollRef} className="flex-1 overflow-y-scroll overflow-x-hidden min-h-0">
 
-      {/* ── All-day row (leaves + maintenance) ────────────────────────── */}
-      <div className="flex border-b shrink-0 bg-muted/15">
-        <div className="w-14 shrink-0 border-r flex items-start justify-end pr-1 pt-1">
-          <span className="text-[8px] text-muted-foreground leading-none">all day</span>
-        </div>
-        {week.map((d, i) => {
-          const leaves = leaveForDay(d)
-          return (
-            <div key={i} className="flex-1 border-r p-0.5 flex flex-col gap-0.5 min-h-[28px]">
-              {leaves.map(l => {
-                const isVehicle = l.unavailability_type === "vehicle"
-                const name      = l.vehicle_name ?? l.user?.name ?? "—"
-                const colorCls  = isVehicle
-                  ? "border-l-2 border-neutral-500 bg-neutral-100/80 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"
-                  : "border-l-2 border-red-400   bg-red-50/80    text-red-800   dark:bg-red-900/30  dark:text-red-300"
-                return (
-                  <div
-                    key={l.uuid}
-                    title={`${leaveLabel(l)}: ${name}\n${l.start_date.slice(0,10)} → ${l.end_date.slice(0,10)}`}
-                    className={`overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-default ${colorCls}`}
-                  >
-                    <div className="font-semibold truncate leading-tight">{leaveLabel(l)}: {name}</div>
-                    <div className="opacity-70 text-[8px] truncate leading-tight mt-0.5">
-                      {l.start_date.slice(0,10)} → {l.end_date.slice(0,10)}
-                    </div>
-                  </div>
-                )
-              })}
+        {/* ── Sticky header block (day labels + all-day row) ──────────── */}
+        <div className="sticky top-0 z-20 flex flex-col border-b bg-card shadow-sm">
+
+          {/* Day header row */}
+          <div className="flex border-b">
+            <div className="w-14 shrink-0 border-r" />
+            {week.map((d, i) => {
+              const isTod = isSameDay(d, today)
+              const isSel = !!selected && isSameDay(d, selected)
+              return (
+                <button
+                  key={i}
+                  onClick={() => setSelected(isSel ? null : d)}
+                  className={[
+                    "flex-1 flex flex-col items-center py-2 text-center text-xs font-medium transition-colors hover:bg-muted/30",
+                    isSel ? "bg-primary/10" : "",
+                  ].join(" ")}
+                >
+                  <span className="text-muted-foreground uppercase tracking-wide text-[10px]">{DAYS[d.getDay()]}</span>
+                  <span className={[
+                    "mt-0.5 flex h-6 w-6 items-center justify-center rounded-full font-semibold text-xs",
+                    isTod ? "bg-primary text-primary-foreground" : "text-foreground",
+                  ].join(" ")}>{d.getDate()}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* All-day row (leaves + maintenance) */}
+          <div className="flex bg-muted/15">
+            <div className="w-14 shrink-0 border-r flex items-start justify-end pr-1 pt-1">
+              <span className="text-[8px] text-muted-foreground leading-none">all day</span>
             </div>
-          )
-        })}
-      </div>
-
-      {/* ── Scrollable time grid (trips only) ──────────────────────────── */}
-      <div ref={scrollRef} className="flex flex-1 overflow-y-scroll min-h-0">
-
-        {/* Time gutter */}
-        <div className="w-14 shrink-0 border-r relative" style={{ height: GRID_H }}>
-          {HOURS.map(h => (
-            <div key={h} className="absolute w-full border-t" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }}>
-              <span className="text-[9px] text-muted-foreground px-1">{fmtHour(h)}</span>
-            </div>
-          ))}
+            {week.map((d, i) => {
+              const leaves = leaveForDay(d)
+              return (
+                <div key={i} className="flex-1 border-r p-0.5 flex flex-col gap-0.5 min-h-[28px]">
+                  {leaves.map(l => {
+                    const isVehicle = l.unavailability_type === "vehicle"
+                    const name      = l.vehicle_name ?? l.user?.name ?? "—"
+                    const colorCls  = isVehicle
+                      ? "border-l-2 border-neutral-500 bg-neutral-100/80 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"
+                      : "border-l-2 border-red-400   bg-red-50/80    text-red-800   dark:bg-red-900/30  dark:text-red-300"
+                    return (
+                      <div
+                        key={l.uuid}
+                        title={`${leaveLabel(l)}: ${name}\n${l.start_date.slice(0,10)} → ${l.end_date.slice(0,10)}`}
+                        className={`overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-default ${colorCls}`}
+                      >
+                        <div className="font-semibold truncate leading-tight">{leaveLabel(l)}: {name}</div>
+                        <div className="opacity-70 text-[8px] truncate leading-tight mt-0.5">
+                          {l.start_date.slice(0,10)} → {l.end_date.slice(0,10)}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })}
+          </div>
         </div>
 
-        {/* Day columns */}
-        {week.map((d, ci) => {
-          const dayOrds = ordersForDay(d)
-          const isSel   = !!selected && isSameDay(d, selected)
+        {/* ── Time grid ───────────────────────────────────────────────── */}
+        <div className="flex">
 
-          return (
-            <div
-              key={ci}
-              className={`flex-1 border-r relative ${isSel ? "bg-primary/5" : ""}`}
-              style={{ height: GRID_H }}
-            >
-              {/* Hour grid lines */}
-              {HOURS.map(h => (
-                <div key={h} className="absolute w-full border-t border-muted/30" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }} />
-              ))}
+          {/* Time gutter */}
+          <div className="w-14 shrink-0 border-r relative" style={{ height: GRID_H }}>
+            {HOURS.map(h => (
+              <div key={h} className="absolute w-full border-t" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }}>
+                <span className="text-[9px] text-muted-foreground px-1">{fmtHour(h)}</span>
+              </div>
+            ))}
+          </div>
 
-              {/* Trip cards — starts at scheduled time, continuations at top */}
-              {(() => {
-                const allTrips = dayOrds.filter(o => !!o.scheduled_at)
-                if (allTrips.length === 0) return null
+          {/* Day columns */}
+          {week.map((d, ci) => {
+            const dayOrds = ordersForDay(d)
+            const isSel   = !!selected && isSameDay(d, selected)
 
-                const withSlots = allTrips.map(o => {
-                  const isStartDay = isSameDay(new Date(o.scheduled_at!), d)
-                  return {
-                    ...o,
-                    _isStart: isStartDay,
-                    _start: isStartDay
-                      ? new Date(o.scheduled_at!).getTime()
-                      : new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0).getTime(),
-                    _end: o.estimated_end_date
-                      ? new Date(o.estimated_end_date).getTime()
-                      : new Date(o.scheduled_at!).getTime() + 3_600_000,
-                  }
-                })
-                const layout = columnizeEvents(withSlots, e => e._start, e => e._end)
+            return (
+              <div
+                key={ci}
+                className={`flex-1 border-r relative ${isSel ? "bg-primary/5" : ""}`}
+                style={{ height: GRID_H }}
+              >
+                {/* Hour grid lines */}
+                {HOURS.map(h => (
+                  <div key={h} className="absolute w-full border-t border-muted/30" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }} />
+                ))}
 
-                return layout.map(({ item: o, col, totalCols }) => {
-                  const chip     = orderChip(o, hd, hv)
-                  const slotFrac = 1 / totalCols
-                  const leftFrac = col * slotFrac
-                  const top      = o._isStart
-                    ? ((new Date(o.scheduled_at!).getHours() - FIRST_HOUR) + new Date(o.scheduled_at!).getMinutes() / 60) * PX_PER_HOUR
-                    : 2  // continuation: pin to top of column
-                  return (
-                    <div
-                      key={o.uuid}
-                      title={`${o.internal_id ?? o.public_id} — ${fmtTime(o.scheduled_at)}${o.estimated_end_date ? ` → ${fmtTime(o.estimated_end_date)}` : ""}`}
-                      className={`absolute overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-default ${chip}`}
-                      style={{
-                        top,
-                        height: 44,
-                        left:   `${(leftFrac * 100).toFixed(1)}%`,
-                        width:  `${(slotFrac * 100).toFixed(1)}%`,
-                        zIndex: col + 1,
-                      }}
-                    >
-                      <div className="font-semibold truncate leading-tight">
-                        {o._isStart ? fmtTime(o.scheduled_at!) : "→ cont."} {o.internal_id ?? o.public_id}
+                {/* Trip cards — starts at scheduled time, continuations at top */}
+                {(() => {
+                  const allTrips = dayOrds.filter(o => !!o.scheduled_at)
+                  if (allTrips.length === 0) return null
+
+                  const withSlots = allTrips.map(o => {
+                    const isStartDay = isSameDay(new Date(o.scheduled_at!), d)
+                    return {
+                      ...o,
+                      _isStart: isStartDay,
+                      _start: isStartDay
+                        ? new Date(o.scheduled_at!).getTime()
+                        : new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0).getTime(),
+                      _end: o.estimated_end_date
+                        ? new Date(o.estimated_end_date).getTime()
+                        : new Date(o.scheduled_at!).getTime() + 3_600_000,
+                    }
+                  })
+                  const layout = columnizeEvents(withSlots, e => e._start, e => e._end)
+
+                  return layout.map(({ item: o, col, totalCols }) => {
+                    const chip     = orderChip(o, hd, hv)
+                    const slotFrac = 1 / totalCols
+                    const leftFrac = col * slotFrac
+                    const top      = o._isStart
+                      ? ((new Date(o.scheduled_at!).getHours() - FIRST_HOUR) + new Date(o.scheduled_at!).getMinutes() / 60) * PX_PER_HOUR
+                      : 2
+                    return (
+                      <div
+                        key={o.uuid}
+                        title={`${o.internal_id ?? o.public_id} — ${fmtTime(o.scheduled_at)}${o.estimated_end_date ? ` → ${fmtTime(o.estimated_end_date)}` : ""}`}
+                        className={`absolute overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-default ${chip}`}
+                        style={{
+                          top,
+                          height: 44,
+                          left:   `${(leftFrac * 100).toFixed(1)}%`,
+                          width:  `${(slotFrac * 100).toFixed(1)}%`,
+                          zIndex: col + 1,
+                        }}
+                      >
+                        <div className="font-semibold truncate leading-tight">
+                          {o._isStart ? fmtTime(o.scheduled_at!) : "→ cont."} {o.internal_id ?? o.public_id}
+                        </div>
+                        <div className="opacity-70 text-[8px] truncate leading-tight mt-0.5">
+                          {driverName(o) ?? "No driver"} · {vehiclePlate(o) ?? "No vehicle"}
+                        </div>
                       </div>
-                      <div className="opacity-70 text-[8px] truncate leading-tight mt-0.5">
-                        {driverName(o) ?? "No driver"} · {vehiclePlate(o) ?? "No vehicle"}
-                      </div>
-                    </div>
-                  )
-                })
-              })()}
-            </div>
-          )
-        })}
+                    )
+                  })
+                })()}
+              </div>
+            )
+          })}
+        </div>
+
       </div>
     </div>
   )
