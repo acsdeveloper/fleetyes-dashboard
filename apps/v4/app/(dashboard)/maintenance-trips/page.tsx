@@ -169,10 +169,12 @@ function MaintenanceDrawer({
     try {
       if (isEdit && record) {
         await updateLeaveRequest(record.uuid, {
-          user_uuid:  record.user_uuid ?? null,
-          start_date: startDate,
-          end_date:   endDate,
-          reason:     reason || undefined,
+          user_uuid:           record.user_uuid ?? null,
+          vehicle_uuid:        vehicleUuid || record.vehicle_uuid || null,
+          start_date:          startDate,
+          end_date:            endDate,
+          reason:              reason || undefined,
+          unavailability_type: "vehicle",
         })
       } else {
         await createLeaveRequest({
