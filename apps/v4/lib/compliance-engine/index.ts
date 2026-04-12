@@ -702,10 +702,12 @@ export function getDriverStats(
     // Using the week boundary as an anchor produces false positives (Monday 04:39 − Sunday 00:00 = 28h).
 
     // Post-last-trip gap: from last trip end to end of the week period.
-    // This is the KEY candidate for drivers who finish on Monday but rest all of
-    // Friday and Saturday — that 4-day rest IS the weekly rest and must be counted.
+    // Only added for 2+ trips — for a single-trip week (e.g. one Saturday trip), the gap
+    // from trip-end to Saturday 23:59 would be tiny (2-3h) and is NOT the driver's weekly
+    // rest. Their rest is the multi-day block before the trip, which needs lastPriorEnd to
+    // measure. Without this guard a Saturday-only driver gets a false violation.
     const weekEnd = weekDates.length > 0 ? new Date(weekDates[weekDates.length - 1] + "T23:59:59") : null
-    if (weekEnd) {
+    if (weekEnd && weekSorted.length >= 2) {
       const lastInWeek = weekSorted[weekSorted.length - 1]
       const ms = weekEnd.getTime() - lastInWeek.endTime.getTime()
       if (ms > 0) {

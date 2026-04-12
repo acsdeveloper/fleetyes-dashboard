@@ -121,11 +121,12 @@ export function findWeeklyRestViolation(
   }
 
   // 3. Post-last-trip gap: from the last trip's end to the end of the week period.
-  //    This is critical: a driver finishing Monday but free all of Friday + Saturday
-  //    has a multi-day rest that fully satisfies the weekly rest requirement.
-  //    Without this candidate the engine only sees the 21h gap between Monday trips
-  //    and wrongly flags a violation, ignoring the 4-day rest tail.
-  if (weekEndDate) {
+  //    Only added when there are 2+ trips — for a single-trip week (e.g. one Saturday trip)
+  //    the gap from trip-end to Saturday 23:59 is tiny (2-3h) and is NOT the weekly rest;
+  //    the weekly rest is the multi-day block before the trip, which we cannot reliably
+  //    measure without lastPriorEnd. Adding a tiny post-trip gap here would cause a
+  //    false violation for common single-trip Saturday drivers.
+  if (weekEndDate && sorted.length >= 2) {
     const weekEndMs = new Date(weekEndDate + "T23:59:59").getTime()
     const postGapMs = weekEndMs - lastThisWeek.endTime.getTime()
     if (postGapMs > 0) {
