@@ -1583,11 +1583,12 @@ export default function RotaPage() {
                                         .filter(o => {
                                           const a = o.driver_assigned_uuid || o.driver_assigned?.uuid
                                           if (a !== driver.uuid || !o.scheduled_at) return false
-                                          const startD = isoLocalDate(o.scheduled_at)
-                                          const endD = (o.estimated_end_date && !isNaN(new Date(o.estimated_end_date).getTime()))
-                                            ? isoLocalDate(o.estimated_end_date)
-                                            : startD
-                                          return date >= startD && date <= endD
+                                          // Show the trip ONLY in its start-date column.
+                                          // Previously we showed it in every column from startD to endD —
+                                          // that made overnight trips (e.g. 14:00 → 01:30 next day) appear
+                                          // twice: once on the correct day and again on the next day,
+                                          // making operators think there was a second trip assigned.
+                                          return isoLocalDate(o.scheduled_at) === date
                                         })
                                         .sort((a, b) => (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? ""))
 
