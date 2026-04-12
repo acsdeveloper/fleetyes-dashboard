@@ -4,10 +4,40 @@ import * as React from "react"
 import {
   ChevronLeft, ChevronRight,
   Clock, CalendarIcon, Users, IdCard, Car, MapPin,
-  RefreshCw, X,
+  RefreshCw, X, Paperclip,
 } from "lucide-react"
 import { listOrders, type Order, type OrderStatus } from "@/lib/orders-api"
 import { listDriverLeave, listVehicleUnavailability, type LeaveRequest } from "@/lib/leave-requests-api"
+
+// ─── Attachment icon (maintenance trips only) ─────────────────────────────────
+// Module-level cache: uuid → hasFiles. Avoids duplicate API calls on re-render.
+const _attachCache = new Map<string, boolean>()
+
+function LeaveAttachmentIcon({ uuid }: { uuid: string }) {
+  const [has, setHas] = React.useState(_attachCache.get(uuid) ?? false)
+  React.useEffect(() => {
+    if (_attachCache.has(uuid)) { setHas(_attachCache.get(uuid)!); return }
+    let dead = false
+    void (async () => {
+      try {
+        const { getToken } = await import("@/lib/ontrack-api")
+        const res = await fetch(
+          `https://ontrack-api.agilecyber.com/int/v1/files?subject_uuid=${uuid}&limit=1`,
+          { headers: { Authorization: `Bearer ${getToken()}` } }
+        )
+        if (!res.ok || dead) return
+        const d = await res.json()
+        const exists = Array.isArray(d?.files ?? d?.data) && (d?.files ?? d?.data).length > 0
+        _attachCache.set(uuid, exists)
+        if (!dead) setHas(exists)
+      } catch { _attachCache.set(uuid, false) }
+    })()
+    return () => { dead = true }
+  }, [uuid])
+  if (!has) return null
+  return <Paperclip className="h-2.5 w-2.5 shrink-0 opacity-60" />
+}
+
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -296,11 +326,15 @@ function OrderCard({ order }: { order: Order }) {
 
 function LeaveCard({ leave: l }: { leave: LeaveRequest }) {
   const who = l.vehicle_name ?? l.user?.name ?? "Unknown"
+  const isVehicle = l.unavailability_type === "vehicle"
   return (
     <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
       <div className={`flex items-center justify-between border-b px-3 py-2 ${leaveChip(l)}`}>
         <span className="text-[11px] font-semibold">{leaveLabel(l)}: {who}</span>
-        <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-medium">{l.status}</span>
+        <div className="flex items-center gap-1.5">
+          {isVehicle && <LeaveAttachmentIcon uuid={l.uuid} />}
+          <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-medium">{l.status}</span>
+        </div>
       </div>
       <div className="space-y-1 p-3 text-xs">
         <div className="flex justify-between"><span className="font-medium text-muted-foreground">Type</span><span>{l.leave_type}</span></div>
@@ -496,7 +530,10 @@ function WeekView({
                         title={`${leaveLabel(l)}: ${name}\n${l.start_date.slice(0,10)} → ${l.end_date.slice(0,10)}`}
                         className={`overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-default ${colorCls}`}
                       >
-                        <div className="font-semibold truncate leading-tight">{leaveLabel(l)}: {name}</div>
+                        <div className="flex items-center gap-1 font-semibold truncate leading-tight">
+                          {isVehicle && <LeaveAttachmentIcon uuid={l.uuid} />}
+                          {leaveLabel(l)}: {name}
+                        </div>
                         <div className="opacity-70 text-[8px] truncate leading-tight mt-0.5">
                           {l.start_date.slice(0,10)} → {l.end_date.slice(0,10)}
                         </div>
@@ -729,7 +766,10 @@ function DayView({
                       title={`${leaveLabel(l)}: ${name}\n${l.start_date.slice(0,10)} → ${l.end_date.slice(0,10)}`}
                       className={`overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-default min-w-[120px] ${colorCls}`}
                     >
-                      <div className="font-semibold truncate leading-tight">{leaveLabel(l)}: {name}</div>
+                      <div className="flex items-center gap-1 font-semibold truncate leading-tight">
+                        {isVehicle && <LeaveAttachmentIcon uuid={l.uuid} />}
+                        {leaveLabel(l)}: {name}
+                      </div>
                       <div className="opacity-70 text-[8px] truncate leading-tight mt-0.5">
                         {l.start_date.slice(0,10)} → {l.end_date.slice(0,10)}
                       </div>
