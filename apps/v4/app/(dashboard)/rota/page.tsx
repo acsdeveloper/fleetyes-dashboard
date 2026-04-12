@@ -957,6 +957,8 @@ export default function RotaPage() {
   const WEEKLY_RULE_IDS = new Set([
     "WEEKLY_REST", "WEEKLY_REST_PRIOR", "WEEKLY_HOURS", "BIWEEKLY_HOURS",
   ])
+  // Pre-compute once at component level so getCellCompliance and getDriverComplianceStatus share it
+  const weekSet = new Set(dates)
   function getCellCompliance(driverUuid: string, date: string): {
     violations: ComplianceViolation[]
     warnings: ComplianceViolation[]
@@ -981,7 +983,6 @@ export default function RotaPage() {
     const report = complianceReports.get(driverUuid)
     if (!report) return "compliant"
     // Filter to only include issues for the visible week dates
-    const weekSet = new Set(dates)
     const weekViolations = report.violations.filter(v => weekSet.has(v.date))
     const weekWarnings   = report.warnings.filter(w => weekSet.has(w.date))
     if (weekViolations.length > 0) return "violation"
@@ -991,7 +992,6 @@ export default function RotaPage() {
 
   /** Count total violations and warnings across all drivers for the visible week */
   const complianceSummary = React.useMemo(() => {
-    const weekSet = new Set(dates)
     let totalViolations = 0
     let totalWarnings = 0
     let driversWithIssues = 0
