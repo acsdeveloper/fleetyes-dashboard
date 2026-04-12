@@ -681,94 +681,100 @@ function WeekView({
                   <div key={h} className="absolute w-full border-t border-muted/30" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }} />
                 ))}
 
-                {/* Trip cards — overflow-aware */}
+                {/* Trip cards — vertically stacked per overlap cluster */}
                 {(() => {
                   const allTrips = dayOrds.filter(o => !!o.scheduled_at)
                   if (allTrips.length === 0) return null
 
-                  const withSlots = allTrips.map(o => {
-                    const isSt = isSameDay(new Date(o.scheduled_at!), d)
-                    return {
-                      ...o,
-                      _isStart: isSt,
-                      _start: isSt
-                        ? new Date(o.scheduled_at!).getTime()
-                        : new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0).getTime(),
-                      _end: o.estimated_end_date
-                        ? new Date(o.estimated_end_date).getTime()
-                        : new Date(o.scheduled_at!).getTime() + 3_600_000,
-                    }
-                  })
-                  const layout = columnizeEvents(withSlots, e => e._start, e => e._end)
-
+                  const CARD_H   = PX_PER_HOUR - 2   // slight gap between stacked cards
                   const MAX_SHOW = 3
-                  const SLOT_N   = MAX_SHOW + 1
-                  const shown    = layout.filter(x => x.col < MAX_SHOW)
-                  const overflow = layout.filter(x => x.col >= MAX_SHOW)
 
-                  const assigned = new Set<string>()
-                  const ofClusters: { topPx: number; count: number; allTrips: Order[] }[] = []
-                  overflow.forEach(({ item }) => {
-                    if (assigned.has(item.uuid)) return
-                    const cluster = layout.filter(x =>
-                      x.item._start < item._end && x.item._end > item._start
-                    )
-                    cluster.filter(x => x.col >= MAX_SHOW).forEach(x => assigned.add(x.item.uuid))
-                    const clusterTopPx = Math.min(...cluster.map(x =>
-                      x.item._isStart
-                        ? ((new Date(x.item.scheduled_at!).getHours() - FIRST_HOUR) + new Date(x.item.scheduled_at!).getMinutes() / 60) * PX_PER_HOUR
-                        : 2
-                    ))
-                    ofClusters.push({
-                      topPx:    clusterTopPx,
-                      count:    cluster.filter(x => x.col >= MAX_SHOW).length,
-                      allTrips: cluster.map(x => x.item),
-                    })
-                  })
+                  // Enrich each event with px positions and ms timestamps
+                  type Rich = typeof allTrips[0] & {
+                    _st: boolean; _startMs: number; _endMs: number; _topPx: number
+                  }
+                  const enriched: Rich[] = allTrips.map(o => {
+                    const isSt     = isSameDay(new Date(o.scheduled_at!), d)
+                    const startMs  = isSt
+                      ? new Date(o.scheduled_at!).getTime()
+                      : new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0).getTime()
+                    const endMs    = o.estimated_end_date
+                      ? new Date(o.estimated_end_date).getTime()
+                      : startMs + 3_600_000
+                    const topPx    = isSt
+                      ? ((new Date(o.scheduled_at!).getHours() - FIRST_HOUR)
+                          + new Date(o.scheduled_at!).getMinutes() / 60) * PX_PER_HOUR
+                      : 0
+                    return { ...o, _st: isSt, _startMs: startMs, _endMs: endMs, _topPx: topPx }
+                  }).sort((a, b) => a._startMs - b._startMs)
 
-                  return [
-                    ...shown.map(({ item: o, col, totalCols }) => {
-                      const hasOf    = totalCols > MAX_SHOW
-                      const effCols  = hasOf ? SLOT_N : totalCols
-                      const slotFrac = 1 / effCols
-                      const leftFrac = col / effCols
-                      const chip     = orderChip(o, hd, hv)
-                      const top      = o._isStart
-                        ? ((new Date(o.scheduled_at!).getHours() - FIRST_HOUR) + new Date(o.scheduled_at!).getMinutes() / 60) * PX_PER_HOUR
-                        : 2
-                      return (
+                  // Greedy overlap clustering: events are in the same cluster if they
+                  // overlap with ANY earlier event already in the cluster.
+                  const clusters: Rich[][] = []
+                  const used = new Set<string>()
+                  for (const ev of enriched) {
+                    if (used.has(ev.uuid)) continue
+                    const cluster: Rich[] = [ev]
+                    used.add(ev.uuid)
+                    let clEnd = ev._endMs
+                    for (const other of enriched) {
+                      if (used.has(other.uuid)) continue
+                      if (other._startMs < clEnd) {
+                        cluster.push(other)
+                        used.add(other.uuid)
+                        clEnd = Math.max(clEnd, other._endMs)
+                      }
+                    }
+                    clusters.push(cluster)
+                  }
+
+                  return clusters.flatMap(cluster => {
+                    const clusterTop  = cluster[0]._topPx
+                    const shown       = cluster.slice(0, MAX_SHOW)
+                    const hiddenCount = cluster.length - shown.length
+                    const nodes: React.ReactNode[] = []
+
+                    shown.forEach((o, i) => {
+                      const chip = orderChip(o, hd, hv)
+                      nodes.push(
                         <div
                           key={o.uuid}
                           title={`${o.internal_id ?? o.public_id} — ${fmtTime(o.scheduled_at)}${o.estimated_end_date ? ` → ${fmtTime(o.estimated_end_date)}` : ""}`}
                           className={`absolute overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-default ${chip}`}
-                          style={{ top, height: 32, left: `${(leftFrac*100).toFixed(1)}%`, width: `${(slotFrac*100).toFixed(1)}%`, zIndex: col+1 }}
+                          style={{ top: clusterTop + i * CARD_H, height: CARD_H, left: "1%", width: "98%", zIndex: i + 1 }}
                         >
                           <div className="font-semibold truncate leading-tight">
-                            {o._isStart ? fmtTime(o.scheduled_at!) : "→ cont."} {o.internal_id ?? o.public_id}
+                            {o._st ? fmtTime(o.scheduled_at!) : "→ cont."} {o.internal_id ?? o.public_id}
                           </div>
                           <div className="opacity-70 text-[8px] truncate leading-tight mt-0.5">
                             {driverName(o) ?? "No driver"} · {vehiclePlate(o) ?? "No vehicle"}
                           </div>
                         </div>
                       )
-                    }),
-                    ...ofClusters.map(cluster => (
-                      <button
-                        key={`of-${cluster.topPx}`}
-                        title={`+${cluster.count} more — click to expand`}
-                        onClick={() => onSidebar({
-                          title: `${DAYS[d.getDay()]} ${d.getDate()} — ${cluster.count + MAX_SHOW} overlapping trips`,
-                          trips: cluster.allTrips,
-                          leaves: [],
-                        })}
-                        className="absolute flex items-center justify-center rounded border border-border bg-muted/70 text-[9px] font-semibold text-muted-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors cursor-pointer"
-                        style={{ top: cluster.topPx, height: 32, left: `${(MAX_SHOW/SLOT_N*100).toFixed(1)}%`, width: `${(1/SLOT_N*100).toFixed(1)}%`, zIndex: MAX_SHOW+1 }}
-                      >
-                        +{cluster.count}
-                      </button>
-                    )),
-                  ]
+                    })
+
+                    if (hiddenCount > 0) {
+                      nodes.push(
+                        <button
+                          key={`of-${clusterTop}`}
+                          title={`+${hiddenCount} more — click to view all`}
+                          onClick={() => onSidebar({
+                            title: `${d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} — ${cluster.length} trips`,
+                            trips: cluster,
+                            leaves: [],
+                          })}
+                          className="absolute flex items-center justify-center gap-1 rounded border border-border bg-muted/70 text-[9px] font-semibold text-muted-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors cursor-pointer"
+                          style={{ top: clusterTop + MAX_SHOW * CARD_H, height: CARD_H, left: "1%", width: "98%", zIndex: MAX_SHOW + 1 }}
+                        >
+                          +{hiddenCount} more
+                        </button>
+                      )
+                    }
+
+                    return nodes
+                  })
                 })()}
+
               </div>
             )
           })}
