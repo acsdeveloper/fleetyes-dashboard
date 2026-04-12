@@ -145,3 +145,44 @@ Plans:
 
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.8: Rota Compliance Matrix Tab — Visual Analysis View (BACKLOG)
+
+**Goal:** Add a new "Analysis" tab in the weekly rota page that presents compliance rule results in a graphical matrix format instead of plain text — rules on the left axis, each driver in a column, with colour-coded cells showing utilisation and violation status.
+
+**Context:** The existing compliance panel is a side-drawer with two text tabs ("Issues" and "Rules Reference"). The panel works well for drilling into individual violations but gives no cross-driver overview. The proposed tab is modelled on `api-docs/analysis.html` — a premium card layout showing per-driver metrics:
+- Metric row on the left (rule ID + title + limit)
+- Per-driver column with: used/total values + a colour-coded progress bar (green/amber/red)
+- Click-through to specific violations for any red/amber cell
+
+**Design from analysis.html:**
+- Two sections: Driving Times and Resting Times
+- Each row: Metric | Total (used) | Max/Min | Remaining | Utilization bar
+- Status pill at top per-driver (compliant / warning / violation)
+- Warning alert box at bottom for compensated-rest actions required
+
+**Matrix adaptation (multi-driver):**
+- Replace single-driver card with a sticky-header table
+- Left column: rule name + limit (like Metric in analysis.html)
+- One column per driver — utilization bar + used/total values
+- Cell background: green = compliant, amber = warning, red = violation
+- Zero-data drivers show neutral grey bar at 0%
+
+**Data already available (no new API needed):**
+- `complianceReports: Map<driverUuid, RotaComplianceReport>` — per-driver violations/warnings
+- `COMPLIANCE_RULES` — 6 rules with id, title, limit, category
+- `drivers[]` — all drivers (column headers)
+- `tripIndex` — raw trip data for calculating actual time totals
+
+**Key open questions:**
+1. Where does the tab live? Options: (a) third tab in existing compliance side-panel, (b) top-level tab row above the grid, (c) inline below the grid when activated
+2. How do we compute "used" hours per-driver per-rule? (Need a `getDriverStats()` helper in compliance engine returning raw minutes per rule, not just pass/fail)
+3. Should violation cells link back to the driver row on the grid (scroll + highlight)?
+4. Does this replace the existing Issues tab or sit alongside it?
+
+**Requirements:** TBD
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
