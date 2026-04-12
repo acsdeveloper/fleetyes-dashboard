@@ -546,7 +546,33 @@ function WeekView({
   const week        = getWeekDays(anchor)
   const PX_PER_HOUR = 32   // 32px/hr × 24h = 1536px — proper density, scrollable
   const FIRST_HOUR  = HOURS[0]
-  const GRID_H      = HOURS.length * PX_PER_HOUR
+
+  // Variable-height rows: hours that have ≥1 trip this week get PX_PER_HOUR;
+  // completely empty hours are compressed to half height to reduce wasted space.
+  const HALF_PH = PX_PER_HOUR / 2
+  const occupiedHours = React.useMemo(() => {
+    const s = new Set<number>()
+    if (!showOrders) return s
+    orders.forEach(o => {
+      if (!o.scheduled_at || !week.some(d => orderSpansDay(o, d))) return
+      const sh = new Date(o.scheduled_at).getHours()
+      const eh = o.estimated_end_date ? new Date(o.estimated_end_date).getHours() : sh + 1
+      for (let h = sh; h <= Math.min(eh, HOURS[HOURS.length - 1]); h++) s.add(h)
+    })
+    return s
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orders, anchor, showOrders])
+  const hourH   = HOURS.map(h => occupiedHours.has(h) ? PX_PER_HOUR : HALF_PH)
+  const hourOff = HOURS.map((_, i) => hourH.slice(0, i).reduce((s, v) => s + v, 0))
+  const GRID_H  = hourH.reduce((s, v) => s + v, 0)
+  /** Pixel top for the START of hour h */
+  const hTop = (h: number) => { const i = h - FIRST_HOUR; return i >= 0 ? (hourOff[i] ?? 0) : 0 }
+  /** Pixel position for a timestamp (ms since epoch) within this grid */
+  const msToPx = (ms: number) => {
+    const dt = new Date(ms); const h = dt.getHours(); const i = h - FIRST_HOUR
+    if (i < 0 || i >= HOURS.length) return 0
+    return hourOff[i] + (dt.getMinutes() / 60) * hourH[i]
+  }
 
   // Scroll to the earliest trip in this week (or 07:00 if none) — before paint
   const scrollRef = React.useRef<HTMLDivElement>(null)
@@ -559,8 +585,8 @@ function WeekView({
       .filter(o => o.scheduled_at && weekStrs.includes(isoLocalDateStr(o.scheduled_at)))
       .map(o => isoHours(o.scheduled_at!))
       .sort((a, b) => a - b)[0]
-    const targetHour = earliest !== undefined ? Math.max(0, earliest - 0.5) : 7
-    scrollRef.current.scrollTop = targetHour * PX_PER_HOUR
+    const targetHour = earliest !== undefined ? Math.max(FIRST_HOUR, earliest - 0.5) : 7
+    scrollRef.current.scrollTop = hTop(Math.floor(targetHour))
   }, [anchor, orders])
 
   function ordersForDay(d: Date) {
@@ -658,9 +684,11 @@ function WeekView({
 
           {/* Time gutter */}
           <div className="w-14 shrink-0 border-r relative" style={{ height: GRID_H }}>
-            {HOURS.map(h => (
-              <div key={h} className="absolute w-full border-t" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }}>
-                <span className="text-[9px] text-muted-foreground px-1">{fmtHour(h)}</span>
+            {HOURS.map((h, i) => (
+              <div key={h} className="absolute w-full border-t" style={{ top: hourOff[i] }}>
+                <span className={`text-[9px] px-1 leading-none block ${occupiedHours.has(h) ? 'text-muted-foreground' : 'text-muted-foreground/40'}`}>
+                  {fmtHour(h)}
+                </span>
               </div>
             ))}
           </div>
@@ -676,9 +704,13 @@ function WeekView({
                 className={`flex-1 border-r relative ${isSel ? "bg-primary/5" : ""}`}
                 style={{ height: GRID_H }}
               >
-                {/* Hour grid lines */}
-                {HOURS.map(h => (
-                  <div key={h} className="absolute w-full border-t border-muted/30" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }} />
+                {/* Hour grid lines — dimmer for empty rows */}
+                {HOURS.map((h, i) => (
+                  <div
+                    key={h}
+                    className={`absolute w-full border-t ${occupiedHours.has(h) ? 'border-muted/30' : 'border-muted/15'}`}
+                    style={{ top: hourOff[i] }}
+                  />
                 ))}
 
                 {/* Trip cards — vertically stacked per overlap cluster */}
@@ -701,10 +733,7 @@ function WeekView({
                     const endMs    = o.estimated_end_date
                       ? new Date(o.estimated_end_date).getTime()
                       : startMs + 3_600_000
-                    const topPx    = isSt
-                      ? ((new Date(o.scheduled_at!).getHours() - FIRST_HOUR)
-                          + new Date(o.scheduled_at!).getMinutes() / 60) * PX_PER_HOUR
-                      : 0
+                    const topPx = isSt ? msToPx(startMs) : 0
                     return { ...o, _st: isSt, _startMs: startMs, _endMs: endMs, _topPx: topPx }
                   }).sort((a, b) => a._startMs - b._startMs)
 
