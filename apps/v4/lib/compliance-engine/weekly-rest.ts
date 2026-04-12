@@ -10,11 +10,13 @@
  *
  * Implementation strategy:
  *   - Sort all trips by startTime
- *   - Find the longest gap between any consecutive trip.endTime → trip.startTime
- *   - ALSO include the gap from the last prior-trip end (or week boundary) to the
- *     first trip of the week — a driver resting Sunday + Monday before a Tuesday
- *     shift has 50+ hours of rest that must be counted.
- *   - Compare that maximum gap against the thresholds above
+ *   - Collect all rest gap candidates:
+ *       a) Gaps between consecutive trips (trip[i].endTime → trip[i+1].startTime)
+ *       b) Pre-week gap: last prior-week trip end → first this-week trip start
+ *          (only when lastPriorEnd is known; omitted otherwise to avoid false positives)
+ *       c) Post-week gap: last this-week trip end → end of the week period
+ *          (captures drivers who rest all of Friday/Saturday after a Monday trip)
+ *   - The LONGEST candidate is compared against the thresholds above
  *
  * Notes:
  *   - A driver with 0 or 1 trip this week is trivially compliant (full rest).
@@ -63,14 +65,18 @@ function fmtHoursMin(minutes: number): string {
  * @param weekTrips      Trips assigned to this driver IN the current week.
  * @param lastPriorEnd   End-time of the driver's last trip BEFORE this week (if any).
  *                       Pass null when no prior trips are loaded.
- * @param weekStartDate  YYYY-MM-DD of the first day of the week (Sunday).
- *                       Used as a conservative lower bound when lastPriorEnd is null.
+ * @param weekStartDate  YYYY-MM-DD of the first day of the week (Sunday). Reserved — no longer
+ *                       used as a fallback anchor to avoid false positives.
+ * @param weekEndDate    YYYY-MM-DD of the LAST day of the week (Saturday).
+ *                       Used to compute the post-last-trip rest gap (e.g. driver rests
+ *                       all of Friday + Saturday after their last Monday trip).
  * @returns              Result if the best gap is below the regular threshold; null if compliant.
  */
 export function findWeeklyRestViolation(
   weekTrips:     TripWindow[],
   lastPriorEnd?: Date | null,
   weekStartDate?: string,
+  weekEndDate?:   string,
 ): WeeklyRestResult | null {
   // 0 or 1 trip this week → no meaningful gap to assess; driver was mostly resting
   if (weekTrips.length < 1) return null
@@ -105,10 +111,25 @@ export function findWeeklyRestViolation(
   //    Omitting this candidate is the correct conservative choice: we flag only what
   //    we can prove with the data we have.
   const firstThisWeek = sorted[0]
+  const lastThisWeek  = sorted[sorted.length - 1]
+
   if (lastPriorEnd) {
     const gapMs = firstThisWeek.startTime.getTime() - lastPriorEnd.getTime()
     if (gapMs > 0) {
       candidates.push({ gapMs, beforeId: "", afterId: firstThisWeek.orderId })
+    }
+  }
+
+  // 3. Post-last-trip gap: from the last trip's end to the end of the week period.
+  //    This is critical: a driver finishing Monday but free all of Friday + Saturday
+  //    has a multi-day rest that fully satisfies the weekly rest requirement.
+  //    Without this candidate the engine only sees the 21h gap between Monday trips
+  //    and wrongly flags a violation, ignoring the 4-day rest tail.
+  if (weekEndDate) {
+    const weekEndMs = new Date(weekEndDate + "T23:59:59").getTime()
+    const postGapMs = weekEndMs - lastThisWeek.endTime.getTime()
+    if (postGapMs > 0) {
+      candidates.push({ gapMs: postGapMs, beforeId: lastThisWeek.orderId, afterId: "" })
     }
   }
 

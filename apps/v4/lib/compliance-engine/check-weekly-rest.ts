@@ -41,7 +41,7 @@ export function checkWeeklyRest(
   const violations: ComplianceViolation[] = []
   const warnings:   ComplianceViolation[] = []
 
-  const result = findWeeklyRestViolation(weekTrips, lastPriorEnd, weekStartDate)
+  const result = findWeeklyRestViolation(weekTrips, lastPriorEnd, weekStartDate, weekEndDate)
   if (!result) return { violations: [], warnings: [] }
 
   const item: ComplianceViolation = {

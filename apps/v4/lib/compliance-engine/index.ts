@@ -701,12 +701,27 @@ export function getDriverStats(
     // If lastPriorEnd is null (no prior trips found), omit the pre-week candidate.
     // Using the week boundary as an anchor produces false positives (Monday 04:39 − Sunday 00:00 = 28h).
 
+    // Post-last-trip gap: from last trip end to end of the week period.
+    // This is the KEY candidate for drivers who finish on Monday but rest all of
+    // Friday and Saturday — that 4-day rest IS the weekly rest and must be counted.
+    const weekEnd = weekDates.length > 0 ? new Date(weekDates[weekDates.length - 1] + "T23:59:59") : null
+    if (weekEnd) {
+      const lastInWeek = weekSorted[weekSorted.length - 1]
+      const ms = weekEnd.getTime() - lastInWeek.endTime.getTime()
+      if (ms > 0) {
+        gaps.push({
+          ms,
+          label: `Last trip ended ${fmtFull(lastInWeek.endTime)} → end of week period ${fmtFull(weekEnd)}`,
+        })
+      }
+    }
+
     if (gaps.length === 0) {
-      // Single trip, no prior data — cannot assess weekly rest period
+      // No gapable data at all — treat as N/A (compliant by default)
       return {
         ruleId: "WEEKLY_REST", usedMinutes: limitMins, limitMinutes: limitMins,
         ratio: 0, usedLabel: "N/A", limitLabel: "46h policy",
-        detail: "Only 1 trip this week and no prior-week data loaded.\nCannot evaluate weekly rest period without a second reference point.",
+        detail: "No gap data to evaluate (all trips may be on a single day with no week-end boundary).",
         status: "compliant" as const,
       }
     }
