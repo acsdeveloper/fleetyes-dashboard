@@ -82,6 +82,35 @@ function vehicleLabel(v: Vehicle) {
   return parts.join(" · ")
 }
 
+// ─── Row attachment hook (lazy, per-record cache) ────────────────────────────
+interface RowFile { uuid: string; original_filename: string; url: string; content_type?: string }
+const _rowFileCache = new Map<string, RowFile[]>()
+
+function useRowFiles(uuid: string) {
+  const init = _rowFileCache.get(uuid)
+  const [files, setFiles] = React.useState<RowFile[]>(init ?? [])
+  React.useEffect(() => {
+    if (_rowFileCache.has(uuid)) { setFiles(_rowFileCache.get(uuid)!); return }
+    let dead = false
+    void (async () => {
+      try {
+        const { getToken } = await import("@/lib/ontrack-api")
+        const res = await fetch(
+          `https://ontrack-api.agilecyber.com/int/v1/files?subject_uuid=${uuid}&limit=10`,
+          { headers: { Authorization: `Bearer ${getToken()}` } }
+        )
+        if (!res.ok || dead) return
+        const d = await res.json()
+        const list: RowFile[] = d?.files ?? d?.data ?? []
+        _rowFileCache.set(uuid, list)
+        if (!dead) setFiles(list)
+      } catch { _rowFileCache.set(uuid, []) }
+    })()
+    return () => { dead = true }
+  }, [uuid])
+  return files
+}
+
 // ─── Row ──────────────────────────────────────────────────────────────────────
 
 function MaintenanceRow({
@@ -97,13 +126,14 @@ function MaintenanceRow({
   const make    = [r.vehicle?.make, r.vehicle?.model].filter(Boolean).join(" ")
   const days    = daysDiff(r.start_date, r.end_date)
   const reason  = r.reason || r.unavailability_type || "Maintenance"
+  const files   = useRowFiles(r.uuid)
 
   return (
     <div
       onClick={onClick}
-      className="flex items-center gap-4 px-4 py-3 hover:bg-muted/30 transition-colors border-b last:border-0 cursor-pointer"
+      className="flex items-start gap-4 px-4 py-3 hover:bg-muted/30 transition-colors border-b last:border-0 cursor-pointer"
     >
-      <div className={`h-2.5 w-2.5 shrink-0 rounded-full ${badge.dot}`} />
+      <div className={`h-2.5 w-2.5 shrink-0 rounded-full mt-1.5 ${badge.dot}`} />
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
@@ -115,21 +145,44 @@ function MaintenanceRow({
           </span>
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground truncate">{reason}</p>
+
+        {/* Inline file chips — visible without opening drawer */}
+        {files.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {files.map(f => {
+              const { Icon, cls } = getFileTypeIcon(f.original_filename, f.content_type)
+              return (
+                <a
+                  key={f.uuid}
+                  href={f.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  title={f.original_filename}
+                  className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium bg-background hover:bg-muted transition-colors ${cls}`}
+                >
+                  <Icon className="h-3 w-3 shrink-0" />
+                  <span className="max-w-[160px] truncate text-foreground">{f.original_filename}</span>
+                </a>
+              )
+            })}
+          </div>
+        )}
       </div>
 
-      <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
+      <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 mt-0.5">
         <Calendar className="h-3.5 w-3.5" />
         <span>{fmtDate(r.start_date, locale)}</span>
         <ChevronRight className="h-3 w-3 opacity-40" />
         <span>{fmtDate(r.end_date, locale)}</span>
       </div>
 
-      <div className="hidden md:flex items-center gap-1 text-xs text-muted-foreground shrink-0 w-14 justify-end">
+      <div className="hidden md:flex items-center gap-1 text-xs text-muted-foreground shrink-0 w-14 justify-end mt-0.5">
         <Clock className="h-3 w-3" />
         <span>{mt.durationDays.replace("{n}", String(days))}</span>
       </div>
 
-      <div className="text-right shrink-0 w-20">
+      <div className="text-right shrink-0 w-20 mt-0.5">
         <p className={`text-xs font-semibold ${badge.text}`}>
           {isUpcoming(r) ? daysFromNowStr(r.start_date, mt) : daysFromNowStr(r.end_date, mt)}
         </p>
@@ -200,6 +253,8 @@ function MaintenanceDrawer({
       // API returns { files: [...] } or { data: [...] }
       const list: AttachedFile[] = data?.files ?? data?.data ?? []
       setFiles(list)
+      // Keep row cache in sync so MaintenanceRow shows fresh data after drawer opens
+      _rowFileCache.set(subjectUuid, list)
     } catch { /* non-fatal */ }
     finally { setFilesLoading(false) }
   }
@@ -223,7 +278,8 @@ function MaintenanceDrawer({
         body: fd,
       })
       if (!res.ok) throw new Error("Upload failed")
-      // Refresh file list
+      // Refresh drawer file list + bust row cache so the list row updates
+      _rowFileCache.delete(record.uuid)
       await fetchFiles(record.uuid)
     } catch (err) {
       setFileError(err instanceof Error ? err.message : "Upload failed")
@@ -240,7 +296,10 @@ function MaintenanceDrawer({
         method: "DELETE",
         headers: { Authorization: `Bearer ${getToken()}` },
       })
-      setFiles(prev => prev.filter(f => f.uuid !== fileUuid))
+      const updated = files.filter(f => f.uuid !== fileUuid)
+      setFiles(updated)
+      // Also update the row cache so the row chip disappears immediately
+      _rowFileCache.set(record.uuid, updated)
     } catch { setFileError("Could not delete file") }
   }
 
