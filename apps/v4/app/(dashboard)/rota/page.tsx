@@ -1497,6 +1497,10 @@ export default function RotaPage() {
                     className="py-2 text-left text-[11px] font-bold text-muted-foreground px-2 overflow-hidden"
                     style={{ width: driverColW, minWidth: driverColW, maxWidth: driverColW, transition: COL_TRANSITION }}
                   >Driver</th>
+                  <th
+                    className="py-2 text-center text-[10px] font-bold text-muted-foreground overflow-hidden"
+                    style={{ width: 42, minWidth: 42, maxWidth: 42 }}
+                  >Hrs</th>
                   {dates.map((d, i) => (
                     <th
                       key={d}
@@ -1542,41 +1546,6 @@ export default function RotaPage() {
                                 })()}
                               </span>
                               <span className="text-[11px] font-medium truncate" title={driver.name}>{driver.name}</span>
-                              {/* Live weekly hours ring — updates instantly on drag */}
-                              {(() => {
-                                const wh = getDriverWeeklyHoursInfo(driver.uuid)
-                                if (wh.hours === 0) return null
-                                const SIZE = 30
-                                const cx   = SIZE / 2
-                                const r    = 11
-                                const circ = 2 * Math.PI * r
-                                const dash = circ * wh.pct
-                                return (
-                                  <div
-                                    className="relative ml-auto shrink-0 flex items-center justify-center"
-                                    style={{ width: SIZE, height: SIZE }}
-                                    title={wh.tooltipText}
-                                  >
-                                    <svg width={SIZE} height={SIZE} style={{ transform: "rotate(-90deg)", position: "absolute", inset: 0 }}>
-                                      {/* track */}
-                                      <circle cx={cx} cy={cx} r={r} fill="none" stroke="#e5e7eb" strokeWidth="2" />
-                                      {/* progress arc */}
-                                      <circle
-                                        cx={cx} cy={cx} r={r}
-                                        fill="none"
-                                        stroke={wh.color}
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeDasharray={`${dash} ${circ}`}
-                                        style={{ transition: "stroke-dasharray 0.35s ease, stroke 0.35s ease" }}
-                                      />
-                                    </svg>
-                                    <span style={{ fontSize: 9, fontWeight: 500, color: wh.color, lineHeight: 1 }}>
-                                      {wh.label}
-                                    </span>
-                                  </div>
-                                )
-                              })()}
                               {draggingTrip && matchingDrivers.has(driver.uuid) && (
                                 <span
                                   className="ml-auto shrink-0 text-[12px] leading-none animate-bounce"
@@ -1585,6 +1554,20 @@ export default function RotaPage() {
                               )}
                             </div>
                           </td>
+                          {/* Weekly hours column */}
+                          {(() => {
+                            const wh = getDriverWeeklyHoursInfo(driver.uuid)
+                            const textColor = wh.hours > 60 ? "#ef4444" : wh.hours > 55 ? "#f59e0b" : wh.hours > 0 ? "#22c55e" : undefined
+                            return (
+                              <td
+                                className="text-center text-[11px] font-medium tabular-nums"
+                                style={{ width: 42, minWidth: 42, maxWidth: 42, color: textColor }}
+                                title={wh.hours > 0 ? wh.tooltipText : undefined}
+                              >
+                                {wh.hours > 0 ? wh.label : <span className="text-muted-foreground/30">–</span>}
+                              </td>
+                            )
+                          })()}
                           {dates.map((date) => {
                             const entry         = getEntry(driver.uuid, date)
                             // After the cleanup effect runs, stale WD entries are removed from
