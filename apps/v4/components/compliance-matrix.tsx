@@ -119,7 +119,7 @@ function StatBar({ stat, inverted, isCount }: { stat: DriverRuleStat; inverted: 
   }
 
   return (
-    <div className="flex flex-col gap-1 min-w-0">
+    <div className="flex flex-col gap-0.5 min-w-0">
       {/* Line 1: value + status icon */}
       <div className="flex items-center justify-between gap-1">
         <span className={`text-[10px] font-bold tabular-nums leading-none ${valueColour}`}>
@@ -134,19 +134,19 @@ function StatBar({ stat, inverted, isCount }: { stat: DriverRuleStat; inverted: 
 
       {/* Line 2: bar (or nothing for binary counts with no meaningful ratio) */}
       {noBar ? (
-        // BREAK_45 / OVERLAP — just show a status-coloured pill, no ratio bar
-        <div className={`h-3 w-full rounded-sm ${
+        // BREAK_45 / OVERLAP — solid status-tinted pill, no ratio
+        <div className={`h-2.5 w-full rounded-full ${
           stat.status === "violation" ? "bg-red-200 dark:bg-red-900/40"
         : stat.status === "warning"   ? "bg-amber-200 dark:bg-amber-900/40"
         :                               "bg-emerald-200/60 dark:bg-emerald-900/30"
         }`} />
       ) : (
         <div
-          className="relative h-3 w-full rounded-sm overflow-hidden bg-muted/80"
+          className="relative h-2.5 w-full rounded-full overflow-hidden bg-muted/70"
           title={`${pct}% of ${inverted ? "tolerance" : "limit"}`}
         >
           <div
-            className={`absolute inset-y-0 left-0 rounded-sm transition-all duration-500 ${colour}`}
+            className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${colour} opacity-90`}
             style={{ width: `${pct}%` }}
           />
         </div>
