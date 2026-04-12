@@ -1005,6 +1005,38 @@ export default function RotaPage() {
     return { totalViolations, totalWarnings, driversWithIssues }
   }, [complianceReports, dates])
 
+  /**
+   * Compute a driver's total working hours for the visible week directly from
+   * annotatedTripIndex. Called inline during render so the ring updates
+   * immediately when a trip is dragged — no state roundtrip required.
+   */
+  function getDriverWeeklyHoursInfo(driverUuid: string): {
+    hours: number; label: string; pct: number; color: string; tooltipText: string
+  } {
+    const ms = [...annotatedTripIndex.values()]
+      .filter(o => {
+        const d = o.driver_assigned_uuid ?? (o.driver_assigned as { uuid?: string } | undefined)?.uuid
+        if (d !== driverUuid) return false
+        if (!o.scheduled_at) return false
+        return weekSet.has(o.scheduled_at.slice(0, 10))
+      })
+      .reduce((sum, o) => {
+        const start = new Date(o.scheduled_at!)
+        const endMs = o.estimated_end_date
+          ? new Date(o.estimated_end_date).getTime()
+          : start.getTime() + (o.time || 0) * 60000
+        return sum + Math.max(0, endMs - start.getTime())
+      }, 0)
+    const hours = ms / 3600000
+    const h     = Math.floor(hours)
+    const m     = Math.round((hours % 1) * 60)
+    const label = m === 0 ? `${h}h` : `${h}h${m}`
+    const pct   = Math.min(1, hours / 60)
+    const color = hours > 60 ? "#ef4444" : hours > 55 ? "#f59e0b" : "#22c55e"
+    const tooltipText = `${h}h${m > 0 ? ` ${m}m` : ""} of 60h weekly working time (WTD)`
+    return { hours, label, pct, color, tooltipText }
+  }
+
   // Week navigation is intentionally removed — the allocation period
   // is locked to what the API returns via get-period.
 
@@ -1510,6 +1542,39 @@ export default function RotaPage() {
                                 })()}
                               </span>
                               <span className="text-[11px] font-medium truncate" title={driver.name}>{driver.name}</span>
+                              {/* Live weekly hours ring — updates instantly on drag */}
+                              {(() => {
+                                const wh = getDriverWeeklyHoursInfo(driver.uuid)
+                                if (wh.hours === 0) return null
+                                const r    = 11
+                                const circ = 2 * Math.PI * r
+                                const dash = circ * wh.pct
+                                return (
+                                  <div
+                                    className="relative ml-auto shrink-0 flex items-center justify-center"
+                                    style={{ width: 34, height: 34 }}
+                                    title={wh.tooltipText}
+                                  >
+                                    <svg width="34" height="34" style={{ transform: "rotate(-90deg)", position: "absolute", inset: 0 }}>
+                                      {/* track */}
+                                      <circle cx="17" cy="17" r={r} fill="none" stroke="#e5e7eb" strokeWidth="3" />
+                                      {/* progress arc */}
+                                      <circle
+                                        cx="17" cy="17" r={r}
+                                        fill="none"
+                                        stroke={wh.color}
+                                        strokeWidth="3"
+                                        strokeLinecap="round"
+                                        strokeDasharray={`${dash} ${circ}`}
+                                        style={{ transition: "stroke-dasharray 0.35s ease, stroke 0.35s ease" }}
+                                      />
+                                    </svg>
+                                    <span style={{ fontSize: 7.5, fontWeight: 700, color: wh.color, lineHeight: 1 }}>
+                                      {wh.label}
+                                    </span>
+                                  </div>
+                                )
+                              })()}
                               {draggingTrip && matchingDrivers.has(driver.uuid) && (
                                 <span
                                   className="ml-auto shrink-0 text-[12px] leading-none animate-bounce"
