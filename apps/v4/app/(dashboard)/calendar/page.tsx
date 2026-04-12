@@ -749,7 +749,16 @@ function WeekView({
                 <span className="text-[7px] text-muted-foreground leading-tight text-right">cont.</span>
               </div>
               {week.map((d, i) => {
-                const dayConts = allContinuing.filter(({ order: o }) => orderSpansDay(o, d))
+                const dayConts = allContinuing.filter(({ order: o }) => {
+                  // Normalise to local midnight timestamps for robust day comparison.
+                  // This explicitly includes the trip's start day (sd <= td <= ed).
+                  const s  = new Date(o.scheduled_at!)
+                  const e  = new Date(o.estimated_end_date!)
+                  const sd = new Date(s.getFullYear(), s.getMonth(), s.getDate()).getTime()
+                  const ed = new Date(e.getFullYear(), e.getMonth(), e.getDate()).getTime()
+                  const td = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+                  return td >= sd && td <= ed
+                })
                 const shown    = dayConts.slice(0, 4)
                 const extra    = dayConts.length - shown.length
                 const dayLabel = d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })
