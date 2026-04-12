@@ -1162,6 +1162,18 @@ export default function RotaPage() {
     }
     upsertRota(newEntry)
 
+    // ── Optimistically patch tripIndex so the NEXT prospective check ────────
+    // sees this trip as assigned. Without this, the dock refetch is async and a
+    // second drag (e.g. 5am next day) will find existing.length===0 and silently
+    // pass without checking the rest gap against the first trip.
+    if (tripOrder) {
+      setTripIndex(prev => {
+        const next = new Map(prev)
+        next.set(tripUuid, { ...tripOrder, driver_assigned_uuid: driver.uuid })
+        return next
+      })
+    }
+
     const cellKey = `${driver.uuid}|${date}`
     setSavingCells(prev => new Set(prev).add(cellKey))
     await updateOrder(tripUuid, { driver_assigned_uuid: driver.uuid }).catch(() => {})
