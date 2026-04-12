@@ -7,7 +7,7 @@ import {
   BarChart3, ClipboardCheck, Search, Filter, X, ChevronUp, ChevronDown, Save,
 } from "lucide-react"
 
-// â”€â”€â”€ TYPES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── TYPES ──────────────────────────────────────────────────────────────────
 
 interface CourseMaterial {
   id: string; type: "video" | "pdf" | "ppt"; title: string
@@ -38,7 +38,7 @@ interface Course {
   createdAt: string; createdBy: string
 }
 
-// â”€â”€â”€ DEMO DATA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── DEMO DATA ──────────────────────────────────────────────────────────────
 
 const demoCourses: Course[] = [
   {
@@ -49,7 +49,7 @@ const demoCourses: Course[] = [
       { id: "m1", type: "video", title: "Introduction to Load Securing", url: "#", durationSec: 420, sortOrder: 0 },
       { id: "m2", type: "pdf", title: "DVSA Load Safety Guide", url: "#", pageCount: 24, sortOrder: 1 },
       { id: "m3", type: "ppt", title: "Company Loading Policy", url: "#", pageCount: 18, sortOrder: 2 },
-      { id: "m4", type: "video", title: "Practical Demo â€” Curtainsider", url: "#", durationSec: 300, sortOrder: 3 },
+      { id: "m4", type: "video", title: "Practical Demo — Curtainsider", url: "#", durationSec: 300, sortOrder: 3 },
     ],
     questions: [
       { id: "q1", type: "mcq", text: "Which strap type is preferred for heavy palletised loads?", options: ["Cam buckle strap", "Webbing sling", "Ratchet strap", "Rope"], correctIndex: 2, maxScore: 1, sortOrder: 0 },
@@ -113,7 +113,7 @@ const demoCourses: Course[] = [
   },
 ]
 
-// â”€â”€â”€ HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── HELPERS ────────────────────────────────────────────────────────────────
 
 const statusColors: Record<string, string> = {
   draft: "bg-gray-100 text-foreground dark:bg-gray-800 dark:text-foreground",
@@ -151,7 +151,7 @@ function timeAgo(d: string) {
   return hours > 0 ? `${hours}h ago` : "Just now"
 }
 
-// â”€â”€â”€ COURSE LIST VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── COURSE LIST VIEW ───────────────────────────────────────────────────────
 
 function CourseListView({ courses, onSelect, onNew }: {
   courses: Course[]; onSelect: (c: Course) => void; onNew: () => void
@@ -263,7 +263,7 @@ function CourseListView({ courses, onSelect, onNew }: {
   )
 }
 
-// â”€â”€â”€ COURSE DETAIL / BUILDER VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── COURSE DETAIL / BUILDER VIEW ───────────────────────────────────────────
 
 function CourseDetailView({ course: initial, onBack, onUpdate }: { course: Course; onBack: () => void; onUpdate: (c: Course) => void }) {
   const [course, setCourse] = React.useState(initial)
@@ -406,14 +406,14 @@ function CourseDetailView({ course: initial, onBack, onUpdate }: { course: Cours
         ))}
       </div>
 
-      {/* â”€â”€ Details â”€â”€ */}
+      {/* ── Details ── */}
       {section === "details" && !editingDetails && (
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-xl border bg-card p-5 shadow-sm">
             <h3 className="text-sm font-bold mb-3">Course Information</h3>
             <div className="space-y-3">
               {[
-                { label: "Description", value: course.description || "â€”" },
+                { label: "Description", value: course.description || "—" },
                 { label: "Category", value: course.category },
                 { label: "Pass Mark", value: `${course.passMarkPercent}%` },
                 { label: "Deadline", value: course.deadline ? fmtDate(course.deadline) : "No deadline" },
@@ -445,7 +445,7 @@ function CourseDetailView({ course: initial, onBack, onUpdate }: { course: Cours
         </div>
       )}
 
-      {/* â”€â”€ Edit Details Form â”€â”€ */}
+      {/* ── Edit Details Form ── */}
       {section === "details" && editingDetails && (
         <div className="rounded-xl border bg-card p-5 shadow-sm">
           <h3 className="text-sm font-bold mb-4">Edit Course Details</h3>
@@ -493,7 +493,7 @@ function CourseDetailView({ course: initial, onBack, onUpdate }: { course: Cours
         </div>
       )}
 
-      {/* â”€â”€ Materials â”€â”€ */}
+      {/* ── Materials ── */}
       {section === "materials" && (
         <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
           <div className="border-b bg-muted/40 px-4 py-3 flex items-center justify-between">
@@ -560,7 +560,7 @@ function CourseDetailView({ course: initial, onBack, onUpdate }: { course: Cours
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{mat.title}</p>
-                      <p className="text-[10px] text-muted-foreground uppercase">{mat.type}{mat.durationSec ? ` Â· ${fmtDuration(mat.durationSec)}` : ""}{mat.pageCount ? ` Â· ${mat.pageCount} pages` : ""}</p>
+                      <p className="text-[10px] text-muted-foreground uppercase">{mat.type}{mat.durationSec ? ` · ${fmtDuration(mat.durationSec)}` : ""}{mat.pageCount ? ` · ${mat.pageCount} pages` : ""}</p>
                     </div>
                     <button onClick={() => deleteMaterial(mat.id)} className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 flex items-center justify-center rounded-lg border hover:bg-red-50 hover:border-red-200 dark:hover:bg-red-900/20">
                       <Trash2 className="h-3 w-3 text-red-500" />
@@ -573,7 +573,7 @@ function CourseDetailView({ course: initial, onBack, onUpdate }: { course: Cours
         </div>
       )}
 
-      {/* â”€â”€ Questions â”€â”€ */}
+      {/* ── Questions ── */}
       {section === "questions" && (
         <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
           <div className="border-b bg-muted/40 px-4 py-3 flex items-center justify-between">
@@ -714,7 +714,7 @@ function CourseDetailView({ course: initial, onBack, onUpdate }: { course: Cours
         </div>
       )}
 
-      {/* â”€â”€ Enrolments â”€â”€ */}
+      {/* ── Enrolments ── */}
       {section === "enrolments" && (
         <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
           <div className="border-b bg-muted/40 px-4 py-3 flex items-center justify-between">
@@ -743,9 +743,9 @@ function CourseDetailView({ course: initial, onBack, onUpdate }: { course: Cours
                     <td className="px-4 py-2.5 text-sm font-medium">{enr.driverName}</td>
                     <td className="px-4 py-2.5"><span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${enrolStatusColors[enr.status]}`}>{enr.status.replace(/_/g, " ")}</span></td>
                     <td className="px-4 py-2.5 text-center text-sm">{enr.attemptCount}</td>
-                    <td className="px-4 py-2.5 text-center text-sm font-medium">{enr.bestScore !== null ? `${enr.bestScore}%` : "â€”"}</td>
-                    <td className="px-4 py-2.5 text-center">{enr.driverSignedAt ? <CheckCircle2 className="h-4 w-4 text-green-500 mx-auto" /> : <span className="text-xs text-muted-foreground">â€”</span>}</td>
-                    <td className="px-4 py-2.5 text-center">{enr.operatorSignedAt ? <CheckCircle2 className="h-4 w-4 text-green-500 mx-auto" /> : <span className="text-xs text-muted-foreground">â€”</span>}</td>
+                    <td className="px-4 py-2.5 text-center text-sm font-medium">{enr.bestScore !== null ? `${enr.bestScore}%` : "—"}</td>
+                    <td className="px-4 py-2.5 text-center">{enr.driverSignedAt ? <CheckCircle2 className="h-4 w-4 text-green-500 mx-auto" /> : <span className="text-xs text-muted-foreground">—</span>}</td>
+                    <td className="px-4 py-2.5 text-center">{enr.operatorSignedAt ? <CheckCircle2 className="h-4 w-4 text-green-500 mx-auto" /> : <span className="text-xs text-muted-foreground">—</span>}</td>
                     <td className="px-4 py-2.5 text-right">
                       {enr.status === "awaiting_approval" && (
                         <button onClick={() => setReviewItem(enr)} className="inline-flex h-7 items-center gap-1 rounded-lg bg-amber-500 px-3 text-[11px] font-medium text-white hover:bg-amber-600">
@@ -770,7 +770,7 @@ function CourseDetailView({ course: initial, onBack, onUpdate }: { course: Cours
 }
 
 
-// â”€â”€â”€ REVIEW PANEL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── REVIEW PANEL ───────────────────────────────────────────────────────────
 
 function ReviewPanel({ enrolment, course, onBack }: { enrolment: Enrolment; course: Course; onBack: () => void }) {
   const [approved, setApproved] = React.useState(false)
@@ -780,9 +780,9 @@ function ReviewPanel({ enrolment, course, onBack }: { enrolment: Enrolment; cour
     <div className="flex flex-col items-center gap-4 py-20 text-center">
       <CheckCircle2 className="h-16 w-16 text-green-500" />
       <h2 className="text-2xl font-bold">Assessment Approved</h2>
-      <p className="text-muted-foreground">{enrolment.driverName} â€” {course.title}</p>
+      <p className="text-muted-foreground">{enrolment.driverName} — {course.title}</p>
       <p className="text-sm text-muted-foreground">Certificate generated and filed in driver documents.</p>
-      <button onClick={onBack} className="mt-2 rounded-lg border px-4 py-2 text-sm hover:bg-muted">â† Back to Enrolments</button>
+      <button onClick={onBack} className="mt-2 rounded-lg border px-4 py-2 text-sm hover:bg-muted">← Back to Enrolments</button>
     </div>
   )
 
@@ -791,7 +791,7 @@ function ReviewPanel({ enrolment, course, onBack }: { enrolment: Enrolment; cour
       <XCircle className="h-16 w-16 text-red-500" />
       <h2 className="text-2xl font-bold">Assessment Rejected</h2>
       <p className="text-muted-foreground">{enrolment.driverName} has been notified to retake the quiz.</p>
-      <button onClick={onBack} className="mt-2 rounded-lg border px-4 py-2 text-sm hover:bg-muted">â† Back to Enrolments</button>
+      <button onClick={onBack} className="mt-2 rounded-lg border px-4 py-2 text-sm hover:bg-muted">← Back to Enrolments</button>
     </div>
   )
 
@@ -801,7 +801,7 @@ function ReviewPanel({ enrolment, course, onBack }: { enrolment: Enrolment; cour
         <button onClick={onBack} className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs hover:bg-muted"><ArrowLeft className="h-3 w-3" /> Back</button>
         <div className="flex-1">
           <h2 className="text-lg font-bold">Review: {enrolment.driverName}</h2>
-          <p className="text-xs text-muted-foreground">{course.title} Â· Submitted {enrolment.submittedAt ? timeAgo(enrolment.submittedAt) : "â€”"}</p>
+          <p className="text-xs text-muted-foreground">{course.title} · Submitted {enrolment.submittedAt ? timeAgo(enrolment.submittedAt) : "—"}</p>
         </div>
       </div>
 
@@ -823,7 +823,7 @@ function ReviewPanel({ enrolment, course, onBack }: { enrolment: Enrolment; cour
             <CheckCircle2 className="h-4 w-4 text-green-500" />
             <span className="text-sm font-medium">Signed</span>
           </div>
-          <p className="text-xs text-muted-foreground">{enrolment.driverSignedAt ? fmtDate(enrolment.driverSignedAt) : "â€”"}</p>
+          <p className="text-xs text-muted-foreground">{enrolment.driverSignedAt ? fmtDate(enrolment.driverSignedAt) : "—"}</p>
         </div>
       </div>
 
@@ -842,7 +842,7 @@ function ReviewPanel({ enrolment, course, onBack }: { enrolment: Enrolment; cour
                   {q.type !== "free_text" ? (
                     <div className="mt-2 flex items-center gap-2">
                       <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      <span className="text-xs text-green-700 font-medium">Correct â€” {q.maxScore}/{q.maxScore} pts</span>
+                      <span className="text-xs text-green-700 font-medium">Correct — {q.maxScore}/{q.maxScore} pts</span>
                     </div>
                   ) : (
                     <div className="mt-2 space-y-2">
@@ -886,7 +886,7 @@ function ReviewPanel({ enrolment, course, onBack }: { enrolment: Enrolment; cour
   )
 }
 
-// â”€â”€â”€ MAIN EXPORT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── MAIN EXPORT ────────────────────────────────────────────────────────────
 
 export function TrainingTab() {
   const [courses, setCourses] = React.useState<Course[]>(demoCourses)

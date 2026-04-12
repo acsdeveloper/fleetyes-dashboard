@@ -25,7 +25,7 @@ import {
 
 ModuleRegistry.registerModules([AllCommunityModule])
 
-// â”€â”€â”€ AG Grid themes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── AG Grid themes ───────────────────────────────────────────────────────────
 
 const baseParams = {
   fontFamily: "var(--font-sans, 'Montserrat', 'Inter', system-ui, sans-serif)",
@@ -64,7 +64,7 @@ const darkTheme = themeQuartz.withParams({
   selectedRowBackgroundColor: "#1e3a5f",
 })
 
-// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function initials(name: string) {
   return name.trim().split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase()
@@ -87,7 +87,7 @@ const STATUS_STYLE: Record<DriverStatus, { badge: string; dot: string; label: st
   archived: { badge: "bg-slate-100 text-slate-500 border border-slate-200/80 dark:bg-slate-800/40 dark:text-slate-400 dark:border-slate-700/40",            dot: "bg-slate-400", label: "Archived" },
 }
 
-// â”€â”€â”€ Cell renderers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Cell renderers ───────────────────────────────────────────────────────────
 
 type DriverRow = Driver & { _fleetNames: string; _vehiclePlate: string }
 
@@ -128,7 +128,7 @@ function StatusCell({ data }: ICellRendererParams<DriverRow>) {
 }
 
 
-// â”€â”€â”€ Driver Drawer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Driver Drawer ────────────────────────────────────────────────────────────
 
 
 // --- Fleet multi-select with chips -------------------------------------------
@@ -544,7 +544,7 @@ function DriverDrawer({
     </>
   )
 }
-// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DriversPage() {
   const { t } = useLang()
@@ -581,7 +581,7 @@ export default function DriversPage() {
 
   const gridRef = React.useRef<AgGridReact<DriverRow>>(null)
 
-  // â”€â”€ Fetch â”€â”€
+  // ── Fetch ──
   const load = React.useCallback(async () => {
     setLoading(true); setError(null)
     try {
@@ -648,12 +648,12 @@ export default function DriversPage() {
     api.refreshHeader()
   }, [showFilters])
 
-  // â”€â”€ Row data â”€â”€
+  // ── Row data ──
   const rowData = React.useMemo<DriverRow[]>(() => {
     return drivers
       .filter(d => statusFilter === "all" || d.status === statusFilter)
       .map(d => {
-        // Fleet names: prefer embedded .fleets objects, fall back to fleet_uuid â†’ fleetMap
+        // Fleet names: prefer embedded .fleets objects, fall back to fleet_uuid → fleetMap
         let fleetNames = ""
         if (d.fleets && d.fleets.length > 0) {
           fleetNames = d.fleets.map(f => f.name).filter(Boolean).join(", ")
@@ -678,7 +678,7 @@ export default function DriversPage() {
     { key: "archived", label: "Archived", icon: <Archive  className="h-3 w-3" />, activeClass: "bg-slate-500 text-white shadow-sm",   count: archivedCount },
   ]
 
-  // â”€â”€ Column defs â”€â”€
+  // ── Column defs ──
   const colDefs = React.useMemo<ColDef<DriverRow>[]>(() => [
     { headerName: c.driver,   field: "name",             cellRenderer: NameCell,   flex: 2, minWidth: 180, filter: "agTextColumnFilter" },
     { headerName: "Email",    field: "email",             flex: 2, minWidth: 160,   cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="text-muted-foreground text-xs">{value}</span> : <span className="text-muted-foreground">—</span> },
@@ -702,7 +702,7 @@ export default function DriversPage() {
     <>
       <div className="flex h-full flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
 
-      {/* â”€â”€ Toolbar â”€â”€ */}
+      {/* ── Toolbar ── */}
       <div className="flex items-center gap-2">
 
         {/* LEFT: View tabs */}
@@ -797,14 +797,14 @@ export default function DriversPage() {
         </button>
       </div>
 
-      {/* â”€â”€ Error â”€â”€ */}
+      {/* ── Error ── */}
       {error && (
         <div className="shrink-0 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-900 dark:bg-red-950/20 dark:text-red-400">
           {error} — <button onClick={load} className="underline">retry</button>
         </div>
       )}
 
-      {/* â”€â”€ LIST VIEW — AG Grid â”€â”€ */}
+      {/* ── LIST VIEW — AG Grid ── */}
       {view === "list" && (
         <div className="flex-1 min-h-0 overflow-hidden rounded-xl border bg-card shadow-sm" style={{ height: "100%" }}>
           <AgGridReact<DriverRow>
@@ -825,13 +825,13 @@ export default function DriversPage() {
             }
             onRowClicked={({ data }) => { if (data) { setEditDriver(data); setDrawerOpen(true) } }}
             rowClass="cursor-pointer"
-            overlayLoadingTemplate='<span class="text-sm text-muted-foreground">Loading driversâ€¦</span>'
+            overlayLoadingTemplate='<span class="text-sm text-muted-foreground">Loading drivers…</span>'
             overlayNoRowsTemplate='<span class="text-sm text-muted-foreground">No drivers found.</span>'
           />
         </div>
       )}
 
-      {/* â”€â”€ CARDS VIEW â”€â”€ */}
+      {/* ── CARDS VIEW ── */}
       {view === "cards" && (
         <div className="flex-1 min-h-0 overflow-auto">
           {loading ? (
@@ -879,7 +879,7 @@ export default function DriversPage() {
                             <span className="truncate font-mono">{d._vehiclePlate}</span>
                           </span>
                         )}
-                        {d._vehiclePlate && (d.city ?? d.country) && <span className="text-border shrink-0">Â·</span>}
+                        {d._vehiclePlate && (d.city ?? d.country) && <span className="text-border shrink-0">·</span>}
                         {(d.city ?? d.country) && (
                           <span className="flex items-center gap-1 truncate">
                             <MapPin className="h-2.5 w-2.5 shrink-0 text-indigo-400" />
