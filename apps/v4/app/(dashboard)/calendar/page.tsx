@@ -4,10 +4,11 @@ import * as React from "react"
 import {
   ChevronLeft, ChevronRight,
   Clock, CalendarIcon, Users, IdCard, Car, MapPin,
-  RefreshCw, X, Paperclip,
+  RefreshCw, X, Paperclip, FileText, FileSpreadsheet, FileCode, File,
 } from "lucide-react"
 import { listOrders, type Order, type OrderStatus } from "@/lib/orders-api"
 import { listDriverLeave, listVehicleUnavailability, type LeaveRequest } from "@/lib/leave-requests-api"
+import { getFileTypeIcon } from "@/app/(dashboard)/maintenance-trips/page"
 
 // ─── Attachment file cache & hook (maintenance trips only) ───────────────────
 // Cache stores full file list so the icon doubles as a download link.
@@ -41,11 +42,12 @@ function useLeaveFiles(uuid: string, enabled: boolean) {
   return { files, ready }
 }
 
-// Calendar-chip icon: single paperclip link → first file; badge if multiple.
-// Clicks are stopPropagation so the chip's own onClick (open sidebar) still fires on chip.
+// Calendar-chip icon: typed icon link → first file; badge if multiple.
+// Clicks are stopPropagation so the chip's own onClick (open sidebar) still fires.
 function LeaveAttachmentIcon({ uuid }: { uuid: string }) {
   const { files } = useLeaveFiles(uuid, true)
   if (!files.length) return null
+  const { Icon, cls } = getFileTypeIcon(files[0].original_filename, (files[0] as { content_type?: string }).content_type)
   return (
     <a
       href={files[0].url}
@@ -53,9 +55,9 @@ function LeaveAttachmentIcon({ uuid }: { uuid: string }) {
       rel="noopener noreferrer"
       title={files.length === 1 ? files[0].original_filename : `${files.length} attachments`}
       onClick={e => e.stopPropagation()}
-      className="inline-flex items-center gap-0.5 shrink-0 hover:opacity-100 opacity-70"
+      className={`inline-flex items-center gap-0.5 shrink-0 hover:opacity-100 opacity-80 ${cls}`}
     >
-      <Paperclip className="h-2.5 w-2.5" />
+      <Icon className="h-2.5 w-2.5" />
       {files.length > 1 && <span className="text-[8px] leading-none font-bold">{files.length}</span>}
     </a>
   )
@@ -365,19 +367,22 @@ function LeaveCard({ leave: l }: { leave: LeaveRequest }) {
         {isVehicle && files.length > 0 && (
           <div className="pt-2 mt-1 border-t space-y-1">
             <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Attachments</div>
-            {files.map(f => (
-              <a
-                key={f.uuid}
-                href={f.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-primary hover:underline truncate"
-                title={f.original_filename}
-              >
-                <Paperclip className="h-3 w-3 shrink-0" />
-                <span className="truncate">{f.original_filename}</span>
-              </a>
-            ))}
+            {files.map(f => {
+              const { Icon, cls } = getFileTypeIcon(f.original_filename, (f as { content_type?: string }).content_type)
+              return (
+                <a
+                  key={f.uuid}
+                  href={f.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex items-center gap-1.5 hover:underline truncate ${cls}`}
+                  title={f.original_filename}
+                >
+                  <Icon className="h-3 w-3 shrink-0" />
+                  <span className="truncate text-foreground hover:text-primary">{f.original_filename}</span>
+                </a>
+              )
+            })}
           </div>
         )}
       </div>

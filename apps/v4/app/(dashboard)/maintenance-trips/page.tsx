@@ -3,7 +3,8 @@
 import * as React from "react"
 import {
   Search, RefreshCw, Download, Calendar, Clock,
-  AlertCircle, ChevronRight, CheckCircle2, Loader2, X, Plus, Trash2, Wrench, Paperclip, FileText, UploadCloud,
+  AlertCircle, ChevronRight, CheckCircle2, Loader2, X, Plus, Trash2, Wrench,
+  Paperclip, FileText, FileSpreadsheet, FileCode, File, UploadCloud,
 } from "lucide-react"
 import {
   listVehicleUnavailability, createLeaveRequest, updateLeaveRequest, deleteLeaveRequest,
@@ -12,6 +13,35 @@ import {
 import { listVehicles, type Vehicle } from "@/lib/vehicles-api"
 import { useLang } from "@/components/lang-context"
 import { DatePicker } from "@/components/date-picker"
+
+// ─── File type constants & icon helper ────────────────────────────────────────
+
+export const ALLOWED_ACCEPT = [
+  ".pdf",
+  ".doc",".docx",".rtf",".odt",
+  ".xls",".xlsx",".csv",".ods",
+  ".ppt",".pptx",".odp",
+  ".html",".htm",
+  ".txt",
+].join(",")
+
+export function getFileTypeIcon(filename: string, contentType?: string) {
+  const ext  = filename.split(".").pop()?.toLowerCase() ?? ""
+  const mime = (contentType ?? "").toLowerCase()
+  if (ext === "pdf"  || mime.includes("pdf"))
+    return { Icon: FileText,        cls: "text-red-500"    }
+  if (["doc","docx","rtf","odt"].includes(ext) || mime.includes("word") || mime.includes("opendocument.text"))
+    return { Icon: FileText,        cls: "text-blue-500"   }
+  if (["xls","xlsx","csv","ods"].includes(ext) || mime.includes("spreadsheet") || mime.includes("excel"))
+    return { Icon: FileSpreadsheet, cls: "text-green-600"  }
+  if (["ppt","pptx","odp"].includes(ext) || mime.includes("presentation"))
+    return { Icon: File,            cls: "text-orange-500" }
+  if (["html","htm"].includes(ext) || mime.includes("html"))
+    return { Icon: FileCode,        cls: "text-violet-500" }
+  if (ext === "txt" || mime === "text/plain")
+    return { Icon: FileText,        cls: "text-gray-500"   }
+  return   { Icon: File,            cls: "text-gray-400"   }
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -371,6 +401,7 @@ function MaintenanceDrawer({
                 <input
                   ref={fileInputRef}
                   type="file"
+                  accept={ALLOWED_ACCEPT}
                   className="hidden"
                   onChange={handleFileUpload}
                 />
@@ -388,28 +419,31 @@ function MaintenanceDrawer({
                 <p className="text-xs text-muted-foreground italic">No attachments yet.</p>
               ) : (
                 <ul className="divide-y rounded-lg border overflow-hidden">
-                  {files.map(f => (
-                    <li key={f.uuid} className="flex items-center gap-2 px-3 py-2 bg-background hover:bg-muted/30 transition-colors">
-                      <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <a
-                        href={f.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 min-w-0 truncate text-xs text-primary hover:underline"
-                        title={f.original_filename}
-                      >
-                        {f.original_filename}
-                      </a>
-                      <button
-                        type="button"
-                        onClick={() => handleFileDelete(f.uuid)}
-                        className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
-                        title="Remove attachment"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </li>
-                  ))}
+                  {files.map(f => {
+                    const { Icon, cls } = getFileTypeIcon(f.original_filename, f.content_type)
+                    return (
+                      <li key={f.uuid} className="flex items-center gap-2 px-3 py-2 bg-background hover:bg-muted/30 transition-colors">
+                        <Icon className={`h-3.5 w-3.5 shrink-0 ${cls}`} />
+                        <a
+                          href={f.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 min-w-0 truncate text-xs text-primary hover:underline"
+                          title={f.original_filename}
+                        >
+                          {f.original_filename}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => handleFileDelete(f.uuid)}
+                          className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                          title="Remove attachment"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </li>
+                    )
+                  })}
                 </ul>
               )}
             </div>
