@@ -9,33 +9,56 @@ import {
 import { listOrders, type Order, type OrderStatus } from "@/lib/orders-api"
 import { listDriverLeave, listVehicleUnavailability, type LeaveRequest } from "@/lib/leave-requests-api"
 
-// ─── Attachment icon (maintenance trips only) ─────────────────────────────────
-// Module-level cache: uuid → hasFiles. Avoids duplicate API calls on re-render.
-const _attachCache = new Map<string, boolean>()
+// ─── Attachment file cache & hook (maintenance trips only) ───────────────────
+// Cache stores full file list so the icon doubles as a download link.
+interface CachedFile { uuid: string; original_filename: string; url: string }
+const _fileCache = new Map<string, CachedFile[]>()
 
-function LeaveAttachmentIcon({ uuid }: { uuid: string }) {
-  const [has, setHas] = React.useState(_attachCache.get(uuid) ?? false)
+function useLeaveFiles(uuid: string, enabled: boolean) {
+  const init = _fileCache.get(uuid)
+  const [files, setFiles] = React.useState<CachedFile[]>(init ?? [])
+  const [ready, setReady] = React.useState(init !== undefined)
   React.useEffect(() => {
-    if (_attachCache.has(uuid)) { setHas(_attachCache.get(uuid)!); return }
+    if (!enabled) return
+    if (_fileCache.has(uuid)) { setFiles(_fileCache.get(uuid)!); setReady(true); return }
     let dead = false
     void (async () => {
       try {
         const { getToken } = await import("@/lib/ontrack-api")
         const res = await fetch(
-          `https://ontrack-api.agilecyber.com/int/v1/files?subject_uuid=${uuid}&limit=1`,
+          `https://ontrack-api.agilecyber.com/int/v1/files?subject_uuid=${uuid}&limit=10`,
           { headers: { Authorization: `Bearer ${getToken()}` } }
         )
         if (!res.ok || dead) return
         const d = await res.json()
-        const exists = Array.isArray(d?.files ?? d?.data) && (d?.files ?? d?.data).length > 0
-        _attachCache.set(uuid, exists)
-        if (!dead) setHas(exists)
-      } catch { _attachCache.set(uuid, false) }
+        const list: CachedFile[] = d?.files ?? d?.data ?? []
+        _fileCache.set(uuid, list)
+        if (!dead) { setFiles(list); setReady(true) }
+      } catch { _fileCache.set(uuid, []); if (!dead) setReady(true) }
     })()
     return () => { dead = true }
-  }, [uuid])
-  if (!has) return null
-  return <Paperclip className="h-2.5 w-2.5 shrink-0 opacity-60" />
+  }, [uuid, enabled])
+  return { files, ready }
+}
+
+// Calendar-chip icon: single paperclip link → first file; badge if multiple.
+// Clicks are stopPropagation so the chip's own onClick (open sidebar) still fires on chip.
+function LeaveAttachmentIcon({ uuid }: { uuid: string }) {
+  const { files } = useLeaveFiles(uuid, true)
+  if (!files.length) return null
+  return (
+    <a
+      href={files[0].url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={files.length === 1 ? files[0].original_filename : `${files.length} attachments`}
+      onClick={e => e.stopPropagation()}
+      className="inline-flex items-center gap-0.5 shrink-0 hover:opacity-100 opacity-70"
+    >
+      <Paperclip className="h-2.5 w-2.5" />
+      {files.length > 1 && <span className="text-[8px] leading-none font-bold">{files.length}</span>}
+    </a>
+  )
 }
 
 
@@ -325,22 +348,38 @@ function OrderCard({ order }: { order: Order }) {
 }
 
 function LeaveCard({ leave: l }: { leave: LeaveRequest }) {
-  const who = l.vehicle_name ?? l.user?.name ?? "Unknown"
+  const who       = l.vehicle_name ?? l.user?.name ?? "Unknown"
   const isVehicle = l.unavailability_type === "vehicle"
+  const { files } = useLeaveFiles(l.uuid, isVehicle)
   return (
     <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
       <div className={`flex items-center justify-between border-b px-3 py-2 ${leaveChip(l)}`}>
         <span className="text-[11px] font-semibold">{leaveLabel(l)}: {who}</span>
-        <div className="flex items-center gap-1.5">
-          {isVehicle && <LeaveAttachmentIcon uuid={l.uuid} />}
-          <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-medium">{l.status}</span>
-        </div>
+        <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-medium">{l.status}</span>
       </div>
       <div className="space-y-1 p-3 text-xs">
         <div className="flex justify-between"><span className="font-medium text-muted-foreground">Type</span><span>{l.leave_type}</span></div>
         <div className="flex justify-between"><span className="font-medium text-muted-foreground">Period</span><span>{l.start_date.slice(0,10)} → {l.end_date.slice(0,10)}</span></div>
         <div className="flex justify-between"><span className="font-medium text-muted-foreground">Days</span><span>{l.total_days}</span></div>
         {l.reason && <div className="pt-1 text-muted-foreground border-t">{l.reason}</div>}
+        {isVehicle && files.length > 0 && (
+          <div className="pt-2 mt-1 border-t space-y-1">
+            <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Attachments</div>
+            {files.map(f => (
+              <a
+                key={f.uuid}
+                href={f.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-primary hover:underline truncate"
+                title={f.original_filename}
+              >
+                <Paperclip className="h-3 w-3 shrink-0" />
+                <span className="truncate">{f.original_filename}</span>
+              </a>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -379,13 +418,14 @@ function TripSidebar({ data, onClose }: { data: SidebarData; onClose: () => void
   const visibleCount = visibleTrips.length + visibleLeaves.length
   const total        = data.trips.length + data.leaves.length
 
-  // Each card is 300px wide with 12px gap; sidebar pads 12px each side.
-  // Width grows with visible card count (max 4 cols), capped at 90vw.
-  const CARD_W = 300
-  const GAP    = 12
-  const PAD    = 24
-  const cols   = Math.min(Math.max(visibleCount, 1), 4)
-  const panelW = `min(${cols * CARD_W + (cols - 1) * GAP + PAD}px, 90vw)`
+  // Sidebar width is locked to the TOTAL count on open — never shrinks when switching tabs.
+  // Grid column count adapts to the filtered (visible) count.
+  const CARD_W    = 300
+  const GAP       = 12
+  const PAD       = 24
+  const panelCols = Math.min(Math.max(total, 1), 4)        // locked width
+  const gridCols  = Math.min(Math.max(visibleCount, 1), 4) // adapts per tab
+  const panelW    = `min(${panelCols * CARD_W + (panelCols - 1) * GAP + PAD}px, 90vw)`
 
   const TABS = [
     { id: "all"     as const, label: "All",     count: total              },
@@ -457,10 +497,11 @@ function TripSidebar({ data, onClose }: { data: SidebarData; onClose: () => void
           ) : (
             <div
               className="grid content-start"
-              style={{ gridTemplateColumns: `repeat(${cols}, ${CARD_W}px)`, gap: GAP }}
+              style={{ gridTemplateColumns: `repeat(${gridCols}, ${CARD_W}px)`, gap: GAP }}
             >
-              {visibleTrips.map(o  => <OrderCard key={o.uuid} order={o}  />)}
+              {/* Leaves (vehicle + driver) first, trips after */}
               {visibleLeaves.map(l => <LeaveCard  key={l.uuid} leave={l}  />)}
+              {visibleTrips.map(o  => <OrderCard key={o.uuid} order={o}  />)}
             </div>
           )}
         </div>
@@ -569,7 +610,8 @@ function WeekView({
               <span className="text-[8px] text-muted-foreground leading-none">all day</span>
             </div>
             {week.map((d, i) => {
-              const leaves = leaveForDay(d)
+              const leaves    = leaveForDay(d)
+              const dayLabel  = d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })
               return (
                 <div key={i} className="flex-1 border-r p-0.5 flex flex-col gap-0.5 min-h-[28px]">
                   {leaves.map(l => {
@@ -579,10 +621,16 @@ function WeekView({
                       ? "border-l-2 border-neutral-500 bg-neutral-100/80 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"
                       : "border-l-2 border-red-400   bg-red-50/80    text-red-800   dark:bg-red-900/30  dark:text-red-300"
                     return (
-                      <div
+                      <button
                         key={l.uuid}
-                        title={`${leaveLabel(l)}: ${name}\n${l.start_date.slice(0,10)} → ${l.end_date.slice(0,10)}`}
-                        className={`overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-default ${colorCls}`}
+                        type="button"
+                        title={`${leaveLabel(l)}: ${name} — click to open`}
+                        onClick={() => onSidebar({
+                          title:  dayLabel,
+                          trips:  ordersForDay(d),
+                          leaves: leaveForDay(d),
+                        })}
+                        className={`overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-pointer text-left w-full ${colorCls}`}
                       >
                         <div className="flex items-center gap-1 font-semibold truncate leading-tight">
                           {isVehicle && <LeaveAttachmentIcon uuid={l.uuid} />}
@@ -591,7 +639,7 @@ function WeekView({
                         <div className="opacity-70 text-[8px] truncate leading-tight mt-0.5">
                           {l.start_date.slice(0,10)} → {l.end_date.slice(0,10)}
                         </div>
-                      </div>
+                      </button>
                     )
                   })}
                 </div>
