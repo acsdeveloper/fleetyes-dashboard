@@ -1325,13 +1325,22 @@ export default function CalendarPage() {
 
   const vehiclePlateToUuid = React.useMemo(() => {
     const map = new Map<string, string>()
+    // Seed from vehicles list (plate_number → uuid)
     allVehicles.forEach(v => map.set(v.plate_number, v.uuid))
+    // Seed from orders (plate from vehicle_assigned → uuid)
     orders.forEach(o => {
       const plate = vehiclePlate(o); const uuid = o.vehicle_assigned?.uuid
       if (plate && uuid) map.set(plate, uuid)
     })
+    // Seed from leave events: vehicle_name (the exact string in vehicleOptions) → uuid
+    // This is the critical mapping — vehicle leave events store vehicle_name (e.g.
+    // "Ford Transit AB12 CDE"), not bare plate numbers, so without this the fleet
+    // lookup silently returns undefined when a maintenance vehicle is selected.
+    leaveEvents.forEach(l => {
+      if (l.vehicle_uuid && l.vehicle_name) map.set(l.vehicle_name, l.vehicle_uuid)
+    })
     return map
-  }, [allVehicles, orders])
+  }, [allVehicles, orders, leaveEvents])
 
   // ─── Fleet membership lookup maps ───────────────────────────────────────────
   // Built from authoritative driver.fleets[] and vehicle.fleet_vehicles[] data.
