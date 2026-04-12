@@ -24,7 +24,6 @@ import type { Order } from "@/lib/orders-api"
 import type { DriverTrip } from "./types"
 import { checkOverlap }          from "./check-overlap"
 import { checkRestGap }          from "./check-rest-gap"
-import { checkDailyHours }       from "./check-daily-hours"
 import { checkWeeklyHoursRule }  from "./check-weekly-hours"
 import { checkWeeklyRest }       from "./check-weekly-rest"
 import { findOverlaps }          from "./overlap"
@@ -165,8 +164,10 @@ export function runComplianceCheck(
   // ── Check 2: Rest Gap ─────────────────────────────────────────────────────
   const restGapResult    = checkRestGap(trips)
 
-  // ── Check 3: Daily Hours ───────────────────────────────────────────────────
-  const dailyHoursResult = checkDailyHours(trips)
+  // NOTE: checkDailyHours is intentionally omitted.
+  // Daily hours (9h/10h) is a DRIVING hours limit enforced by Relay.
+  // This system records WORKING/SHIFT hours only. 12.5h shifts are normal
+  // and must not trigger false violations here.
 
   // ── Check 4: Weekly + Biweekly Hours ───────────────────────────────────────
   // Only runs when weekDates is provided (rota page always passes it).
@@ -200,14 +201,12 @@ export function runComplianceCheck(
     violations: [
       ...overlapResult.violations,
       ...restGapResult.violations,
-      ...dailyHoursResult.violations,
       ...weeklyResult.violations,
       ...weeklyRestResult.violations,
     ],
     warnings: [
       ...overlapResult.warnings,
       ...restGapResult.warnings,
-      ...dailyHoursResult.warnings,
       ...weeklyResult.warnings,
       ...weeklyRestResult.warnings,
     ],
@@ -258,17 +257,12 @@ export function prospectiveComplianceCheck(
     v => v.tripAUuid === newOrder.uuid || v.tripBUuid === newOrder.uuid
   )
 
-  // ── Check 3: Daily Hours (prospective) ────────────────────────────────────
-  const dailyHoursResult = checkDailyHours(all)
-  const dailyHoursViolations = dailyHoursResult.violations.filter(
-    v => v.tripAUuid === newOrder.uuid || v.tripBUuid === newOrder.uuid
-  )
+  // NOTE: Daily hours check omitted — driving hours are managed by Relay.
 
   return {
     violations: [
       ...overlapViolations,
       ...restGapViolations,
-      ...dailyHoursViolations,
     ],
   }
 }
