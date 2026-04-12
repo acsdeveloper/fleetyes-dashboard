@@ -71,8 +71,8 @@ const RULE_ROWS: RuleRow[] = [
     tooltip: "45-minute break requirement after 4h 30m of continuous driving.\nThis is enforced by Relay at the trip-planning level. Our system does not have visibility into intra-trip break times — only inter-trip gaps between assignments are visible.\nMarked 'Not checked' — Relay is the source of truth." },
 
   { ruleId: "REST_GAP", section: "resting", inverted: true, isCount: false,
-    label:   "Rest gap (hours)",
-    tooltip: "Shortest inter-trip gap across all loaded trips — the actual hours of rest between consecutive assignments.\nBar fills as rest shrinks: green = well rested, red = critically short.\nLimits: < 9h = hard violation (EC 561/2006 Art.8). 9–11h = reduced rest (warning). ≥ 11h = compliant." },
+    label:   "Shortest Rest Gap",
+    tooltip: "The shortest gap between any two consecutive trips assigned to this driver.\nThis is the actual rest hours between end of one shift and start of the next.\nHover each cell to see the exact computed times.\nLimits: < 9h = hard violation (EC 561/2006 Art.8). 9–11h = reduced rest (warning). ≥ 11h = compliant." },
 
   // ── Compensated Weekly Rest ──────────────────────────────────────────────
   { ruleId: "WEEKLY_REST", section: "weekly_rest", inverted: true, isCount: false,

@@ -543,22 +543,53 @@ export function getDriverStats(
   //  Scans the full trip history so cross-week overnight pairs are caught.
   //  Inverted bar: more bar = LESS rest = worse.
   const restGapStat: DriverRuleStat = (() => {
-    let worstMs = Infinity
+    let worstMs  = Infinity
+    let worstA: DriverTrip | null = null
+    let worstB: DriverTrip | null = null
+    let hasNegative = false   // end-time bug: trip A ends AFTER trip B starts
+
     for (let i = 0; i < allSorted.length - 1; i++) {
-      const gap = allSorted[i + 1].startTime.getTime() - allSorted[i].endTime.getTime()
-      if (gap > 0 && gap < worstMs) worstMs = gap
+      const a   = allSorted[i]
+      const b   = allSorted[i + 1]
+      const gap = b.startTime.getTime() - a.endTime.getTime()
+      if (gap < 0) {
+        hasNegative = true   // overlap/bad end-date — flag but don't count as rest
+      } else if (gap < worstMs) {
+        worstMs = gap
+        worstA  = a
+        worstB  = b
+      }
     }
+
     const hasTrips  = allSorted.length >= 2
     const worstMins = hasTrips && isFinite(worstMs) ? worstMs / 60000 : 11 * 60
     const limitMins = 11 * 60
     const ratio     = hasTrips ? Math.min(1, Math.max(0, 1 - (worstMins / limitMins))) : 0
-    const status    = hasTrips && worstMs < 9 * 3600000  ? "violation"
-                    : hasTrips && worstMs < 11 * 3600000 ? "warning" : "compliant"
-    const label     = hasTrips && isFinite(worstMs) ? fmtMins(worstMins) : "N/A"
+
+    // A negative gap means a trip's endTime appears AFTER the next trip's startTime —
+    // most likely a 24h duration that hasn't been corrected yet.
+    const status = hasNegative                              ? "violation"
+                 : hasTrips && worstMs < 9  * 3600000      ? "violation"
+                 : hasTrips && worstMs < 11 * 3600000      ? "warning"
+                 :                                           "compliant"
+
+    const label = hasNegative          ? "Bad end-time"
+                : !isFinite(worstMs)   ? "N/A"
+                :                       fmtMins(worstMins)
+
+    // Build pair detail so bad data is immediately visible in the tooltip
+    const fmt = (d: Date) => `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`
+    const pairDetail = worstA && worstB
+      ? ` (ends ${fmt(worstA.endTime)} → starts ${fmt(worstB.startTime)})`
+      : ""
+    const negDetail  = hasNegative
+      ? " ⚠ One or more trip end-times appear AFTER the next trip starts — check trip duration data."
+      : ""
+
     return {
       ruleId: "REST_GAP", usedMinutes: worstMins, limitMinutes: limitMins,
       ratio, usedLabel: label, limitLabel: "11h target",
-      detail: `Worst gap: ${label}`, status,
+      detail: `Shortest gap: ${label}${pairDetail}${negDetail}`, status,
     }
   })()
 
