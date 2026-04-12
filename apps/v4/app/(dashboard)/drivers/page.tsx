@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import * as React from "react"
 import {
@@ -104,7 +104,7 @@ function NameCell({ data }: ICellRendererParams<DriverRow>) {
 }
 
 function FleetCell({ data }: ICellRendererParams<DriverRow>) {
-  if (!data?._fleetNames) return <span className="text-muted-foreground">â€”</span>
+  if (!data?._fleetNames) return <span className="text-muted-foreground">—</span>
   return (
     <div className="flex flex-wrap gap-1 items-center h-full">
       {data._fleetNames.split(", ").map(f => (
@@ -243,7 +243,7 @@ function DriverDrawer({
       setPhone(driver.phone ?? "")
       setLicence(driver.drivers_license_number ?? "")
       setStatusVal(driver.status ?? "active")
-      // Fleet UUIDs â€” prefer embedded fleets objects, fall back to fleet_uuid array
+      // Fleet UUIDs — prefer embedded fleets objects, fall back to fleet_uuid array
       const fleetIds = driver.fleets?.map(f => f.uuid) ?? driver.fleet_uuid ?? []
       setSelectedFleets(fleetIds)
       setVehicleUuid(driver.vehicle_uuid ?? "")
@@ -295,7 +295,7 @@ function DriverDrawer({
         },
       }
     }
-    // custom â€” include days that have at least a start or end time
+    // custom — include days that have at least a start or end time
     const result: ShiftPreferences = {}
     for (const d of DAYS) {
       const w = dayWindows[d]
@@ -681,11 +681,11 @@ export default function DriversPage() {
   // â”€â”€ Column defs â”€â”€
   const colDefs = React.useMemo<ColDef<DriverRow>[]>(() => [
     { headerName: c.driver,   field: "name",             cellRenderer: NameCell,   flex: 2, minWidth: 180, filter: "agTextColumnFilter" },
-    { headerName: "Email",    field: "email",             flex: 2, minWidth: 160,   cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="text-muted-foreground text-xs">{value}</span> : <span className="text-muted-foreground">â€”</span> },
-    { headerName: c.phone,    field: "phone",             width: 150,              cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="text-muted-foreground text-xs">{value}</span> : <span className="text-muted-foreground">â€”</span> },
+    { headerName: "Email",    field: "email",             flex: 2, minWidth: 160,   cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="text-muted-foreground text-xs">{value}</span> : <span className="text-muted-foreground">—</span> },
+    { headerName: c.phone,    field: "phone",             width: 150,              cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="text-muted-foreground text-xs">{value}</span> : <span className="text-muted-foreground">—</span> },
     { headerName: c.fleet,    field: "_fleetNames",       flex: 1.5, minWidth: 140, cellRenderer: FleetCell },
-    { headerName: "Vehicle",  field: "_vehiclePlate",     width: 140,              cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="flex items-center gap-1 text-xs font-mono"><Car className="h-3 w-3 text-muted-foreground" />{value}</span> : <span className="text-muted-foreground">â€”</span> },
-    { headerName: c.licence,  field: "drivers_license_number", width: 150,         cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="text-xs">{value}</span> : <span className="text-muted-foreground">â€”</span> },
+    { headerName: "Vehicle",  field: "_vehiclePlate",     width: 140,              cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="flex items-center gap-1 text-xs font-mono"><Car className="h-3 w-3 text-muted-foreground" />{value}</span> : <span className="text-muted-foreground">—</span> },
+    { headerName: c.licence,  field: "drivers_license_number", width: 150,         cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="text-xs">{value}</span> : <span className="text-muted-foreground">—</span> },
     { headerName: c.status,   field: "status",            width: 120,              cellRenderer: StatusCell },
   ], [c])
 
@@ -800,11 +800,11 @@ export default function DriversPage() {
       {/* â”€â”€ Error â”€â”€ */}
       {error && (
         <div className="shrink-0 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-900 dark:bg-red-950/20 dark:text-red-400">
-          {error} â€” <button onClick={load} className="underline">retry</button>
+          {error} — <button onClick={load} className="underline">retry</button>
         </div>
       )}
 
-      {/* â”€â”€ LIST VIEW â€” AG Grid â”€â”€ */}
+      {/* â”€â”€ LIST VIEW — AG Grid â”€â”€ */}
       {view === "list" && (
         <div className="flex-1 min-h-0 overflow-hidden rounded-xl border bg-card shadow-sm" style={{ height: "100%" }}>
           <AgGridReact<DriverRow>
