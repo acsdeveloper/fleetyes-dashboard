@@ -107,24 +107,31 @@ function orderToTrip(order: Order): DriverTrip | null {
   const startTime = new Date(order.scheduled_at)
 
   let endTime: Date
+  let endTimeSource: string
+
   if (order.estimated_end_date) {
     endTime = new Date(order.estimated_end_date)
+    endTimeSource = `eed:${order.estimated_end_date.slice(0,16)}`
   } else if (order.time && order.time > 0) {
     endTime = new Date(startTime.getTime() + order.time * 1000)
+    endTimeSource = `time:${order.time}s`
   } else {
     endTime = new Date(startTime.getTime() + 8 * 60 * 60 * 1000)
+    endTimeSource = "8h-fallback"
   }
 
   // Sanity: end must be after start
   if (endTime <= startTime) {
+    endTimeSource = `8h-sanity(was:${endTimeSource})`
     endTime = new Date(startTime.getTime() + 8 * 60 * 60 * 1000)
   }
 
   return {
-    orderId:    order.uuid,
-    driverUuid: order.driver_assigned_uuid ?? order.driver_assigned?.uuid ?? "",
+    orderId:       order.uuid,
+    driverUuid:    order.driver_assigned_uuid ?? order.driver_assigned?.uuid ?? "",
     startTime,
     endTime,
+    endTimeSource,
   }
 }
 
@@ -577,19 +584,23 @@ export function getDriverStats(
                 : !isFinite(worstMs)   ? "N/A"
                 :                       fmtMins(worstMins)
 
-    // Build pair detail so bad data is immediately visible in the tooltip
-    const fmt = (d: Date) => `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`
+    // Full date+time format (local) so the operator can spot wrong dates instantly
+    const fmtFull = (d: Date) => {
+      const mon = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]
+      return `${d.getDate()} ${mon} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`
+    }
+
     const pairDetail = worstA && worstB
-      ? ` (ends ${fmt(worstA.endTime)} → starts ${fmt(worstB.startTime)})`
+      ? `\nTrip A ended: ${fmtFull(worstA.endTime)} [${worstA.endTimeSource ?? "?"}]\nTrip B started: ${fmtFull(worstB.startTime)}\nGap: ${label}`
       : ""
-    const negDetail  = hasNegative
-      ? " ⚠ One or more trip end-times appear AFTER the next trip starts — check trip duration data."
+    const negDetail = hasNegative
+      ? "\n⚠ One or more trip end-times fall AFTER the next trip starts.\nThis usually means estimated_end_date is still 24h instead of 12.5h.\nRun fix-trip-durations.js from console and refresh."
       : ""
 
     return {
       ruleId: "REST_GAP", usedMinutes: worstMins, limitMinutes: limitMins,
       ratio, usedLabel: label, limitLabel: "11h target",
-      detail: `Shortest gap: ${label}${pairDetail}${negDetail}`, status,
+      detail: `Shortest rest gap: ${label}${pairDetail}${negDetail}`, status,
     }
   })()
 

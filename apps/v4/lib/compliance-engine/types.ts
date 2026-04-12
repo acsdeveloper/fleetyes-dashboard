@@ -9,10 +9,12 @@
 
 /** A single trip assigned to a driver, used internally by overlap/rest-gap logic */
 export interface Trip {
-  orderId:    string
-  driverUuid: string
-  startTime:  Date
-  endTime:    Date
+  orderId:       string
+  driverUuid:    string
+  startTime:     Date
+  endTime:       Date
+  /** Debug: records HOW endTime was derived — "eed", "time", "8h-fallback", "8h-sanity" */
+  endTimeSource?: string
 }
 
 /** Alias exported for check modules — same shape as Trip */
