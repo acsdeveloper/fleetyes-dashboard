@@ -435,7 +435,8 @@ export function ComplianceMatrixView({
 
                         return (
                           <td key={driver.uuid}
-                              className={`border-r last:border-r-0 border-border/20 px-1.5 py-1.5 align-middle ${cellBg}`}>
+                              title={stat.detail}
+                              className={`border-r last:border-r-0 border-border/20 px-1.5 py-1.5 align-middle cursor-help ${cellBg}`}>
                             <StatBar
                               stat={stat}
                               inverted={row.inverted}
