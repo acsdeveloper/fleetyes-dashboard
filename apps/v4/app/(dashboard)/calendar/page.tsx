@@ -329,15 +329,23 @@ function TripSidebar({ data, onClose }: { data: SidebarData; onClose: () => void
   }, [onClose])
 
   const total = data.trips.length + data.leaves.length
+  // Each card is 300px wide with 12px gap; sidebar pads 12px each side.
+  // Grow to fit all cards side-by-side (max 4 columns), capped at 90vw.
+  const CARD_W = 300
+  const GAP    = 12
+  const PAD    = 24  // 12px left + 12px right
+  const cols   = Math.min(Math.max(total, 1), 4)
+  const panelW = `min(${cols * CARD_W + (cols - 1) * GAP + PAD}px, 90vw)`
+
   return (
     <>
       {/* Backdrop */}
+      <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]" onClick={onClose} />
+      {/* Panel — width grows with number of cards */}
       <div
-        className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]"
-        onClick={onClose}
-      />
-      {/* Panel */}
-      <div className="fixed inset-y-0 right-0 z-50 flex w-[380px] flex-col bg-card border-l shadow-2xl">
+        className="fixed inset-y-0 right-0 z-50 flex flex-col bg-card border-l shadow-2xl overflow-hidden"
+        style={{ width: panelW }}
+      >
         {/* Header */}
         <div className="flex items-center gap-2 border-b px-4 py-3 shrink-0">
           <div className="flex-1 min-w-0">
@@ -355,13 +363,18 @@ function TripSidebar({ data, onClose }: { data: SidebarData; onClose: () => void
             <X className="h-4 w-4" />
           </button>
         </div>
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
-          {data.trips.length === 0 && data.leaves.length === 0 && (
+        {/* Content — multi-column grid; each card is exactly CARD_W px */}
+        <div className="flex-1 overflow-y-auto p-3">
+          {total === 0 && (
             <div className="text-center text-sm text-muted-foreground py-8">No events</div>
           )}
-          {data.trips.map(o  => <OrderCard key={o.uuid}  order={o}  />)}
-          {data.leaves.map(l => <LeaveCard  key={l.uuid}  leave={l}  />)}
+          <div
+            className="grid content-start"
+            style={{ gridTemplateColumns: `repeat(${cols}, ${CARD_W}px)`, gap: GAP }}
+          >
+            {data.trips.map(o  => <OrderCard key={o.uuid} order={o}  />)}
+            {data.leaves.map(l => <LeaveCard  key={l.uuid} leave={l}  />)}
+          </div>
         </div>
       </div>
     </>
