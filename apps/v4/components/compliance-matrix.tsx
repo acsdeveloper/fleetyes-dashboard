@@ -3,104 +3,144 @@
 /**
  * ComplianceMatrixView
  *
- * Full-width analysis tab that replaces the rota grid when "Analysis" is active.
+ * Full-width analysis tab — 12 rows matching analysis.html layout + Overlap.
  *
- * Layout:
- *   ┌───────────────┬──────────┬──────────┬──────────┐
- *   │ Rule          │ Driver A │ Driver B │ Driver C │
- *   │               │ ✓ OK     │ ⚠ Warn   │ 🚫 Viol  │
- *   ├───────────────┼──────────┼──────────┼──────────┤
- *   │ Daily hrs     │ ██░ 7h   │ ████ 9h  │ ████ 11h │
- *   │ Weekly hrs    │ ██░ 34h  │ ████ 51h │ ████ 57h │
- *   │ ...           │          │          │          │
- *   └───────────────┴──────────┴──────────┴──────────┘
+ * Sections (matching analysis.html):
+ *   🚛 Driving Times          (6 rows)
+ *   🛌 Resting Times          (2 rows)
+ *   🔄 Compensated Weekly Rest (3 rows)
+ *   🔍 Integrity              (1 row — Overlap, not in EC 561/2006)
  *
- * Colour coding:
- *   Green  — compliant  (< warn threshold)
- *   Amber  — warning    (approaching limit)
- *   Red    — violation  (limit exceeded)
- *   Blue   — rest rules where MORE rest = better (inverted bar)
- *
- * For REST_GAP and WEEKLY_REST the bar is inverted — a full bar means
- * LESS rest was taken (worse). Green means plenty of rest, red means
- * dangerously little.
+ * Inverted bars (rest rules): bar grows as measured value DECREASES.
+ *   Green = plenty of rest. Red = critically low rest.
  */
 
 import * as React from "react"
 import type { Driver } from "@/lib/drivers-api"
 import type { Order } from "@/lib/orders-api"
 import type { RotaComplianceReport } from "@/lib/compliance-engine"
-import {
-  getDriverStats,
-  type DriverRuleStat,
-} from "@/lib/compliance-engine"
+import { getDriverStats, type DriverRuleStat } from "@/lib/compliance-engine"
 import { ShieldCheck, ShieldAlert, AlertTriangle, Info } from "lucide-react"
 
-// ─── Row definitions (the 6 rules in display order) ─────────────────────────
+// ─── Row definitions ─────────────────────────────────────────────────────────
 
 interface RuleRow {
   ruleId:    string
   label:     string
   sublabel:  string
-  inverted:  boolean   // true for rest rules: bar grows as value DECREASES
-  section:   "driving" | "resting"
+  inverted:  boolean   // true = bar represents "missing" rest (shorter bar = better)
+  section:   "driving" | "resting" | "weekly_rest" | "integrity"
   tooltip:   string
+  isCount:   boolean   // true = usedMinutes is a count, not minutes
 }
 
 const RULE_ROWS: RuleRow[] = [
-  // ── Driving section ──────────────────────────────────────────────────────
+
+  // ── Section 1: Driving Times ─────────────────────────────────────────────
+  {
+    ruleId:   "CONTINUOUS_4H30",
+    label:    "Driving time 4h30",
+    sublabel: "max 4h 30m continuous",
+    inverted: false, section: "driving", isCount: false,
+    tooltip:  "Longest unbroken driving chain this week where consecutive trips had less than a 45-min gap between them. Must not exceed 4h 30m without a 45-min break. (EC 561/2006 Art.7)",
+  },
   {
     ruleId:   "DAILY_HOURS",
-    label:    "Peak daily hours",
+    label:    "Daily driving time",
     sublabel: "9h std / 10h max",
-    inverted: false,
-    section:  "driving",
-    tooltip:  "Highest number of hours worked on a single day this week. Standard limit is 9h; extendable to 10h max twice per week. (EC 561/2006 Art.6)",
+    inverted: false, section: "driving", isCount: false,
+    tooltip:  "Highest total trip hours on any single day this week. Standard limit is 9h; extendable to 10h max twice per week. (EC 561/2006 Art.6)",
+  },
+  {
+    ruleId:   "DAILY_AMPLITUDE",
+    label:    "Daily amplitude",
+    sublabel: "max 15h span",
+    inverted: false, section: "driving", isCount: false,
+    tooltip:  "Widest time span from first trip start to last trip end on any single day this week. The working day must not exceed 15h total amplitude. Warning at 13h. (EC 561/2006)",
+  },
+  {
+    ruleId:   "REDUCED_REST_DAYS",
+    label:    "# days reduced rest",
+    sublabel: "max 3× per week",
+    inverted: false, section: "driving", isCount: true,
+    tooltip:  "Count of inter-trip rest gaps this period that were between 9h and 11h (reduced daily rest). EC 561/2006 allows reduced rest at most 3 times per 7-day period.",
   },
   {
     ruleId:   "WEEKLY_HOURS",
-    label:    "Weekly hours",
+    label:    "Weekly driving time",
     sublabel: "56h maximum",
-    inverted: false,
-    section:  "driving",
-    tooltip:  "Total trip hours in the visible week. Warning at 50h, violation above 56h. (EC 561/2006 Art.6.3)",
+    inverted: false, section: "driving", isCount: false,
+    tooltip:  "Total trip hours in the visible week. Warning issued at 50h; hard violation above 56h. (EC 561/2006 Art.6.3)",
   },
   {
     ruleId:   "BIWEEKLY_HOURS",
-    label:    "Bi-weekly hours",
+    label:    "Bi-weekly driving time",
     sublabel: "90h / 2 weeks",
-    inverted: false,
-    section:  "driving",
-    tooltip:  "Total trip hours across the current and immediately prior week. Warning at 80h, violation above 90h. (EC 561/2006 Art.6.3)",
+    inverted: false, section: "driving", isCount: false,
+    tooltip:  "Total trip hours across the current and immediately prior week. Warning at 80h; hard violation above 90h. (EC 561/2006 Art.6.3)",
   },
+
+  // ── Section 2: Resting Times ─────────────────────────────────────────────
+  {
+    ruleId:   "BREAK_45",
+    label:    "Break 45′",
+    sublabel: "0 missed (45-min break)",
+    inverted: false, section: "resting", isCount: true,
+    tooltip:  "Count of continuous driving chains (where consecutive trip gaps < 45 min) whose total duration exceeded 4h 30m — meaning the mandatory 45-min break was missed or not recorded. (EC 561/2006 Art.7)\n\nNote: intra-trip breaks are not visible in trip data — only inter-trip gaps are checked.",
+  },
+  {
+    ruleId:   "REST_GAP",
+    label:    "Previous daily rest",
+    sublabel: "11h target / 9h min",
+    inverted: true, section: "resting", isCount: false,
+    tooltip:  "The shortest gap between any two consecutive trips across all loaded trip history. Bar fills as the gap shrinks — green = plenty of rest, red = critically short.\n\nMinimum 9h (hard violation); target 11h (reduced rest warning if 9–11h). (EC 561/2006)",
+  },
+
+  // ── Section 3: Compensated Weekly Rest ───────────────────────────────────
+  {
+    ruleId:   "WEEKLY_REST",
+    label:    "Week 0 rest",
+    sublabel: "46h policy / 24h min",
+    inverted: true, section: "weekly_rest", isCount: false,
+    tooltip:  "The longest unbroken rest gap within the current visible week. Company policy ≥46h; EC minimum 45h. Reduced rest (≥24h) requires compensation within 3 weeks. Violation: < 24h. (EC 561/2006 Art.8.6)",
+  },
+  {
+    ruleId:   "WEEKLY_REST_PRIOR",
+    label:    "Week −1 rest",
+    sublabel: "46h policy / 24h min",
+    inverted: true, section: "weekly_rest", isCount: false,
+    tooltip:  "The longest unbroken rest gap in the prior week (loaded as part of biweekly hours calculation). Same thresholds as Week 0. Needed to assess whether compensation is still outstanding.",
+  },
+  {
+    ruleId:   "WEEKLY_REST_PRIOR2",
+    label:    "Week −2 rest",
+    sublabel: "46h policy / 24h min",
+    inverted: true, section: "weekly_rest", isCount: false,
+    tooltip:  "The longest unbroken rest gap two weeks ago. This data is not currently loaded — the page only fetches the current and one prior week. Shown as 'No data' until a week −2 fetch is added.",
+  },
+
+  // ── Section 4: Integrity (diagnostic, not EC 561/2006) ───────────────────
   {
     ruleId:   "OVERLAP",
     label:    "Overlapping trips",
     sublabel: "0 allowed",
-    inverted: false,
-    section:  "driving",
-    tooltip:  "Count of trip pairs assigned to this driver that overlap in time. Any overlap is a hard violation — a driver cannot be in two places at once.",
-  },
-  // ── Resting section ──────────────────────────────────────────────────────
-  {
-    ruleId:   "REST_GAP",
-    label:    "Worst rest gap",
-    sublabel: "11h target / 9h min",
-    inverted: true,
-    section:  "resting",
-    tooltip:  "The shortest gap between any two consecutive trips across the full trip history. Bar fills as the gap shrinks — green means plenty of rest, red means critically short rest. Minimum 9h (hard), target 11h. (EC 561/2006)",
-  },
-  {
-    ruleId:   "WEEKLY_REST",
-    label:    "Weekly rest",
-    sublabel: "46h policy / 24h min",
-    inverted: true,
-    section:  "resting",
-    tooltip:  "The longest unbroken rest gap within the visible week. Bar fills as rest shrinks — green is good (driver had 46h+ rest), red is a violation (< 24h). Company policy 46h; EC minimum 45h. (EC 561/2006 Art.8.6)",
+    inverted: false, section: "integrity", isCount: true,
+    tooltip:  "Count of trip pairs assigned to this driver that overlap in time. Any overlap is a hard violation — a driver cannot be in two places at once. This is a data-integrity check, not an EC 561/2006 rule.",
   },
 ]
 
-// ─── Helper: status icon ────────────────────────────────────────────────────
+// ─── Section metadata ─────────────────────────────────────────────────────────
+
+type SectionKey = "driving" | "resting" | "weekly_rest" | "integrity"
+
+const SECTIONS: { key: SectionKey; label: string }[] = [
+  { key: "driving",     label: "🚛  Driving Times" },
+  { key: "resting",     label: "🛌  Resting Times" },
+  { key: "weekly_rest", label: "🔄  Compensated Weekly Rest" },
+  { key: "integrity",   label: "🔍  Integrity" },
+]
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function StatusIcon({ status }: { status: DriverRuleStat["status"] }) {
   if (status === "violation") return <ShieldAlert className="h-3 w-3 text-red-500 shrink-0" />
@@ -108,12 +148,9 @@ function StatusIcon({ status }: { status: DriverRuleStat["status"] }) {
   return <ShieldCheck className="h-3 w-3 text-emerald-500 shrink-0" />
 }
 
-// ─── Bar colours ─────────────────────────────────────────────────────────────
-
 function barColour(status: DriverRuleStat["status"], inverted: boolean): string {
   if (status === "violation") return "bg-red-500"
   if (status === "warning")   return "bg-amber-400"
-  // compliant — use teal for rest rules (inverted), emerald for driving rules
   return inverted ? "bg-sky-400" : "bg-emerald-500"
 }
 
@@ -122,8 +159,6 @@ function cellBg(status: DriverRuleStat["status"]): string {
   if (status === "warning")   return "bg-amber-50/50 dark:bg-amber-900/10"
   return ""
 }
-
-// ─── Driver header chip ───────────────────────────────────────────────────────
 
 function DriverHeader({
   driver,
@@ -136,23 +171,17 @@ function DriverHeader({
     overallStatus === "violation" ? "border-red-300/60 bg-red-50 dark:bg-red-900/15"
     : overallStatus === "warning"   ? "border-amber-300/60 bg-amber-50 dark:bg-amber-900/15"
     :                                  "border-emerald-300/40 bg-emerald-50/30 dark:bg-emerald-900/10"
-
   return (
     <div className={`flex flex-col items-center gap-1 px-2 py-2 rounded-xl border ${ring}`}>
       <span className="relative flex h-7 w-7 items-center justify-center rounded-full bg-muted text-[11px] font-bold shrink-0">
         {(driver.name ?? "?")[0].toUpperCase()}
         {overallStatus !== "compliant" && (
-          <span
-            className={`absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${
-              overallStatus === "violation" ? "bg-red-500" : "bg-amber-500"
-            }`}
-          />
+          <span className={`absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${
+            overallStatus === "violation" ? "bg-red-500" : "bg-amber-500"
+          }`} />
         )}
       </span>
-      <span
-        className="text-[10px] font-semibold text-center leading-tight max-w-[72px] truncate"
-        title={driver.name}
-      >
+      <span className="text-[10px] font-semibold text-center leading-tight max-w-[72px] truncate" title={driver.name}>
         {driver.name?.split(" ")[0] ?? "—"}
       </span>
       <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide ${
@@ -169,11 +198,11 @@ function DriverHeader({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface ComplianceMatrixProps {
-  drivers:          Driver[]
-  tripIndex:        Map<string, Order>
+  drivers:           Driver[]
+  tripIndex:         Map<string, Order>
   complianceReports: Map<string, RotaComplianceReport>
-  dates:            string[]   // the visible week's YYYY-MM-DD strings
-  onOpenPanel:      () => void // open the existing Issues drawer
+  dates:             string[]
+  onOpenPanel:       () => void
 }
 
 export function ComplianceMatrixView({
@@ -183,7 +212,7 @@ export function ComplianceMatrixView({
   dates,
   onOpenPanel,
 }: ComplianceMatrixProps) {
-  // Compute stats for every driver (memoised on tripIndex + dates)
+
   const driverStats = React.useMemo(() => {
     const m = new Map<string, DriverRuleStat[]>()
     for (const d of drivers) {
@@ -192,7 +221,6 @@ export function ComplianceMatrixView({
     return m
   }, [drivers, tripIndex, dates])
 
-  // Overall status per driver (from existing compliance engine reports)
   function overallStatus(driverUuid: string): "compliant" | "warning" | "violation" {
     const report = complianceReports.get(driverUuid)
     if (!report) return "compliant"
@@ -202,7 +230,6 @@ export function ComplianceMatrixView({
     return "compliant"
   }
 
-  // Summary counts
   const summary = React.useMemo(() => {
     let violations = 0, warnings = 0, compliant = 0
     for (const d of drivers) {
@@ -215,12 +242,6 @@ export function ComplianceMatrixView({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drivers, complianceReports, dates])
 
-  const sections: Array<"driving" | "resting"> = ["driving", "resting"]
-  const sectionLabel: Record<string, string> = {
-    driving: "🚛  Driving Limits",
-    resting: "🛌  Rest Requirements",
-  }
-
   if (drivers.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground">
@@ -232,9 +253,9 @@ export function ComplianceMatrixView({
   }
 
   return (
-    <div className="flex flex-col gap-0 h-full min-h-0">
+    <div className="flex flex-col h-full min-h-0">
 
-      {/* ── Header bar ─────────────────────────────────────────────────────── */}
+      {/* ── Header bar ──────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 px-4 py-3 border-b bg-card shrink-0 flex-wrap">
         <div className="flex items-center gap-4">
           <div className="text-center">
@@ -252,14 +273,12 @@ export function ComplianceMatrixView({
             <p className="text-[10px] font-medium text-muted-foreground mt-0.5">Compliant</p>
           </div>
         </div>
-
         <div className="ml-auto flex items-center gap-2 flex-wrap">
-          {/* Legend */}
           <div className="hidden sm:flex items-center gap-3 text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" />OK</span>
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" />Warning</span>
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" />Violation</span>
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-sky-400" />Rest (inverted)</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500"/>OK</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400"/>Warning</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500"/>Violation</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-sky-400"/>Rest (inverted)</span>
           </div>
           <button
             onClick={onOpenPanel}
@@ -271,32 +290,23 @@ export function ComplianceMatrixView({
         </div>
       </div>
 
-      {/* ── Matrix table ───────────────────────────────────────────────────── */}
+      {/* ── Matrix table ─────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-auto min-h-0">
         <table className="border-collapse w-full" style={{ tableLayout: "fixed" }}>
           <colgroup>
-            {/* Rule label column — fixed width */}
-            <col style={{ width: 196, minWidth: 196 }} />
-            {/* One column per driver — min 96px, expands to fill */}
-            {drivers.map(d => (
-              <col key={d.uuid} style={{ minWidth: 96 }} />
-            ))}
+            <col style={{ width: 200, minWidth: 200 }} />
+            {drivers.map(d => <col key={d.uuid} style={{ minWidth: 92 }} />)}
           </colgroup>
 
           <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur-sm">
             <tr>
-              {/* Corner cell */}
               <th className="border-b border-r border-border/60 px-3 py-2 text-left">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Rule</p>
                 <p className="text-[9px] text-muted-foreground/60">{drivers.length} drivers · {dates.length} days</p>
               </th>
-
-              {/* Driver headers */}
               {drivers.map(driver => (
-                <th
-                  key={driver.uuid}
-                  className="border-b border-r last:border-r-0 border-border/60 px-1.5 py-1.5 text-center font-normal"
-                >
+                <th key={driver.uuid}
+                    className="border-b border-r last:border-r-0 border-border/60 px-1.5 py-1.5 text-center font-normal">
                   <DriverHeader driver={driver} overallStatus={overallStatus(driver.uuid)} />
                 </th>
               ))}
@@ -304,39 +314,34 @@ export function ComplianceMatrixView({
           </thead>
 
           <tbody>
-            {sections.map(section => {
-              const rows = RULE_ROWS.filter(r => r.section === section)
+            {SECTIONS.map(section => {
+              const rows = RULE_ROWS.filter(r => r.section === section.key)
               return (
-                <React.Fragment key={section}>
-                  {/* Section header row */}
+                <React.Fragment key={section.key}>
+                  {/* Section header */}
                   <tr>
-                    <td
-                      colSpan={drivers.length + 1}
-                      className="bg-muted/40 border-b border-t border-border/40 px-3 py-1.5"
-                    >
+                    <td colSpan={drivers.length + 1}
+                        className="bg-muted/40 border-b border-t border-border/40 px-3 py-1.5">
                       <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                        {sectionLabel[section]}
+                        {section.label}
                       </span>
                     </td>
                   </tr>
 
                   {/* Data rows */}
                   {rows.map((row, rowIdx) => (
-                    <tr
-                      key={row.ruleId}
-                      className={`border-b border-border/30 ${rowIdx % 2 === 0 ? "" : "bg-muted/10"} hover:bg-muted/20 transition-colors`}
-                    >
-                      {/* Rule label column */}
+                    <tr key={row.ruleId}
+                        className={`border-b border-border/30 ${rowIdx % 2 === 0 ? "" : "bg-muted/10"} hover:bg-muted/20 transition-colors`}>
+
+                      {/* Rule label */}
                       <td className="border-r border-border/40 px-3 py-2.5 align-middle">
                         <div className="flex items-start gap-1.5">
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <p className="text-[11px] font-semibold text-foreground leading-tight">{row.label}</p>
                             <p className="text-[9px] text-muted-foreground mt-0.5">{row.sublabel}</p>
                           </div>
-                          <span
-                            className="shrink-0 mt-0.5 text-muted-foreground/40 hover:text-muted-foreground/80 cursor-help transition-colors"
-                            title={row.tooltip}
-                          >
+                          <span className="shrink-0 mt-0.5 text-muted-foreground/40 hover:text-muted-foreground/80 cursor-help transition-colors"
+                                title={row.tooltip}>
                             <Info className="h-3 w-3" />
                           </span>
                         </div>
@@ -350,28 +355,24 @@ export function ComplianceMatrixView({
                       {/* Per-driver cells */}
                       {drivers.map(driver => {
                         const stats = driverStats.get(driver.uuid) ?? []
-                        const stat = stats.find(s => s.ruleId === row.ruleId)
+                        const stat  = stats.find(s => s.ruleId === row.ruleId)
 
                         if (!stat) {
                           return (
-                            <td
-                              key={driver.uuid}
-                              className="border-r last:border-r-0 border-border/30 px-2 py-2 text-center"
-                            >
+                            <td key={driver.uuid}
+                                className="border-r last:border-r-0 border-border/30 px-2 py-2 text-center">
                               <span className="text-[9px] text-muted-foreground/40">—</span>
                             </td>
                           )
                         }
 
-                        const colour  = barColour(stat.status, row.inverted)
-                        const bg      = cellBg(stat.status)
-                        const pct     = Math.round(stat.ratio * 100)
+                        const colour = barColour(stat.status, row.inverted)
+                        const bg     = cellBg(stat.status)
+                        const pct    = Math.round(stat.ratio * 100)
 
                         return (
-                          <td
-                            key={driver.uuid}
-                            className={`border-r last:border-r-0 border-border/30 px-2 py-2 align-middle ${bg}`}
-                          >
+                          <td key={driver.uuid}
+                              className={`border-r last:border-r-0 border-border/30 px-2 py-2 align-middle ${bg}`}>
                             <div className="flex flex-col gap-1 min-w-0">
                               {/* Value + status icon */}
                               <div className="flex items-center justify-between gap-1">
@@ -385,9 +386,10 @@ export function ComplianceMatrixView({
                                 <StatusIcon status={stat.status} />
                               </div>
 
-                              {/* Progress bar */}
-                              {row.ruleId !== "OVERLAP" && (
-                                <div className="relative h-1.5 w-full rounded-full bg-muted overflow-hidden" title={`${pct}% of limit`}>
+                              {/* Progress bar (not for simple count=0 checks) */}
+                              {!(row.isCount && stat.limitMinutes === 0) && (
+                                <div className="relative h-1.5 w-full rounded-full bg-muted overflow-hidden"
+                                     title={`${pct}%${row.inverted ? " of tolerance used" : " of limit"}`}>
                                   <div
                                     className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${colour}`}
                                     style={{ width: `${pct}%` }}
@@ -397,7 +399,7 @@ export function ComplianceMatrixView({
 
                               {/* Limit label */}
                               <p className="text-[8px] text-muted-foreground/50 leading-none">
-                                {row.ruleId === "OVERLAP" ? stat.limitLabel : `/ ${stat.limitLabel}`}
+                                {stat.limitLabel}
                               </p>
                             </div>
                           </td>
@@ -412,13 +414,13 @@ export function ComplianceMatrixView({
         </table>
       </div>
 
-      {/* ── Footer note ────────────────────────────────────────────────────── */}
+      {/* ── Footer note ──────────────────────────────────────────────────────── */}
       <div className="shrink-0 border-t bg-muted/20 px-4 py-2 flex items-center gap-2">
         <Info className="h-3 w-3 text-muted-foreground/40 shrink-0" />
         <p className="text-[9px] text-muted-foreground/60">
-          All values are computed from real trip data in the current view.
-          REST_GAP and WEEKLY_REST bars are inverted: a shorter bar means more rest was taken.
-          UK HGV rules based on EC&nbsp;561/2006 (UK Assimilated Regulation).
+          All values computed from real trip data. REST_GAP, WEEKLY_REST and WEEKLY_REST_PRIOR bars are inverted — shorter bar means more rest (better).
+          CONTINUOUS_4H30 and BREAK_45 use inter-trip gaps only; intra-trip breaks are not visible in trip data.
+          UK HGV rules: EC 561/2006 (UK Assimilated Regulation).
         </p>
       </div>
     </div>
