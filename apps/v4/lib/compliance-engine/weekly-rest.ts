@@ -96,20 +96,17 @@ export function findWeeklyRestViolation(
     }
   }
 
-  // 2. Gap from the end of the last prior-week trip to the start of this week's first trip.
-  //    This is the key fix: captures Sunday/Monday rest before a Tuesday shift.
+  // 2. Gap from the end of the last prior-week trip to the first trip of the current week.
+  //    This captures Sunday/Monday rest before a Tuesday shift.
+  //    When lastPriorEnd is null (no prior trips found), we have no reliable anchor —
+  //    the driver may have been resting for days, weeks, or months before this week.
+  //    Do NOT use weekStartDate as a substitute anchor: that gives Monday − Sunday = 28h
+  //    which is a false positive for a driver who had the entire prior week off.
+  //    Omitting this candidate is the correct conservative choice: we flag only what
+  //    we can prove with the data we have.
   const firstThisWeek = sorted[0]
   if (lastPriorEnd) {
     const gapMs = firstThisWeek.startTime.getTime() - lastPriorEnd.getTime()
-    if (gapMs > 0) {
-      candidates.push({ gapMs, beforeId: "", afterId: firstThisWeek.orderId })
-    }
-  } else if (weekStartDate) {
-    // No prior trip in the loaded data → use the week boundary as a conservative lower bound.
-    // This will undercount rest if the driver last worked more than 2 weeks ago, but it is
-    // never wrong in the direction of a false positive.
-    const weekStartMs = new Date(weekStartDate + "T00:00:00").getTime()
-    const gapMs = firstThisWeek.startTime.getTime() - weekStartMs
     if (gapMs > 0) {
       candidates.push({ gapMs, beforeId: "", afterId: firstThisWeek.orderId })
     }
