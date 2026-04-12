@@ -8,6 +8,8 @@ import {
 } from "lucide-react"
 import { listOrders, type Order, type OrderStatus } from "@/lib/orders-api"
 import { listDriverLeave, listVehicleUnavailability, type LeaveRequest } from "@/lib/leave-requests-api"
+import { listDrivers, type Driver } from "@/lib/drivers-api"
+import { listVehicles, type Vehicle } from "@/lib/vehicles-api"
 import { getFileTypeIcon } from "@/app/(dashboard)/maintenance-trips/page"
 
 // ─── Attachment file cache & hook (maintenance trips only) ───────────────────
@@ -1213,6 +1215,8 @@ export default function CalendarPage() {
   // Data
   const [orders,      setOrders]      = React.useState<Order[]>([])
   const [leaveEvents, setLeaveEvents] = React.useState<LeaveRequest[]>([])
+  const [allDrivers,  setAllDrivers]  = React.useState<Driver[]>([])
+  const [allVehicles, setAllVehicles] = React.useState<Vehicle[]>([])
   const [loading,     setLoading]     = React.useState(true)
   const [error,       setError]       = React.useState<string | null>(null)
 
@@ -1238,15 +1242,19 @@ export default function CalendarPage() {
       // to capture multi-day trips/leaves that start before or end after the current month
       const from = new Date(y, m - 1, 1).toISOString().slice(0, 10)   // 1st of prev month
       const to   = new Date(y, m + 2, 1).toISOString().slice(0, 10)   // 1st of month+2 (exclusive)
-      const [ordersRes, driverRes, vehicleRes] = await Promise.allSettled([
+      const [ordersRes, driverRes, vehicleRes, allDriversRes, allVehiclesRes] = await Promise.allSettled([
         listOrders({ scheduled_at: from, end_date: to, limit: 500 }),
         listDriverLeave({ per_page: 500, sort: "-start_date" }),
         listVehicleUnavailability({ per_page: 500, sort: "-start_date" }),
+        listDrivers({ limit: 500 }),
+        listVehicles({ limit: 500 }),
       ])
       setOrders(ordersRes.status === "fulfilled" ? (ordersRes.value.data ?? []) : [])
       const dl = driverRes.status  === "fulfilled" ? (driverRes.value.data  ?? []) : []
       const vl = vehicleRes.status === "fulfilled" ? (vehicleRes.value.data ?? []) : []
       setLeaveEvents([...dl, ...vl])
+      setAllDrivers(allDriversRes.status  === "fulfilled" ? (allDriversRes.value.drivers  ?? []) : [])
+      setAllVehicles(allVehiclesRes.status === "fulfilled" ? (allVehiclesRes.value.vehicles ?? []) : [])
       if (ordersRes.status === "rejected") setError("Orders: " + (ordersRes.reason as Error).message)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load")
@@ -1320,15 +1328,52 @@ export default function CalendarPage() {
     return [...new Set([...fromOrders, ...fromLeave])].sort()
   }, [orders, leaveEvents])
 
+  // ─── Fleet membership lookup maps ───────────────────────────────────────────
+  // Built from authoritative driver.fleets[] and vehicle.fleet_vehicles[] data.
+  // Keyed by entity UUID → Set of fleet names.
+
+  const driverFleetMap = React.useMemo(() => {
+    const map = new Map<string, Set<string>>()
+    allDrivers.forEach(d => {
+      d.fleets?.forEach(f => {
+        const s = map.get(d.uuid) ?? new Set<string>()
+        s.add(f.name); map.set(d.uuid, s)
+      })
+    })
+    return map
+  }, [allDrivers])
+
+  const vehicleFleetMap = React.useMemo(() => {
+    const map = new Map<string, Set<string>>()
+    allVehicles.forEach(v => {
+      v.fleet_vehicles?.forEach(fv => {
+        if (fv.fleet?.name) {
+          const s = map.get(v.uuid) ?? new Set<string>()
+          s.add(fv.fleet.name); map.set(v.uuid, s)
+        }
+      })
+    })
+    return map
+  }, [allVehicles])
+
   // fleet name: new API nests it in o.fleet.name; legacy API uses flat o.fleet_name
   const fleetName = React.useCallback(
     (o: Order) => o.fleet?.name ?? o.fleet_name ?? null,
     []
   )
 
-  const fleetOptions = React.useMemo(() =>
-    [...new Set(orders.map(o => fleetName(o)).filter(Boolean) as string[])].sort()
-  , [orders, fleetName])
+  const fleetOptions = React.useMemo(() => {
+    const names = new Set<string>()
+    // From orders (direct fleet assignment)
+    orders.forEach(o => { const n = fleetName(o); if (n) names.add(n) })
+    // From drivers' fleet memberships
+    allDrivers.forEach(d => { d.fleets?.forEach(f => names.add(f.name)) })
+    // From vehicles' fleet memberships
+    allVehicles.forEach(v => {
+      v.fleet_vehicles?.forEach(fv => { if (fv.fleet?.name) names.add(fv.fleet.name) })
+    })
+    return [...names].sort()
+  }, [orders, allDrivers, allVehicles, fleetName])
 
   // ─── Filtered data ────────────────────────────────────────────────────────────
 
@@ -1336,18 +1381,36 @@ export default function CalendarPage() {
   const filteredOrders = React.useMemo(() => orders.filter(o => {
     if (filterDriver  && driverName(o)   !== filterDriver)  return false
     if (filterVehicle && vehiclePlate(o) !== filterVehicle) return false
-    if (filterFleet   && fleetName(o)    !== filterFleet)   return false
+    if (filterFleet) {
+      // Match: order directly assigned to fleet, OR driver belongs to fleet, OR vehicle belongs to fleet
+      const directFleet  = fleetName(o) === filterFleet
+      const driverFleets = driverFleetMap.get(o.driver_assigned?.uuid ?? "") ?? new Set()
+      const vehicleFleets = vehicleFleetMap.get(o.vehicle_assigned?.uuid ?? "") ?? new Set()
+      if (!directFleet && !driverFleets.has(filterFleet) && !vehicleFleets.has(filterFleet)) return false
+    }
     if (assignmentFilter === "assigned"   && !(hasDriver(o) && hasVehicle(o))) return false
     if (assignmentFilter === "unassigned" && (hasDriver(o)  || hasVehicle(o))) return false
     return true
-  }), [orders, filterDriver, filterVehicle, filterFleet, assignmentFilter, fleetName])
+  }), [orders, filterDriver, filterVehicle, filterFleet, assignmentFilter, fleetName, driverFleetMap, vehicleFleetMap])
 
   // Leave events filtered by entity selects:
   //  • Driver filter only  → hide all vehicle/maintenance leaves (irrelevant to the driver)
   //  • Vehicle filter only → hide all driver leaves (irrelevant to the vehicle)
   //  • Both / neither      → apply each independently as before
+  //  • Fleet filter        → restrict by driver/vehicle fleet membership
   const filteredLeave = React.useMemo(() => leaveEvents.filter(l => {
     const isVehicle = l.unavailability_type === "vehicle"
+
+    // Apply fleet filter using driver/vehicle fleet membership lookups
+    if (filterFleet) {
+      if (isVehicle) {
+        const vehicleFleets = vehicleFleetMap.get(l.vehicle_uuid ?? "") ?? new Set()
+        if (!vehicleFleets.has(filterFleet)) return false
+      } else {
+        const driverFleets = driverFleetMap.get(l.user_uuid ?? "") ?? new Set()
+        if (!driverFleets.has(filterFleet)) return false
+      }
+    }
 
     if (filterDriver && !filterVehicle) {
       // Driver-centric view — suppress all vehicle/maintenance entries
@@ -1365,7 +1428,7 @@ export default function CalendarPage() {
     if (filterDriver  && !isVehicle && l.user?.name    !== filterDriver)  return false
     if (filterVehicle &&  isVehicle && l.vehicle_name  !== filterVehicle) return false
     return true
-  }), [leaveEvents, filterDriver, filterVehicle])
+  }), [leaveEvents, filterDriver, filterVehicle, filterFleet, driverFleetMap, vehicleFleetMap])
 
   const cells = getCalendarDays(year, month)
 
