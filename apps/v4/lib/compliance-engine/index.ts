@@ -364,6 +364,24 @@ export function getDriverStats(
     return max
   }
 
+  /** Format a Date as "DD Mon HH:MM" local time — used in diagnostic tooltips */
+  function fmtFull(d: Date): string {
+    const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+    return `${d.getDate()} ${MON[d.getMonth()]} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`
+  }
+
+  /** Longest gap pair (ms + bounding timestamps) between consecutive trips */
+  function longestGapPair(sortedTrips: typeof trips): { ms: number; gapStart: Date; gapEnd: Date } | null {
+    let best: { ms: number; gapStart: Date; gapEnd: Date } | null = null
+    for (let i = 0; i < sortedTrips.length - 1; i++) {
+      const g = sortedTrips[i + 1].startTime.getTime() - sortedTrips[i].endTime.getTime()
+      if (g > 0 && (best === null || g > best.ms)) {
+        best = { ms: g, gapStart: sortedTrips[i].endTime, gapEnd: sortedTrips[i + 1].startTime }
+      }
+    }
+    return best
+  }
+
   // ───────────────────────────────────────────────────────────────────────────
   // SECTION 1 — DRIVING TIMES
   // ───────────────────────────────────────────────────────────────────────────
@@ -401,7 +419,7 @@ export function getDriverStats(
     return {
       ruleId: "CONTINUOUS_4H30", usedMinutes: usedMins, limitMinutes: limitMins,
       ratio, usedLabel: fmtMins(usedMins), limitLabel: "4h 30m",
-      detail: `Longest continuous block: ${fmtMins(usedMins)}`, status,
+      detail: `Longest unbroken driving block: ${fmtMins(usedMins)}\nLimit: 4h 30m (EC 561/2006 Art.7). A 45-min break (or 15+30 min split) resets the chain.\nNote: we can only see gaps between trips, not breaks within them.`, status,
     }
   })()
 
@@ -419,10 +437,12 @@ export function getDriverStats(
     const limitMins = 10 * 60
     const ratio     = Math.min(1, peakMins / limitMins)
     const status    = peakMs > 10 * 3600000 ? "violation" : peakMs > 9 * 3600000 ? "warning" : "compliant"
+    let peakDay = ""
+    dayTotals.forEach((ms, d) => { if (ms === peakMs) peakDay = d })
     return {
       ruleId: "DAILY_HOURS", usedMinutes: peakMins, limitMinutes: limitMins,
       ratio, usedLabel: thisWeekTrips.length === 0 ? "N/A" : fmtMins(peakMins), limitLabel: "10h max",
-      detail: `Peak day: ${fmtMins(peakMins)}`, status,
+      detail: `Peak day driving total: ${fmtMins(peakMins)}${peakDay ? ` (${peakDay})` : ""}\nLimit: 9h standard, 10h extended (max 2×/week) — EC 561/2006 Art.6.1.`, status,
     }
   })()
 
@@ -449,7 +469,7 @@ export function getDriverStats(
     return {
       ruleId: "DAILY_AMPLITUDE", usedMinutes: usedMins, limitMinutes: limitMins,
       ratio, usedLabel: thisWeekTrips.length === 0 ? "N/A" : fmtMins(usedMins), limitLabel: "15h max",
-      detail: `Peak amplitude: ${fmtMins(usedMins)}`, status,
+      detail: `Widest day span (first trip start → last trip end on a single day): ${fmtMins(usedMins)}\nLimit: 15h (EC 561/2006). Warning at 13h.`, status,
     }
   })()
 
@@ -470,7 +490,7 @@ export function getDriverStats(
       ratio,
       usedLabel:  count === 0 ? "None" : `${count} time${count !== 1 ? "s" : ""}`,
       limitLabel: "max 3×/week",
-      detail: `Reduced rest occurrences: ${count}`, status,
+      detail: `Inter-trip gaps between 9h and 11h (reduced daily rest): ${count}\nMax allowed: 3× per week (EC 561/2006 Art.8.1). Each instance requires compensation.`, status,
     }
   })()
 
@@ -485,7 +505,7 @@ export function getDriverStats(
     return {
       ruleId: "WEEKLY_HOURS", usedMinutes: totalMins, limitMinutes: limitMins,
       ratio, usedLabel: fmtMins(totalMins), limitLabel: "56h",
-      detail: `Total: ${fmtMins(totalMins)}`, status,
+      detail: `Total driving hours this week: ${fmtMins(totalMins)}\nLimit: 56h/week (EC 561/2006 Art.6.3). Warning at 50h.`, status,
     }
   })()
 
@@ -499,10 +519,12 @@ export function getDriverStats(
     const limitMins = 90 * 60
     const ratio     = Math.min(1, totalMins / limitMins)
     const status    = allMs > 90 * 3600000 ? "violation" : allMs > 80 * 3600000 ? "warning" : "compliant"
+    const thisMs  = thisWeekTrips.reduce((s, t) => s + (t.endTime.getTime() - t.startTime.getTime()), 0)
+    const priorMs = priorWeekTrips.reduce((s, t) => s + (t.endTime.getTime() - t.startTime.getTime()), 0)
     return {
       ruleId: "BIWEEKLY_HOURS", usedMinutes: totalMins, limitMinutes: limitMins,
       ratio, usedLabel: fmtMins(totalMins), limitLabel: "90h",
-      detail: `2-week total: ${fmtMins(totalMins)}`, status,
+      detail: `2-week total: ${fmtMins(totalMins)}\nThis week: ${fmtMins(thisMs/60000)} + Prior week: ${fmtMins(priorMs/60000)}\nLimit: 90h / 2 weeks (EC 561/2006 Art.6.3). Warning at 80h.`, status,
     }
   })()
 
@@ -644,48 +666,68 @@ export function getDriverStats(
       return {
         ruleId: "WEEKLY_REST", usedMinutes: 168 * 60, limitMinutes: limitMins,
         ratio: 0, usedLabel: "Full week", limitLabel: "46h policy",
-        detail: "No trips this week — assumed full rest", status: "compliant" as const,
+        detail: "No trips this week — full rest (≥ 46h policy met)", status: "compliant" as const,
       }
     }
 
-    // Last prior-week trip end — use as the pre-week lower bound for the rest gap
     const priorSorted2 = [...priorWeekTrips].sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
     const lastPriorEnd = priorSorted2.length > 0 ? priorSorted2[priorSorted2.length - 1].endTime : null
 
-    const result = findWeeklyRestViolation(weekSorted, lastPriorEnd, weekDates[0])
+    // Collect gap candidates with full timestamp context for the tooltip
+    interface WkGap { ms: number; label: string }
+    const gaps: WkGap[] = []
 
-    // null → compliant (≥46h rest found)
-    if (!result) {
-      // Report the actual best gap for the bar
-      const candidateGaps: number[] = []
-      for (let i = 0; i < weekSorted.length - 1; i++) {
-        const g = weekSorted[i+1].startTime.getTime() - weekSorted[i].endTime.getTime()
-        if (g > 0) candidateGaps.push(g)
-      }
-      if (lastPriorEnd) {
-        const g = weekSorted[0].startTime.getTime() - lastPriorEnd.getTime()
-        if (g > 0) candidateGaps.push(g)
-      } else {
-        const g = weekSorted[0].startTime.getTime() - new Date(weekDates[0] + "T00:00:00").getTime()
-        if (g > 0) candidateGaps.push(g)
-      }
-      const bestMs   = candidateGaps.length > 0 ? Math.max(...candidateGaps) : 46 * 3600000
-      const bestMins = bestMs / 60000
-      return {
-        ruleId: "WEEKLY_REST", usedMinutes: bestMins, limitMinutes: limitMins,
-        ratio: 0, usedLabel: fmtMins(bestMins), limitLabel: "46h policy",
-        detail: `Best rest this week: ${fmtMins(bestMins)}`, status: "compliant" as const,
+    // Inter-trip gaps within this week
+    for (let i = 0; i < weekSorted.length - 1; i++) {
+      const ms = weekSorted[i+1].startTime.getTime() - weekSorted[i].endTime.getTime()
+      if (ms > 0) {
+        gaps.push({
+          ms,
+          label: `Trip ends ${fmtFull(weekSorted[i].endTime)} → next trip starts ${fmtFull(weekSorted[i+1].startTime)}`,
+        })
       }
     }
 
-    const maxMins = result.longestGapMinutes
-    const maxMs   = maxMins * 60000
-    const ratio   = Math.min(1, Math.max(0, 1 - (maxMins / limitMins)))
-    const status  = maxMs < 24 * 3600000 ? "violation" : "warning"
+    // Pre-week gap: only when we have a real prior-trip anchor
+    if (lastPriorEnd) {
+      const ms = weekSorted[0].startTime.getTime() - lastPriorEnd.getTime()
+      if (ms > 0) {
+        gaps.push({
+          ms,
+          label: `Prior week trip ended ${fmtFull(lastPriorEnd)} → first trip ${fmtFull(weekSorted[0].startTime)}`,
+        })
+      }
+    }
+    // If lastPriorEnd is null (no prior trips found), omit the pre-week candidate.
+    // Using the week boundary as an anchor produces false positives (Monday 04:39 − Sunday 00:00 = 28h).
+
+    if (gaps.length === 0) {
+      // Single trip, no prior data — cannot assess weekly rest period
+      return {
+        ruleId: "WEEKLY_REST", usedMinutes: limitMins, limitMinutes: limitMins,
+        ratio: 0, usedLabel: "N/A", limitLabel: "46h policy",
+        detail: "Only 1 trip this week and no prior-week data loaded.\nCannot evaluate weekly rest period without a second reference point.",
+        status: "compliant" as const,
+      }
+    }
+
+    const best     = gaps.reduce((a, b) => a.ms > b.ms ? a : b)
+    const bestMins = best.ms / 60000
+    const bestMs   = best.ms
+
+    const status: "compliant" | "warning" | "violation" =
+      bestMs >= 46 * 3600000 ? "compliant" :
+      bestMs >= 24 * 3600000 ? "warning"   : "violation"
+
+    const ratio = status === "compliant" ? 0 : Math.min(1, Math.max(0, 1 - (bestMins / limitMins)))
+    const rule  = status === "compliant" ? "≥ 46h — compliant" :
+                  status === "warning"   ? "24–46h — reduced rest (compensation required within 3 weeks)" :
+                                          "< 24h — violation (EC 561/2006 Art.8.6)"
+
     return {
-      ruleId: "WEEKLY_REST", usedMinutes: maxMins, limitMinutes: limitMins,
-      ratio, usedLabel: fmtMins(maxMins), limitLabel: "46h policy",
-      detail: `Best rest this week: ${fmtMins(maxMins)}`, status,
+      ruleId: "WEEKLY_REST", usedMinutes: bestMins, limitMinutes: limitMins,
+      ratio, usedLabel: fmtMins(bestMins), limitLabel: "46h policy",
+      detail: `Longest rest gap this week: ${fmtMins(bestMins)}\n${best.label}\nResult: ${rule}`, status,
     }
   })()
 
@@ -695,7 +737,8 @@ export function getDriverStats(
   const priorRestStat: DriverRuleStat = (() => {
     const priorSorted = [...priorWeekTrips].sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
     const hasTrips    = priorSorted.length >= 2
-    const maxMs       = hasTrips ? longestGapMs(priorSorted) : null
+    const pair        = hasTrips ? longestGapPair(priorSorted) : null
+    const maxMs       = pair?.ms ?? null
     const maxMins     = maxMs !== null ? maxMs / 60000 : 46 * 60
     const limitMins   = 46 * 60
     const ratio       = hasTrips && maxMs !== null ? Math.min(1, Math.max(0, 1 - (maxMins / limitMins))) : 0
@@ -703,10 +746,15 @@ export function getDriverStats(
                       : hasTrips && maxMs !== null && maxMs < 46 * 3600000 ? "warning" : "compliant"
     const label       = hasTrips && maxMs !== null ? fmtMins(maxMins)
                       : priorWeekTrips.length === 0 ? "No data" : "N/A"
+    const pairDetail  = pair
+      ? `\nGap: trip ended ${fmtFull(pair.gapStart)} → next started ${fmtFull(pair.gapEnd)}`
+      : priorWeekTrips.length === 0
+        ? "\nPrior week not loaded — fetch a wider date range to see this."
+        : ""
     return {
       ruleId: "WEEKLY_REST_PRIOR", usedMinutes: maxMins, limitMinutes: limitMins,
       ratio, usedLabel: label, limitLabel: "46h policy",
-      detail: `Best rest week −1: ${label}`, status,
+      detail: `Longest rest gap in prior week (week −1): ${label}${pairDetail}`, status,
     }
   })()
 
