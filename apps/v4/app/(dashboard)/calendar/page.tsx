@@ -355,6 +355,11 @@ interface SidebarData {
 }
 
 function TripSidebar({ data, onClose }: { data: SidebarData; onClose: () => void }) {
+  const [tab, setTab] = React.useState<"all" | "trips" | "vehicle" | "drivers">("all")
+
+  // Reset to "all" whenever content changes (new day clicked)
+  React.useEffect(() => { setTab("all") }, [data])
+
   // Close on Escape key
   React.useEffect(() => {
     const fn = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
@@ -362,22 +367,40 @@ function TripSidebar({ data, onClose }: { data: SidebarData; onClose: () => void
     return () => document.removeEventListener("keydown", fn)
   }, [onClose])
 
-  const total = data.trips.length + data.leaves.length
+  const vehicleLeaves = data.leaves.filter(l => l.unavailability_type === "vehicle")
+  const driverLeaves  = data.leaves.filter(l => l.unavailability_type !== "vehicle")
+
+  const visibleTrips  = tab === "all" || tab === "trips"   ? data.trips    : []
+  const visibleLeaves = tab === "all"                       ? data.leaves
+                      : tab === "vehicle"                   ? vehicleLeaves
+                      : tab === "drivers"                   ? driverLeaves
+                      : []
+
+  const visibleCount = visibleTrips.length + visibleLeaves.length
+  const total        = data.trips.length + data.leaves.length
+
   // Each card is 300px wide with 12px gap; sidebar pads 12px each side.
-  // Grow to fit all cards side-by-side (max 4 columns), capped at 90vw.
+  // Width grows with visible card count (max 4 cols), capped at 90vw.
   const CARD_W = 300
   const GAP    = 12
-  const PAD    = 24  // 12px left + 12px right
-  const cols   = Math.min(Math.max(total, 1), 4)
+  const PAD    = 24
+  const cols   = Math.min(Math.max(visibleCount, 1), 4)
   const panelW = `min(${cols * CARD_W + (cols - 1) * GAP + PAD}px, 90vw)`
+
+  const TABS = [
+    { id: "all"     as const, label: "All",     count: total              },
+    { id: "trips"   as const, label: "Trips",   count: data.trips.length  },
+    { id: "vehicle" as const, label: "Vehicle",  count: vehicleLeaves.length },
+    { id: "drivers" as const, label: "Drivers", count: driverLeaves.length  },
+  ].filter(t => t.id === "all" || t.count > 0)  // hide empty tabs except All
 
   return (
     <>
       {/* Backdrop */}
       <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]" onClick={onClose} />
-      {/* Panel — width grows with number of cards */}
+      {/* Panel — width grows with visible card count */}
       <div
-        className="fixed inset-y-0 right-0 z-50 flex flex-col bg-card border-l shadow-2xl overflow-hidden"
+        className="fixed inset-y-0 right-0 z-50 flex flex-col bg-card border-l shadow-2xl overflow-hidden transition-[width] duration-200"
         style={{ width: panelW }}
       >
         {/* Header */}
@@ -386,8 +409,9 @@ function TripSidebar({ data, onClose }: { data: SidebarData; onClose: () => void
             <div className="font-semibold text-sm truncate">{data.title}</div>
             <div className="text-[11px] text-muted-foreground">
               {total} event{total !== 1 ? "s" : ""}
-              {data.trips.length  > 0 && ` · ${data.trips.length} trip${data.trips.length  > 1 ? "s" : ""}`}
-              {data.leaves.length > 0 && ` · ${data.leaves.length} leave${data.leaves.length > 1 ? "s" : ""}`}
+              {data.trips.length    > 0 && ` · ${data.trips.length} trip${data.trips.length > 1 ? "s" : ""}`}
+              {vehicleLeaves.length > 0 && ` · ${vehicleLeaves.length} vehicle`}
+              {driverLeaves.length  > 0 && ` · ${driverLeaves.length} driver`}
             </div>
           </div>
           <button
@@ -397,18 +421,48 @@ function TripSidebar({ data, onClose }: { data: SidebarData; onClose: () => void
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        {/* Tabs */}
+        <div className="flex gap-0.5 border-b bg-muted/30 px-3 pt-2 pb-0 shrink-0">
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`relative flex items-center gap-1.5 rounded-t-md px-3 py-1.5 text-xs font-medium transition-colors
+                ${tab === t.id
+                  ? "bg-card text-foreground shadow-sm border border-b-card border-border -mb-px"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                }`}
+            >
+              {t.label}
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none
+                ${tab === t.id
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {t.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
         {/* Content — multi-column grid; each card is exactly CARD_W px */}
         <div className="flex-1 overflow-y-auto p-3">
-          {total === 0 && (
-            <div className="text-center text-sm text-muted-foreground py-8">No events</div>
+          {visibleCount === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center text-sm text-muted-foreground gap-2">
+              <span className="text-2xl">—</span>
+              No {tab === "trips" ? "trips" : tab === "vehicle" ? "vehicle events" : "driver events"} for this period
+            </div>
+          ) : (
+            <div
+              className="grid content-start"
+              style={{ gridTemplateColumns: `repeat(${cols}, ${CARD_W}px)`, gap: GAP }}
+            >
+              {visibleTrips.map(o  => <OrderCard key={o.uuid} order={o}  />)}
+              {visibleLeaves.map(l => <LeaveCard  key={l.uuid} leave={l}  />)}
+            </div>
           )}
-          <div
-            className="grid content-start"
-            style={{ gridTemplateColumns: `repeat(${cols}, ${CARD_W}px)`, gap: GAP }}
-          >
-            {data.trips.map(o  => <OrderCard key={o.uuid} order={o}  />)}
-            {data.leaves.map(l => <LeaveCard  key={l.uuid} leave={l}  />)}
-          </div>
         </div>
       </div>
     </>
