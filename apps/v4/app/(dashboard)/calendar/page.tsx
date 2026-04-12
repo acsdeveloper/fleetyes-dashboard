@@ -551,17 +551,18 @@ function WeekView({
 }) {
   const week        = getWeekDays(anchor)
 
-  // Trips that began BEFORE this week but span into it — assigned a stable
-  // sequential number (1..N, sorted by start time) for visual cross-referencing.
+  // Multi-day trips (scheduled_at and estimated_end_date on different calendar days)
+  // that appear anywhere in this week — numbered 1..N sorted by start time.
   const allContinuing = React.useMemo(() => {
-    const weekStart = week[0]
     if (!showOrders) return [] as { order: Order; num: number }[]
     return orders
-      .filter(o =>
-        o.scheduled_at &&
-        new Date(o.scheduled_at) < weekStart &&
-        week.some(d => orderSpansDay(o, d))
-      )
+      .filter(o => {
+        if (!o.scheduled_at || !o.estimated_end_date) return false
+        // Must span MULTIPLE calendar days (start ≠ end day)
+        if (isSameDay(new Date(o.scheduled_at), new Date(o.estimated_end_date))) return false
+        // Must appear in this week
+        return week.some(d => orderSpansDay(o, d))
+      })
       .sort((a, b) => new Date(a.scheduled_at!).getTime() - new Date(b.scheduled_at!).getTime())
       .map((o, i) => ({ order: o, num: i + 1 }))
   // eslint-disable-next-line react-hooks/exhaustive-deps
