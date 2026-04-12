@@ -3,7 +3,7 @@
 import * as React from "react"
 import {
   Search, RefreshCw, Download, Calendar, Clock,
-  AlertCircle, ChevronRight, CheckCircle2, Loader2, X, Plus, Trash2, Wrench,
+  AlertCircle, ChevronRight, CheckCircle2, Loader2, X, Plus, Trash2, Wrench, Paperclip, FileText, UploadCloud,
 } from "lucide-react"
 import {
   listVehicleUnavailability, createLeaveRequest, updateLeaveRequest, deleteLeaveRequest,
@@ -149,16 +149,84 @@ function MaintenanceDrawer({
   const [deleting,    setDeleting]    = React.useState(false)
   const [error,       setError]       = React.useState<string | null>(null)
 
+  // ── File attachments (edit only) ──────────────────────────────────────────
+  interface AttachedFile { uuid: string; original_filename: string; url: string; content_type?: string }
+  const [files,        setFiles]        = React.useState<AttachedFile[]>([])
+  const [filesLoading, setFilesLoading] = React.useState(false)
+  const [uploading,    setUploading]    = React.useState(false)
+  const [fileError,    setFileError]    = React.useState<string | null>(null)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+
+  async function fetchFiles(subjectUuid: string) {
+    setFilesLoading(true)
+    try {
+      const { getToken } = await import("@/lib/ontrack-api")
+      const res = await fetch(
+        `https://ontrack-api.agilecyber.com/int/v1/files?sort=-created_at&subject_uuid=${subjectUuid}`,
+        { headers: { Authorization: `Bearer ${getToken()}` } }
+      )
+      if (!res.ok) return
+      const data = await res.json()
+      // API returns { files: [...] } or { data: [...] }
+      const list: AttachedFile[] = data?.files ?? data?.data ?? []
+      setFiles(list)
+    } catch { /* non-fatal */ }
+    finally { setFilesLoading(false) }
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!record) return
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = "" // allow re-selecting same file
+    setUploading(true); setFileError(null)
+    try {
+      const { getToken } = await import("@/lib/ontrack-api")
+      const fd = new FormData()
+      fd.append("file", file)
+      fd.append("subject_uuid", record.uuid)
+      fd.append("subject_type", "leave_request")
+      fd.append("type", "maintenance_document")
+      const res = await fetch("https://ontrack-api.agilecyber.com/int/v1/files/upload", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${getToken()}` },
+        body: fd,
+      })
+      if (!res.ok) throw new Error("Upload failed")
+      // Refresh file list
+      await fetchFiles(record.uuid)
+    } catch (err) {
+      setFileError(err instanceof Error ? err.message : "Upload failed")
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function handleFileDelete(fileUuid: string) {
+    if (!record) return
+    try {
+      const { getToken } = await import("@/lib/ontrack-api")
+      await fetch(`https://ontrack-api.agilecyber.com/int/v1/files/${fileUuid}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      })
+      setFiles(prev => prev.filter(f => f.uuid !== fileUuid))
+    } catch { setFileError("Could not delete file") }
+  }
+
   React.useEffect(() => {
     if (record) {
       setVehicleUuid(record.vehicle_uuid ?? "")
       setStartDate(record.start_date?.slice(0, 10) ?? "")
       setEndDate(record.end_date?.slice(0, 10) ?? "")
       setReason(record.reason ?? "")
+      // Load attachments on open (edit only)
+      void fetchFiles(record.uuid)
     } else {
       setVehicleUuid(""); setStartDate(""); setEndDate(""); setReason("")
+      setFiles([])
     }
-    setError(null)
+    setError(null); setFileError(null)
   }, [record, open])
 
   const handleSave = async () => {
@@ -282,6 +350,70 @@ function MaintenanceDrawer({
               placeholder="e.g. Annual service, tyre replacement, MOT…"
               className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring resize-none" />
           </div>
+
+          {/* Attachments — edit only */}
+          {isEdit && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                  <Paperclip className="h-3 w-3" /> Attachments
+                </label>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted disabled:opacity-50 transition-colors"
+                >
+                  {uploading
+                    ? <><Loader2 className="h-3 w-3 animate-spin" /> Uploading…</>
+                    : <><UploadCloud className="h-3 w-3" /> Attach file</>}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                />
+              </div>
+
+              {fileError && (
+                <p className="text-xs text-red-500">{fileError}</p>
+              )}
+
+              {filesLoading ? (
+                <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading attachments…
+                </div>
+              ) : files.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">No attachments yet.</p>
+              ) : (
+                <ul className="divide-y rounded-lg border overflow-hidden">
+                  {files.map(f => (
+                    <li key={f.uuid} className="flex items-center gap-2 px-3 py-2 bg-background hover:bg-muted/30 transition-colors">
+                      <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <a
+                        href={f.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 min-w-0 truncate text-xs text-primary hover:underline"
+                        title={f.original_filename}
+                      >
+                        {f.original_filename}
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => handleFileDelete(f.uuid)}
+                        className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                        title="Remove attachment"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
