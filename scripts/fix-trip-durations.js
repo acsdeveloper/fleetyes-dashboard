@@ -118,18 +118,47 @@ async function run(dryRun = true) {
   const allTrips = await fetchAllTrips();
 
   // ── Identify bad trips ────────────────────────────────────────────────────
+  // Three cases to catch:
+  //  1. estimated_end_date is set and duration > MIN_BAD_HOURS
+  //  2. estimated_end_date is null but order.time (seconds) > MIN_BAD_HOURS * 3600
+  //  3. estimated_end_date is null and order.time is missing/zero → unknown duration
   const badTrips = allTrips.filter(o => {
     if (!o.scheduled_at) return false;
-    if (!o.estimated_end_date) return false;           // no end date — skip
-    const h = durationHours(o.scheduled_at, o.estimated_end_date);
-    return h !== null && h >= CONFIG.MIN_BAD_HOURS;
+
+    if (o.estimated_end_date) {
+      // Case 1: has end date — check duration
+      const h = durationHours(o.scheduled_at, o.estimated_end_date);
+      return h !== null && h > CONFIG.MIN_BAD_HOURS;
+    }
+
+    if (o.time && o.time > 0) {
+      // Case 2: no end date but has a time field (seconds) — check it
+      const hFromTime = o.time / 3600;
+      return hFromTime > CONFIG.MIN_BAD_HOURS;
+    }
+
+    // Case 3: no end date and no time — flag as unknown, needs fixing
+    return true;
   });
+
+  // Compute current duration for display (using whichever source is available)
+  function currentDuration(o) {
+    if (o.estimated_end_date) return durationHours(o.scheduled_at, o.estimated_end_date);
+    if (o.time && o.time > 0)  return o.time / 3600;
+    return null;
+  }
+
+  function currentSource(o) {
+    if (o.estimated_end_date) return "estimated_end_date";
+    if (o.time && o.time > 0)  return `time (${o.time}s = ${fmtH(o.time / 3600)})`;
+    return "none — will add";
+  }
 
   const clean = allTrips.length - badTrips.length;
 
   console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-  console.log(`🔎  Trips with duration ≥ ${CONFIG.MIN_BAD_HOURS}h  →  ${badTrips.length} found`);
-  console.log(`✅  Already-correct trips (< ${CONFIG.MIN_BAD_HOURS}h)  →  ${clean}`);
+  console.log(`🔎  Bad trips (duration > ${CONFIG.MIN_BAD_HOURS}h or missing)  →  ${badTrips.length} found`);
+  console.log(`✅  Already-correct trips  →  ${clean}`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
   if (badTrips.length === 0) {
@@ -139,14 +168,13 @@ async function run(dryRun = true) {
 
   // ── Preview table ─────────────────────────────────────────────────────────
   const tableData = badTrips.map(o => {
-    const currentH = durationHours(o.scheduled_at, o.estimated_end_date);
-    const newEnd   = fixedEndDate(o.scheduled_at);
+    const newEnd = fixedEndDate(o.scheduled_at);
     return {
       id:           o.public_id ?? o.uuid.slice(0, 8),
       driver:       o.driver_assigned?.name ?? o.driver_name ?? "–",
       start:        fmt(o.scheduled_at),
-      current_end:  fmt(o.estimated_end_date),
-      current_dur:  fmtH(currentH),
+      source:       currentSource(o),
+      current_dur:  fmtH(currentDuration(o)),
       new_end:      fmt(newEnd),
       new_dur:      "12h 30m",
     };
@@ -165,7 +193,8 @@ async function run(dryRun = true) {
 
   for (const order of badTrips) {
     const newEnd = fixedEndDate(order.scheduled_at);
-    const payload = { order: { estimated_end_date: newEnd } };
+    // Write both fields so the API and compliance engine both see the correct value
+    const payload = { order: { estimated_end_date: newEnd, time: CONFIG.SOLO_DURATION_MS / 1000 } };
 
     try {
       // 1. Apply
