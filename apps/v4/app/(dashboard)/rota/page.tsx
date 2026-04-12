@@ -1546,30 +1546,32 @@ export default function RotaPage() {
                               {(() => {
                                 const wh = getDriverWeeklyHoursInfo(driver.uuid)
                                 if (wh.hours === 0) return null
-                                const r    = 11
+                                const SIZE = 46
+                                const cx   = SIZE / 2
+                                const r    = 16
                                 const circ = 2 * Math.PI * r
                                 const dash = circ * wh.pct
                                 return (
                                   <div
                                     className="relative ml-auto shrink-0 flex items-center justify-center"
-                                    style={{ width: 34, height: 34 }}
+                                    style={{ width: SIZE, height: SIZE }}
                                     title={wh.tooltipText}
                                   >
-                                    <svg width="34" height="34" style={{ transform: "rotate(-90deg)", position: "absolute", inset: 0 }}>
+                                    <svg width={SIZE} height={SIZE} style={{ transform: "rotate(-90deg)", position: "absolute", inset: 0 }}>
                                       {/* track */}
-                                      <circle cx="17" cy="17" r={r} fill="none" stroke="#e5e7eb" strokeWidth="3" />
+                                      <circle cx={cx} cy={cx} r={r} fill="none" stroke="#e5e7eb" strokeWidth="3.5" />
                                       {/* progress arc */}
                                       <circle
-                                        cx="17" cy="17" r={r}
+                                        cx={cx} cy={cx} r={r}
                                         fill="none"
                                         stroke={wh.color}
-                                        strokeWidth="3"
+                                        strokeWidth="3.5"
                                         strokeLinecap="round"
                                         strokeDasharray={`${dash} ${circ}`}
                                         style={{ transition: "stroke-dasharray 0.35s ease, stroke 0.35s ease" }}
                                       />
                                     </svg>
-                                    <span style={{ fontSize: 7.5, fontWeight: 700, color: wh.color, lineHeight: 1 }}>
+                                    <span style={{ fontSize: 10, fontWeight: 500, color: wh.color, lineHeight: 1 }}>
                                       {wh.label}
                                     </span>
                                   </div>
