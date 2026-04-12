@@ -749,6 +749,25 @@ export default function RotaPage() {
   // Index of all orders fetched for the current week (uuid → Order) for cell labels
   const [tripIndex, setTripIndex] = React.useState<Map<string, Order>>(new Map())
 
+  // ── annotatedTripIndex — tripIndex + rota-entry driver assignments ──────────
+  // listOrders may not return driver_assigned_uuid on trips that are already
+  // allocated. The rota entries (local store) are the authoritative
+  // driver→trip mapping. This memo overlays them so the compliance engine and
+  // the matrix always see the correct driver for every trip, even on cold load.
+  const annotatedTripIndex = React.useMemo(() => {
+    const out = new Map(tripIndex)
+    const weekRotas = getWeekRota(dates)
+    for (const rota of weekRotas) {
+      for (const uuid of rota.trip_uuids ?? []) {
+        const order = out.get(uuid)
+        if (order && !order.driver_assigned_uuid) {
+          out.set(uuid, { ...order, driver_assigned_uuid: rota.driver_uuid })
+        }
+      }
+    }
+    return out
+  }, [tripIndex, dates])
+
   // ── Single source of truth: derive assignedTripUuids from the live API (tripIndex) ──
   // This means external unassignments (via the Trips module) are always reflected here.
   React.useEffect(() => {
@@ -907,26 +926,24 @@ export default function RotaPage() {
     })
   }
 
-  // ── Compliance Engine — Run checks using tripIndex (no extra API calls) ─────
+  // ── Compliance Engine — Run checks using annotatedTripIndex (no extra API calls) ──
   const runComplianceChecks = React.useCallback(() => {
-    if (drivers.length === 0 || tripIndex.size === 0) return
+    if (drivers.length === 0 || annotatedTripIndex.size === 0) return
     const results = new Map<string, RotaComplianceReport>()
     for (const driver of drivers) {
-      // Pass dates (Sun–Sat) so the engine can run weekly/biweekly checks
-      results.set(driver.uuid, runComplianceCheck(driver.uuid, tripIndex, dates))
+      results.set(driver.uuid, runComplianceCheck(driver.uuid, annotatedTripIndex, dates))
     }
     setComplianceReports(results)
-  }, [drivers, tripIndex, dates])
+  }, [drivers, annotatedTripIndex, dates])
 
 
-  // Re-run compliance whenever tripIndex or drivers change.
-  // No loaderDone guard — we want violations to show for pre-existing trips
-  // as soon as the API data arrives, even before the loading animation ends.
+  // Re-run compliance whenever annotatedTripIndex or drivers change — fires on page load
+  // as soon as both API responses arrive, with no user action required.
   React.useEffect(() => {
-    if (drivers.length === 0 || tripIndex.size === 0) return
+    if (drivers.length === 0 || annotatedTripIndex.size === 0) return
     runComplianceChecks()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drivers, wk, tripIndex])
+  }, [drivers, wk, annotatedTripIndex])
 
   /**
    * Get all violations/warnings for a specific driver + date cell.
@@ -1415,7 +1432,7 @@ export default function RotaPage() {
         <div className="flex-1 min-h-0 overflow-hidden rounded-xl border bg-card">
           <ComplianceMatrixView
             drivers={drivers}
-            tripIndex={tripIndex}
+            tripIndex={annotatedTripIndex}
             complianceReports={complianceReports}
             dates={dates}
             onOpenPanel={() => setCompliancePanelOpen(true)}
