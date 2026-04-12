@@ -1308,69 +1308,14 @@ export default function CalendarPage() {
   const hasDriver  = (o: Order) => !!(o.driver_name || o.driver_assigned_uuid || o.driver_assigned)
   const hasVehicle = (o: Order) => !!(o.vehicle_assigned?.plate_number || o.vehicle_assigned_uuid)
 
-  // ─── Dynamic context-aware filter option lists ──────────────────────────────
-  // Each list narrows based on the other two currently-active filters.
-  // Empty list → the corresponding select is disabled in the UI.
-
-  const driverOptions = React.useMemo(() => {
-    const fromOrders = orders.map(driverName).filter(Boolean) as string[]
-    const fromLeave  = leaveEvents
-      .filter(l => l.unavailability_type !== "vehicle")
-      .map(l => l.user?.name)
-      .filter(Boolean) as string[]
-    let all = [...new Set([...fromOrders, ...fromLeave])].sort()
-
-    // Narrow by active fleet filter: only drivers belonging to that fleet
-    if (filterFleet) {
-      all = all.filter(name => {
-        const uuid = driverNameToUuid.get(name)
-        return uuid ? (driverFleetMap.get(uuid)?.has(filterFleet) ?? false) : false
-      })
-    }
-    // Narrow by active vehicle filter: only drivers who share an order with that vehicle
-    if (filterVehicle) {
-      const driversForVehicle = new Set(
-        orders.filter(o => vehiclePlate(o) === filterVehicle).map(driverName).filter(Boolean) as string[]
-      )
-      all = all.filter(name => driversForVehicle.has(name))
-    }
-    return all
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orders, leaveEvents, filterFleet, filterVehicle, driverFleetMap, driverNameToUuid])
-
-  const vehicleOptions = React.useMemo(() => {
-    const fromOrders = orders.map(vehiclePlate).filter(Boolean) as string[]
-    const fromLeave  = leaveEvents
-      .filter(l => l.unavailability_type === "vehicle")
-      .map(l => l.vehicle_name)
-      .filter(Boolean) as string[]
-    let all = [...new Set([...fromOrders, ...fromLeave])].sort()
-
-    // Narrow by active fleet filter: only vehicles belonging to that fleet
-    if (filterFleet) {
-      all = all.filter(plate => {
-        const uuid = vehiclePlateToUuid.get(plate)
-        return uuid ? (vehicleFleetMap.get(uuid)?.has(filterFleet) ?? false) : false
-      })
-    }
-    // Narrow by active driver filter: only vehicles that share an order with that driver
-    if (filterDriver) {
-      const vehiclesForDriver = new Set(
-        orders.filter(o => driverName(o) === filterDriver).map(vehiclePlate).filter(Boolean) as string[]
-      )
-      all = all.filter(plate => vehiclesForDriver.has(plate))
-    }
-    return all
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orders, leaveEvents, filterFleet, filterDriver, vehicleFleetMap, vehiclePlateToUuid])
-
   // ─── Reverse-lookup maps: name/plate → UUID ────────────────────────────────
   // Needed to cross-reference name-based filter state with UUID-keyed fleet maps.
+  // MUST be declared before the options lists that reference them.
 
   const driverNameToUuid = React.useMemo(() => {
     const map = new Map<string, string>()
     allDrivers.forEach(d => map.set(d.name, d.uuid))
-    // Also seed from orders in case a driver name appears there but isn't in allDrivers yet
+    // Seed from orders too in case a driver appears there but not in allDrivers
     orders.forEach(o => {
       const name = driverName(o); const uuid = o.driver_assigned?.uuid
       if (name && uuid) map.set(name, uuid)
@@ -1422,6 +1367,60 @@ export default function CalendarPage() {
     []
   )
 
+  // ─── Dynamic context-aware filter option lists ──────────────────────────────
+  // Each list narrows based on the other two currently-active filters.
+  // Empty list → the corresponding select is disabled in the UI.
+
+  const driverOptions = React.useMemo(() => {
+    const fromOrders = orders.map(driverName).filter(Boolean) as string[]
+    const fromLeave  = leaveEvents
+      .filter(l => l.unavailability_type !== "vehicle")
+      .map(l => l.user?.name)
+      .filter(Boolean) as string[]
+    let all = [...new Set([...fromOrders, ...fromLeave])].sort()
+
+    // Narrow by active fleet filter: only drivers belonging to that fleet
+    if (filterFleet) {
+      all = all.filter(name => {
+        const uuid = driverNameToUuid.get(name)
+        return uuid ? (driverFleetMap.get(uuid)?.has(filterFleet) ?? false) : false
+      })
+    }
+    // Narrow by active vehicle filter: only drivers who share an order with that vehicle
+    if (filterVehicle) {
+      const driversForVehicle = new Set(
+        orders.filter(o => vehiclePlate(o) === filterVehicle).map(driverName).filter(Boolean) as string[]
+      )
+      all = all.filter(name => driversForVehicle.has(name))
+    }
+    return all
+  }, [orders, leaveEvents, filterFleet, filterVehicle, driverFleetMap, driverNameToUuid])
+
+  const vehicleOptions = React.useMemo(() => {
+    const fromOrders = orders.map(vehiclePlate).filter(Boolean) as string[]
+    const fromLeave  = leaveEvents
+      .filter(l => l.unavailability_type === "vehicle")
+      .map(l => l.vehicle_name)
+      .filter(Boolean) as string[]
+    let all = [...new Set([...fromOrders, ...fromLeave])].sort()
+
+    // Narrow by active fleet filter: only vehicles belonging to that fleet
+    if (filterFleet) {
+      all = all.filter(plate => {
+        const uuid = vehiclePlateToUuid.get(plate)
+        return uuid ? (vehicleFleetMap.get(uuid)?.has(filterFleet) ?? false) : false
+      })
+    }
+    // Narrow by active driver filter: only vehicles that share an order with that driver
+    if (filterDriver) {
+      const vehiclesForDriver = new Set(
+        orders.filter(o => driverName(o) === filterDriver).map(vehiclePlate).filter(Boolean) as string[]
+      )
+      all = all.filter(plate => vehiclesForDriver.has(plate))
+    }
+    return all
+  }, [orders, leaveEvents, filterFleet, filterDriver, vehicleFleetMap, vehiclePlateToUuid])
+
   const fleetOptions = React.useMemo(() => {
     const names = new Set<string>()
     // From orders (direct fleet assignment)
@@ -1461,7 +1460,6 @@ export default function CalendarPage() {
   React.useEffect(() => {
     if (filterFleet   && fleetOptions.length   > 0 && !fleetOptions.includes(filterFleet))     setFilterFleet("")
   }, [fleetOptions,  filterFleet])
-
 
 
   // ─── Filtered data ────────────────────────────────────────────────────────────
