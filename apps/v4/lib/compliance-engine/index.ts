@@ -65,7 +65,7 @@ export const COMPLIANCE_RULES: ComplianceRuleDefinition[] = [
   {
     id:          "WEEKLY_HOURS",
     title:       "Weekly Working Hours",
-    description: "EC 561/2006 Art.6.3: maximum 56h working in any single week. Warning issued at 50h.",
+    description: "EU Transport WTD (2002/15/EC): maximum 60h working time in any single week. Warning issued at 55h.",
     severity:    "hard",
     category:    "Weekly Limits",
     limit:       "56h",
@@ -494,18 +494,20 @@ export function getDriverStats(
     }
   })()
 
-  // ── 5. WEEKLY_HOURS — total driving time this week ────────────────────────
-  //  EC 561/2006 Art.6.3: max 56h/week. Warning at 50h.
+  // ── 5. WEEKLY_HOURS — total working time this week ────────────────────────
+  //  EU Transport WTD (2002/15/EC): absolute max 60h/week. Warning at 55h.
+  //  NOTE: Trip duration = total shift/working time, not pure driving time.
+  //  EC 561/2006 per-trip driving limits (56h/week) do NOT apply to total shift hours.
   const weeklyStat: DriverRuleStat = (() => {
     const totalMs   = thisWeekTrips.reduce((s, t) => s + (t.endTime.getTime() - t.startTime.getTime()), 0)
     const totalMins = totalMs / 60000
-    const limitMins = 56 * 60
+    const limitMins = 60 * 60
     const ratio     = Math.min(1, totalMins / limitMins)
-    const status    = totalMs > 56 * 3600000 ? "violation" : totalMs > 50 * 3600000 ? "warning" : "compliant"
+    const status    = totalMs > 60 * 3600000 ? "violation" : totalMs > 55 * 3600000 ? "warning" : "compliant"
     return {
       ruleId: "WEEKLY_HOURS", usedMinutes: totalMins, limitMinutes: limitMins,
-      ratio, usedLabel: fmtMins(totalMins), limitLabel: "56h",
-      detail: `Total driving hours this week: ${fmtMins(totalMins)}\nLimit: 56h/week (EC 561/2006 Art.6.3). Warning at 50h.`, status,
+      ratio, usedLabel: fmtMins(totalMins), limitLabel: "60h",
+      detail: `Total working hours this week: ${fmtMins(totalMins)}\nLimit: 60h/week (EU Transport WTD 2002/15/EC). Warning at 55h.\nIncludes total shift time, not just driving time.`, status,
     }
   })()
 

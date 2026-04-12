@@ -948,7 +948,15 @@ export default function RotaPage() {
   /**
    * Get all violations/warnings for a specific driver + date cell.
    * Returns { violations: [...], warnings: [...] }
+   *
+   * Weekly rules (WEEKLY_REST, WEEKLY_HOURS, BIWEEKLY_HOURS) are attributed to
+   * Saturday (the week-end date) by the engine, but should visually appear on
+   * EVERY day of the week — so an operator can see at a glance that the whole
+   * week is affected, not just Saturday.
    */
+  const WEEKLY_RULE_IDS = new Set([
+    "WEEKLY_REST", "WEEKLY_REST_PRIOR", "WEEKLY_HOURS", "BIWEEKLY_HOURS",
+  ])
   function getCellCompliance(driverUuid: string, date: string): {
     violations: ComplianceViolation[]
     warnings: ComplianceViolation[]
@@ -956,8 +964,12 @@ export default function RotaPage() {
     const report = complianceReports.get(driverUuid)
     if (!report) return { violations: [], warnings: [] }
     return {
-      violations: report.violations.filter(v => v.date === date),
-      warnings:   report.warnings.filter(w => w.date === date),
+      violations: report.violations.filter(v =>
+        v.date === date || (WEEKLY_RULE_IDS.has(v.ruleId) && weekSet.has(v.date))
+      ),
+      warnings: report.warnings.filter(w =>
+        w.date === date || (WEEKLY_RULE_IDS.has(w.ruleId) && weekSet.has(w.date))
+      ),
     }
   }
 

@@ -21,12 +21,16 @@
  */
 
 export const WEEKLY_HOURS_RULES = {
-  WEEKLY_WARN_HOURS:     50,
-  WEEKLY_MAX_HOURS:      56,
+  // EU Transport Working Time Directive (2002/15/EC):
+  //   Absolute single-week max: 60h
+  //   Warning threshold: 55h (buffer before absolute limit)
+  //   Biweekly max: 90h (same 2-week limit as EC 561/2006 driving hours)
+  WEEKLY_WARN_HOURS:     55,
+  WEEKLY_MAX_HOURS:      60,
   BIWEEKLY_WARN_HOURS:   80,
   BIWEEKLY_MAX_HOURS:    90,
-  WEEKLY_WARN_MS:        50 * 3600 * 1000,
-  WEEKLY_MAX_MS:         56 * 3600 * 1000,
+  WEEKLY_WARN_MS:        55 * 3600 * 1000,
+  WEEKLY_MAX_MS:         60 * 3600 * 1000,
   BIWEEKLY_WARN_MS:      80 * 3600 * 1000,
   BIWEEKLY_MAX_MS:       90 * 3600 * 1000,
 } as const
@@ -83,7 +87,7 @@ export function checkWeeklyHours(
       ruleId:        "WEEKLY_HOURS",
       totalMinutes,
       severity:      "violation",
-      message:       `${fmtHoursMin(totalMinutes)} of driving ${weekLabel} — exceeds 56h weekly maximum (EC 561/2006 Art.6.3).`,
+      message:       `${fmtHoursMin(totalMinutes)} of working time ${weekLabel} — exceeds 60h weekly maximum (EU Transport WTD 2002/15/EC).`,
       contributingTripUuids: uuids,
     }
   }
@@ -93,7 +97,7 @@ export function checkWeeklyHours(
       ruleId:        "WEEKLY_HOURS",
       totalMinutes,
       severity:      "warning",
-      message:       `${fmtHoursMin(totalMinutes)} of driving ${weekLabel} — approaching 56h weekly maximum (EC 561/2006 Art.6.3).`,
+      message:       `${fmtHoursMin(totalMinutes)} of working time ${weekLabel} — approaching 60h weekly maximum (EU Transport WTD 2002/15/EC).`,
       contributingTripUuids: uuids,
     }
   }
@@ -125,7 +129,7 @@ export function checkBiweeklyHours(
       ruleId:        "BIWEEKLY_HOURS",
       totalMinutes,
       severity:      "violation",
-      message:       `${fmtHoursMin(totalMinutes)} of driving across ${label} — exceeds 90h biweekly maximum (EC 561/2006 Art.6.3).`,
+      message:       `${fmtHoursMin(totalMinutes)} of working time across ${label} — exceeds 90h biweekly maximum (EU Transport WTD 2002/15/EC).`,
       contributingTripUuids: uuids,
     }
   }
@@ -135,7 +139,7 @@ export function checkBiweeklyHours(
       ruleId:        "BIWEEKLY_HOURS",
       totalMinutes,
       severity:      "warning",
-      message:       `${fmtHoursMin(totalMinutes)} of driving across ${label} — approaching 90h biweekly maximum (EC 561/2006 Art.6.3).`,
+      message:       `${fmtHoursMin(totalMinutes)} of working time across ${label} — approaching 90h biweekly maximum (EU Transport WTD 2002/15/EC).`,
       contributingTripUuids: uuids,
     }
   }
