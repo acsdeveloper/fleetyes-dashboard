@@ -1030,7 +1030,7 @@ export default function RotaPage() {
     const hours = ms / 3600000
     const h     = Math.floor(hours)
     const m     = Math.round((hours % 1) * 60)
-    const label = m === 0 ? `${h}h` : `${h}h${m}`
+    const label = m === 0 ? `${h}h` : `${parseFloat(hours.toFixed(1))}h`
     const pct   = Math.min(1, hours / 60)
     const color = hours > 60 ? "#ef4444" : hours > 55 ? "#f59e0b" : "#22c55e"
     const tooltipText = `${h}h${m > 0 ? ` ${m}m` : ""} of 60h weekly working time (WTD)`
