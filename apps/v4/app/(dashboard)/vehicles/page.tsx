@@ -7,7 +7,7 @@ import {
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
 import { listVehicles, createVehicle, updateVehicle, exportVehicles, bulkDeleteVehicles, importVehicles, type Vehicle, type FleetVehicle } from "@/lib/vehicles-api"
-import { listFleets, type Fleet } from "@/lib/fleets-api"
+import { listFleets, assignVehicleToFleet, removeVehicleFromFleet, type Fleet } from "@/lib/fleets-api"
 import { ImportModal } from "@/components/import-modal"
 
 import { AgGridReact } from "ag-grid-react"
@@ -157,7 +157,9 @@ function VehicleDrawer({ open, vehicle, fleets, onClose, onSaved }: {
       setMake(vehicle.make ?? "")
       setModel(vehicle.model ?? "")
       setYear(vehicle.year != null ? String(vehicle.year) : "")
-      setFleetUuid(vehicle.fleet_uuid ?? "")
+      // fleet_uuid is not a top-level field in the API response —
+      // fleet membership lives in fleet_vehicles[0].fleet_uuid
+      setFleetUuid(vehicle.fleet_vehicles?.[0]?.fleet_uuid ?? vehicle.fleet_uuid ?? "")
       setPmiDate(vehicle.last_pmi_date?.slice(0,10) ?? "")
       setTachoDate(vehicle.tachograph_cal_date?.slice(0,10) ?? "")
       setStatusVal(normaliseStatus(vehicle.status))
@@ -173,20 +175,31 @@ function VehicleDrawer({ open, vehicle, fleets, onClose, onSaved }: {
     if (!make.trim())  { setError("Make is required."); return }
     setSaving(true); setError(null)
     try {
+      const prevFleetUuid = vehicle?.fleet_vehicles?.[0]?.fleet_uuid ?? vehicle?.fleet_uuid ?? ""
       const common = {
         plate_number:         plate.trim().toUpperCase(),
         make:                 make.trim(),
         model:                model      || undefined,
         year:                 year       || undefined,
-        fleet_uuid:           fleetUuid  || undefined,
         last_pmi_date:        pmiDate    || undefined,
         tachograph_cal_date:  tachoDate  || undefined,
         status:               (statusVal === "active" ? "active" : "inactive") as "active" | "inactive",
       }
+      let savedUuid: string
       if (isEdit && vehicle) {
         await updateVehicle(vehicle.uuid, common)
+        savedUuid = vehicle.uuid
       } else {
-        await createVehicle(common)
+        const created = await createVehicle(common)
+        savedUuid = created.uuid
+      }
+      // Manage fleet assignment via the proper pivot endpoints
+      if (fleetUuid && fleetUuid !== prevFleetUuid) {
+        // New or changed fleet — assign via pivot
+        await assignVehicleToFleet(savedUuid, fleetUuid)
+      } else if (!fleetUuid && prevFleetUuid && isEdit) {
+        // Fleet was cleared — remove via pivot
+        await removeVehicleFromFleet(savedUuid, prevFleetUuid)
       }
       onSaved(); onClose()
     } catch (e) {
