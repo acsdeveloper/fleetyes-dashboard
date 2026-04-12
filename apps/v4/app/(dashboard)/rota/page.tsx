@@ -1546,9 +1546,9 @@ export default function RotaPage() {
                               {(() => {
                                 const wh = getDriverWeeklyHoursInfo(driver.uuid)
                                 if (wh.hours === 0) return null
-                                const SIZE = 46
+                                const SIZE = 30
                                 const cx   = SIZE / 2
-                                const r    = 16
+                                const r    = 11
                                 const circ = 2 * Math.PI * r
                                 const dash = circ * wh.pct
                                 return (
@@ -1559,19 +1559,19 @@ export default function RotaPage() {
                                   >
                                     <svg width={SIZE} height={SIZE} style={{ transform: "rotate(-90deg)", position: "absolute", inset: 0 }}>
                                       {/* track */}
-                                      <circle cx={cx} cy={cx} r={r} fill="none" stroke="#e5e7eb" strokeWidth="3.5" />
+                                      <circle cx={cx} cy={cx} r={r} fill="none" stroke="#e5e7eb" strokeWidth="2" />
                                       {/* progress arc */}
                                       <circle
                                         cx={cx} cy={cx} r={r}
                                         fill="none"
                                         stroke={wh.color}
-                                        strokeWidth="3.5"
+                                        strokeWidth="2"
                                         strokeLinecap="round"
                                         strokeDasharray={`${dash} ${circ}`}
                                         style={{ transition: "stroke-dasharray 0.35s ease, stroke 0.35s ease" }}
                                       />
                                     </svg>
-                                    <span style={{ fontSize: 10, fontWeight: 500, color: wh.color, lineHeight: 1 }}>
+                                    <span style={{ fontSize: 9, fontWeight: 500, color: wh.color, lineHeight: 1 }}>
                                       {wh.label}
                                     </span>
                                   </div>
