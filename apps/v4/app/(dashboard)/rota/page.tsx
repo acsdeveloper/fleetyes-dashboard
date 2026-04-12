@@ -1266,10 +1266,15 @@ export default function RotaPage() {
   // so the layout doesn't reflow on every dragOver and break DnD hit-testing.
   // Non-target columns collapse to 0; target takes all remaining width.
   const COL_TRANSITION = "width 0.25s ease, min-width 0.25s ease, max-width 0.25s ease, opacity 0.15s ease"
+  // During drag: target date column expands (9999px → clipped by flex parent),
+  // all other date columns collapse to 0.
+  // Driver-name column shrinks from 120 to 80px so the table total stays inside
+  // the container and doesn't trigger a horizontal scrollbar.
   function colW(d: string) {
     if (!draggingDate) return 52
     return d === draggingDate ? 9999 : 0
   }
+  const driverColW = draggingDate ? 80 : 120
 
   // Preference match: compute once per render so all rows can reference it
   const draggingTime = draggingTrip?.scheduled_at ? isoLocalTime(draggingTrip.scheduled_at) : null
@@ -1408,7 +1413,7 @@ export default function RotaPage() {
       <div className="flex flex-1 gap-4 min-h-0">
 
         {/* ── Left: driver grid ─────────────────────────────────────────── */}
-        <div className="flex-1 min-w-0 overflow-auto rounded-xl border bg-card">
+        <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden rounded-xl border bg-card">
           {(loading || !loaderDone) ? (
             <RotaLoader apiReady={!loading} onFinished={handleLoaderFinished} />
           ) : (
@@ -1417,7 +1422,7 @@ export default function RotaPage() {
                 <tr className="border-b">
                   <th
                     className="py-2 text-left text-[11px] font-bold text-muted-foreground px-2 overflow-hidden"
-                    style={{ width: 120, minWidth: 120, maxWidth: 120 }}
+                    style={{ width: driverColW, minWidth: driverColW, maxWidth: driverColW, transition: COL_TRANSITION }}
                   >Driver</th>
                   {dates.map((d, i) => (
                     <th
@@ -1446,8 +1451,8 @@ export default function RotaPage() {
                               : "hover:bg-muted/10"}
                           `}
                         >
-                          {/* Avatar + name, fixed 120px */}
-                          <td className="px-2 py-1 w-[120px] min-w-[120px] max-w-[120px] overflow-hidden">
+                          {/* Avatar + name, fixed width shrinks slightly during drag */}
+                          <td className="px-2 py-1 overflow-hidden" style={{ width: driverColW, minWidth: driverColW, maxWidth: driverColW, transition: COL_TRANSITION }}>
                             <div className="flex items-center gap-1.5 min-w-0">
                               <span className="relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-bold">
                                 {(driver.name ?? "?")[0].toUpperCase()}
