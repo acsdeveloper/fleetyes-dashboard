@@ -393,57 +393,61 @@ function LeaveCard({ leave: l }: { leave: LeaveRequest }) {
 // ─── Trip sidebar ─────────────────────────────────────────────────────────────
 
 interface SidebarData {
-  title:  string
-  trips:  Order[]
-  leaves: LeaveRequest[]
+  title:       string
+  trips:       Order[]
+  leaves:      LeaveRequest[]
+  continuing?: Order[]     // week-scoped continuing trips (started before this week)
+  initialTab?: 'all' | 'trips' | 'vehicle' | 'drivers' | 'continuing'
 }
 
 function TripSidebar({ data, onClose }: { data: SidebarData; onClose: () => void }) {
-  const [tab, setTab] = React.useState<"all" | "trips" | "vehicle" | "drivers">("all")
+  const [tab, setTab] = React.useState<'all' | 'trips' | 'vehicle' | 'drivers' | 'continuing'>('all')
 
-  // Reset to "all" whenever content changes (new day clicked)
-  React.useEffect(() => { setTab("all") }, [data])
+  // Reset to requested initial tab whenever content changes (new day clicked)
+  React.useEffect(() => { setTab(data.initialTab ?? 'all') }, [data])
 
   // Close on Escape key
   React.useEffect(() => {
-    const fn = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
-    document.addEventListener("keydown", fn)
-    return () => document.removeEventListener("keydown", fn)
+    const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', fn)
+    return () => document.removeEventListener('keydown', fn)
   }, [onClose])
 
-  const vehicleLeaves = data.leaves.filter(l => l.unavailability_type === "vehicle")
-  const driverLeaves  = data.leaves.filter(l => l.unavailability_type !== "vehicle")
+  const vehicleLeaves    = data.leaves.filter(l => l.unavailability_type === 'vehicle')
+  const driverLeaves     = data.leaves.filter(l => l.unavailability_type !== 'vehicle')
+  const contOrders       = data.continuing ?? []
 
-  const visibleTrips  = tab === "all" || tab === "trips"   ? data.trips    : []
-  const visibleLeaves = tab === "all"                       ? data.leaves
-                      : tab === "vehicle"                   ? vehicleLeaves
-                      : tab === "drivers"                   ? driverLeaves
+  const visibleTrips  = tab === 'all' || tab === 'trips'      ? data.trips     : []
+  const visibleLeaves = tab === 'all'                          ? data.leaves
+                      : tab === 'vehicle'                      ? vehicleLeaves
+                      : tab === 'drivers'                      ? driverLeaves
                       : []
+  const visibleCont   = tab === 'all' || tab === 'continuing'  ? contOrders     : []
 
-  const visibleCount = visibleTrips.length + visibleLeaves.length
-  const total        = data.trips.length + data.leaves.length
+  const visibleCount = visibleTrips.length + visibleLeaves.length + visibleCont.length
+  const total        = data.trips.length + data.leaves.length + contOrders.length
 
-  // Sidebar width is locked to the TOTAL count on open — never shrinks when switching tabs.
-  // Grid column count adapts to the filtered (visible) count.
+  // Sidebar width locked to TOTAL on open; grid cols adapt per tab
   const CARD_W    = 300
   const GAP       = 12
   const PAD       = 24
-  const panelCols = Math.min(Math.max(total, 1), 4)        // locked width
-  const gridCols  = Math.min(Math.max(visibleCount, 1), 4) // adapts per tab
+  const panelCols = Math.min(Math.max(total, 1), 4)
+  const gridCols  = Math.min(Math.max(visibleCount, 1), 4)
   const panelW    = `min(${panelCols * CARD_W + (panelCols - 1) * GAP + PAD}px, 90vw)`
 
   const TABS = [
-    { id: "all"     as const, label: "All",     count: total              },
-    { id: "trips"   as const, label: "Trips",   count: data.trips.length  },
-    { id: "vehicle" as const, label: "Vehicle",  count: vehicleLeaves.length },
-    { id: "drivers" as const, label: "Drivers", count: driverLeaves.length  },
-  ].filter(t => t.id === "all" || t.count > 0)  // hide empty tabs except All
+    { id: 'all'        as const, label: 'All',        count: total                },
+    { id: 'trips'      as const, label: 'Trips',      count: data.trips.length    },
+    { id: 'vehicle'    as const, label: 'Vehicle',    count: vehicleLeaves.length },
+    { id: 'drivers'    as const, label: 'Drivers',    count: driverLeaves.length  },
+    { id: 'continuing' as const, label: 'Continuing', count: contOrders.length   },
+  ].filter(t => t.id === 'all' || t.count > 0)
 
   return (
     <>
       {/* Backdrop */}
       <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]" onClick={onClose} />
-      {/* Panel — width grows with visible card count */}
+      {/* Panel */}
       <div
         className="fixed inset-y-0 right-0 z-50 flex flex-col bg-card border-l shadow-2xl overflow-hidden transition-[width] duration-200"
         style={{ width: panelW }}
@@ -453,10 +457,11 @@ function TripSidebar({ data, onClose }: { data: SidebarData; onClose: () => void
           <div className="flex-1 min-w-0">
             <div className="font-semibold text-sm truncate">{data.title}</div>
             <div className="text-[11px] text-muted-foreground">
-              {total} event{total !== 1 ? "s" : ""}
-              {data.trips.length    > 0 && ` · ${data.trips.length} trip${data.trips.length > 1 ? "s" : ""}`}
+              {total} event{total !== 1 ? 's' : ''}
+              {data.trips.length    > 0 && ` · ${data.trips.length} trip${data.trips.length > 1 ? 's' : ''}`}
               {vehicleLeaves.length > 0 && ` · ${vehicleLeaves.length} vehicle`}
               {driverLeaves.length  > 0 && ` · ${driverLeaves.length} driver`}
+              {contOrders.length    > 0 && ` · ${contOrders.length} continuing`}
             </div>
           </div>
           <button
@@ -475,15 +480,15 @@ function TripSidebar({ data, onClose }: { data: SidebarData; onClose: () => void
               onClick={() => setTab(t.id)}
               className={`relative flex items-center gap-1.5 rounded-t-md px-3 py-1.5 text-xs font-medium transition-colors
                 ${tab === t.id
-                  ? "bg-card text-foreground shadow-sm border border-b-card border-border -mb-px"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                  ? 'bg-card text-foreground shadow-sm border border-b-card border-border -mb-px'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
                 }`}
             >
               {t.label}
               <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none
                 ${tab === t.id
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground"
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground'
                 }`}
               >
                 {t.count}
@@ -492,19 +497,20 @@ function TripSidebar({ data, onClose }: { data: SidebarData; onClose: () => void
           ))}
         </div>
 
-        {/* Content — multi-column grid; each card is exactly CARD_W px */}
+        {/* Content */}
         <div className="flex-1 overflow-y-auto p-3">
           {visibleCount === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center text-sm text-muted-foreground gap-2">
               <span className="text-2xl">—</span>
-              No {tab === "trips" ? "trips" : tab === "vehicle" ? "vehicle events" : "driver events"} for this period
+              No {tab === 'trips' ? 'trips' : tab === 'vehicle' ? 'vehicle events' : tab === 'drivers' ? 'driver events' : tab === 'continuing' ? 'continuing trips' : 'events'} for this period
             </div>
           ) : (
             <div
               className="grid content-start"
               style={{ gridTemplateColumns: `repeat(${gridCols}, ${CARD_W}px)`, gap: GAP }}
             >
-              {/* Leaves (vehicle + driver) first, trips after */}
+              {/* Continuing first, then leaves, then trips */}
+              {visibleCont.map(o   => <OrderCard key={o.uuid} order={o}  />)}
               {visibleLeaves.map(l => <LeaveCard  key={l.uuid} leave={l}  />)}
               {visibleTrips.map(o  => <OrderCard key={o.uuid} order={o}  />)}
             </div>
@@ -544,6 +550,24 @@ function WeekView({
   onSidebar: (d: SidebarData) => void
 }) {
   const week        = getWeekDays(anchor)
+
+  // Trips that began BEFORE this week but span into it — assigned a stable
+  // sequential number (1..N, sorted by start time) for visual cross-referencing.
+  const allContinuing = React.useMemo(() => {
+    const weekStart = week[0]
+    if (!showOrders) return [] as { order: Order; num: number }[]
+    return orders
+      .filter(o =>
+        o.scheduled_at &&
+        new Date(o.scheduled_at) < weekStart &&
+        week.some(d => orderSpansDay(o, d))
+      )
+      .sort((a, b) => new Date(a.scheduled_at!).getTime() - new Date(b.scheduled_at!).getTime())
+      .map((o, i) => ({ order: o, num: i + 1 }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orders, anchor, showOrders])
+  /** UUID → sequential number for end-marker circles */
+  const contNumMap = new Map(allContinuing.map(({ order: o, num }) => [o.uuid, num]))
   const PX_PER_HOUR = 32   // 32px/hr × 24h = 1536px — proper density, scrollable
   const FIRST_HOUR  = HOURS[0]
 
@@ -571,7 +595,7 @@ function WeekView({
     return counts
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orders, anchor, showOrders])
-  const CIRCLE_SIZE = 14             // px — end-marker dot diameter
+  const CIRCLE_SIZE = 18             // px — end-marker dot (larger to fit number)
   const CIRCLE_GAP  = 2              // px — gap between stacked dots
 
   // endsPerHour: max continuation trips ENDING in each hour across all days.
@@ -695,9 +719,10 @@ function WeekView({
                         type="button"
                         title={`${leaveLabel(l)}: ${name} — click to open`}
                         onClick={() => onSidebar({
-                          title:  dayLabel,
-                          trips:  ordersForDay(d),
-                          leaves: leaveForDay(d),
+                          title:      dayLabel,
+                          trips:      ordersForDay(d),
+                          leaves:     leaveForDay(d),
+                          continuing: allContinuing.map(c => c.order),
                         })}
                         className={`overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-pointer text-left w-full ${colorCls}`}
                       >
@@ -715,6 +740,64 @@ function WeekView({
               )
             })}
           </div>
+
+          {/* ── Continuing trips strip (between all-day and time grid) ───────── */}
+          {allContinuing.length > 0 && (
+            <div className="flex border-b bg-indigo-50/30 dark:bg-indigo-950/20">
+              <div className="w-14 shrink-0 border-r flex items-center justify-end pr-1">
+                <span className="text-[7px] text-muted-foreground leading-tight text-right">cont.</span>
+              </div>
+              {week.map((d, i) => {
+                const dayConts = allContinuing.filter(({ order: o }) => orderSpansDay(o, d))
+                const shown    = dayConts.slice(0, 4)
+                const extra    = dayConts.length - shown.length
+                const dayLabel = d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })
+                return (
+                  <div key={i} className="flex-1 border-r p-0.5 flex flex-wrap gap-0.5 min-h-[14px]">
+                    {shown.map(({ order: o, num }) => {
+                      const chip = orderChip(o, hd, hv)
+                      return (
+                        <div
+                          key={o.uuid}
+                          title={`#${num} ${o.internal_id ?? o.public_id}\nStarted: ${fmtDate(o.scheduled_at)}\nDriver: ${driverName(o) ?? 'No driver'}\nVehicle: ${vehiclePlate(o) ?? 'No vehicle'}`}
+                          className={`flex items-center gap-0.5 rounded px-1 py-0.5 text-[8px] font-medium overflow-hidden cursor-pointer hover:opacity-90 transition-opacity ${chip}`}
+                          style={{ width: 'calc(50% - 1px)' }}
+                          onClick={() => onSidebar({
+                            title:      dayLabel,
+                            trips:      ordersForDay(d),
+                            leaves:     leaveForDay(d),
+                            continuing: allContinuing.map(c => c.order),
+                            initialTab: 'continuing',
+                          })}
+                        >
+                          <span className="shrink-0 rounded-full h-3.5 w-3.5 flex items-center justify-center bg-white/40 dark:bg-black/30 font-bold text-[7px] leading-none border border-current/20">
+                            {num}
+                          </span>
+                          <span className="truncate leading-none">{fmtTime(o.scheduled_at!)} {o.internal_id ?? o.public_id}</span>
+                        </div>
+                      )
+                    })}
+                    {extra > 0 && (
+                      <button
+                        type="button"
+                        className="flex items-center justify-center rounded px-1 py-0.5 text-[8px] font-bold bg-muted/80 hover:bg-primary hover:text-primary-foreground transition-colors leading-none"
+                        style={{ width: 'calc(50% - 1px)' }}
+                        onClick={() => onSidebar({
+                          title:      dayLabel,
+                          trips:      ordersForDay(d),
+                          leaves:     leaveForDay(d),
+                          continuing: allContinuing.map(c => c.order),
+                          initialTab: 'continuing',
+                        })}
+                      >
+                        +{extra}
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {/* ── Time grid ───────────────────────────────────────────────── */}
@@ -790,8 +873,8 @@ function WeekView({
                       nodes.push(
                         <div
                           key={`end-${o.uuid}`}
-                          title={`${o.internal_id ?? o.public_id} ends ${fmtTime(o.estimated_end_date!)}`}
-                          className={`absolute rounded-full border-2 ${chip} opacity-90`}
+                          title={`#${contNumMap.get(o.uuid)} ${o.internal_id ?? o.public_id} ends ${fmtTime(o.estimated_end_date!)}`}
+                          className={`absolute rounded-full border-2 ${chip} flex items-center justify-center text-[7px] font-bold opacity-90`}
                           style={{
                             top:    startY + i * (CIRCLE_SIZE + CIRCLE_GAP),
                             right:  1,
@@ -799,7 +882,9 @@ function WeekView({
                             height: CIRCLE_SIZE,
                             zIndex: 10,
                           }}
-                        />
+                        >
+                          {contNumMap.get(o.uuid)}
+                        </div>
                       )
                     })
                   })
