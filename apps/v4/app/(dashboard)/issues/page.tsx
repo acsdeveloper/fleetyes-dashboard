@@ -150,8 +150,12 @@ function Field({ label, required, children }: { label: string; required?: boolea
   )
 }
 
+// Token evaluated at module level — Next.js inlines NEXT_PUBLIC_* at build time,
+// no need for typeof-window guards here.
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? ""
+
 // Inline Leaflet picker — same pattern as Places map picker
-function buildIssuePickerHtml(lat: number | null, lng: number | null, mapboxToken: string): string {
+function buildIssuePickerHtml(lat: number | null, lng: number | null): string {
   const cLat = lat ?? 52.5
   const cLng = lng ?? -1.7
   const zoom = lat != null ? 14 : 6
@@ -168,9 +172,9 @@ function buildIssuePickerHtml(lat: number | null, lng: number | null, mapboxToke
 <body><div id="map"></div><script>
 var map=L.map('map',{zoomControl:true}).setView([${cLat},${cLng}],${zoom});
 ${
-  mapboxToken
-    ? `L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/256/{z}/{x}/{y}@2x?access_token=${mapboxToken}',{maxZoom:22,tileSize:256,attribution:'© Mapbox © OSM'}).addTo(map);`
-    : `L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OSM'}).addTo(map);`
+  MAPBOX_TOKEN
+    ? `L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/256/{z}/{x}/{y}@2x?access_token=${MAPBOX_TOKEN}',{maxZoom:22,tileSize:256,attribution:'\u00a9 Mapbox \u00a9 OSM'}).addTo(map);`
+    : `L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'\u00a9 OSM'}).addTo(map);`
 }
 var pin=null;
 ${pinJs}
@@ -256,9 +260,12 @@ function IssueDrawer({ open, issue, drivers, vehicles, users, onClose, onSaved }
     if (!report.trim()) { setError("Report description is required."); return }
     setSaving(true); setError(null)
     try {
-      const location = lat != null && lng != null
-        ? { type: "Point" as const, coordinates: [lng, lat] as [number, number], bbox: [0, 0, 0, 0] as [number, number, number, number] }
-        : undefined
+      // Always send location key — API requires it; default to [0,0] when no pin placed
+      const location = {
+        type: "Point" as const,
+        coordinates: [lng ?? 0, lat ?? 0] as [number, number],
+        bbox: [0, 0, 0, 0] as [number, number, number, number],
+      }
       const payload = {
         report:            report.trim(),
         driver_uuid:       driverUuid   || undefined,
@@ -366,7 +373,7 @@ function IssueDrawer({ open, issue, drivers, vehicles, users, onClose, onSaved }
                   title="Incident location picker"
                   className="h-full w-full border-0"
                   sandbox="allow-scripts allow-same-origin"
-                  srcDoc={buildIssuePickerHtml(lat, lng, mapboxToken)}
+                  srcDoc={buildIssuePickerHtml(lat, lng)}
                 />
               </div>
             )}
