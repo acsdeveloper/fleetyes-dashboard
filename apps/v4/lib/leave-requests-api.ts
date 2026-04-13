@@ -14,7 +14,7 @@ const LEAVE_BASE = "https://ontrack-api.agilecyber.com/api/v1"
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type LeaveStatus = "Approved" | "Submitted" | "Rejected" | "Pending"
-export type LeaveType   = "Annual Leave" | "Sick Leave" | "Vacation" | "Other"
+export type LeaveType   = "Annual Leave" | "sick" | "Vacation" | "Other"
 /** Union of all known values — covers both old ("Holiday"/"Off-shift") and new API doc values */
 export type NonAvailabilityType = "leave" | "non_working_day" | "vehicle" | "Holiday" | "Off-shift"
 
