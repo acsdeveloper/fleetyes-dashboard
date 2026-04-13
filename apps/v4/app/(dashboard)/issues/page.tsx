@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import {
-  Search, RefreshCw, Download, Trash2, X, Loader2, ChevronDown, AlertTriangle,
+  Search, RefreshCw, Download, Trash2, X, Loader2, ChevronDown, AlertTriangle, MapPin,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
 import {
@@ -150,6 +150,39 @@ function Field({ label, required, children }: { label: string; required?: boolea
   )
 }
 
+// Inline Leaflet picker — same pattern as Places map picker
+function buildIssuePickerHtml(lat: number | null, lng: number | null, mapboxToken: string): string {
+  const cLat = lat ?? 52.5
+  const cLng = lng ?? -1.7
+  const zoom = lat != null ? 14 : 6
+  const pinJs = lat != null
+    ? `var pin=L.marker([${lat},${lng}],{draggable:true}).addTo(map);
+       pin.on('dragend',function(){var ll=pin.getLatLng();window.parent.postMessage({type:'issue-pick-coords',lat:ll.lat,lng:ll.lng},'*');});`
+    : ""
+  return `<!DOCTYPE html><html><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
+<style>*{margin:0;padding:0;box-sizing:border-box}html,body,#map{width:100%;height:100%;cursor:crosshair}
+.leaflet-container{cursor:crosshair!important}\n</style></head>
+<body><div id="map"></div><script>
+var map=L.map('map',{zoomControl:true}).setView([${cLat},${cLng}],${zoom});
+${
+  mapboxToken
+    ? `L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/256/{z}/{x}/{y}@2x?access_token=${mapboxToken}',{maxZoom:22,tileSize:256,attribution:'© Mapbox © OSM'}).addTo(map);`
+    : `L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OSM'}).addTo(map);`
+}
+var pin=null;
+${pinJs}
+map.on('click',function(e){
+  if(pin){map.removeLayer(pin);}
+  pin=L.marker(e.latlng,{draggable:true}).addTo(map);
+  pin.on('dragend',function(){var ll=pin.getLatLng();window.parent.postMessage({type:'issue-pick-coords',lat:ll.lat,lng:ll.lng},'*');});
+  window.parent.postMessage({type:'issue-pick-coords',lat:e.latlng.lat,lng:e.latlng.lng},'*');
+});
+<\/script></body></html>`
+}
+
 function IssueDrawer({ open, issue, drivers, vehicles, users, onClose, onSaved }: DrawerProps) {
   const { t } = useLang()
   const i18n = t.issues
@@ -165,6 +198,9 @@ function IssueDrawer({ open, issue, drivers, vehicles, users, onClose, onSaved }
   const [category,        setCategory]        = React.useState("")
   const [assignedTo,      setAssignedTo]      = React.useState("")
   const [reportedBy,      setReportedBy]      = React.useState("")
+  const [lat,             setLat]             = React.useState<number | null>(null)
+  const [lng,             setLng]             = React.useState<number | null>(null)
+  const [showMap,         setShowMap]         = React.useState(false)
   const [saving,          setSaving]          = React.useState(false)
   const [error,           setError]           = React.useState<string | null>(null)
 
@@ -188,17 +224,41 @@ function IssueDrawer({ open, issue, drivers, vehicles, users, onClose, onSaved }
       setCategory(issue.category ?? "")
       setAssignedTo(issue.assigned_to_uuid ?? "")
       setReportedBy(issue.reported_by_uuid ?? "")
+      // Hydrate location coordinates
+      if (issue.location?.coordinates?.length === 2) {
+        setLng(issue.location.coordinates[0])
+        setLat(issue.location.coordinates[1])
+      } else {
+        setLat(null); setLng(null)
+      }
     } else {
       setReport(""); setDriverUuid(""); setVehicleUuid(""); setPriority("")
       setStatusVal("pending"); setIssueType(""); setCategory(""); setAssignedTo(""); setReportedBy("")
+      setLat(null); setLng(null)
     }
     setError(null)
+    setShowMap(false)
   }, [issue, open])
+
+  // Listen for pin drops from the map iframe
+  React.useEffect(() => {
+    if (!showMap) return
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type !== "issue-pick-coords") return
+      setLat(e.data.lat)
+      setLng(e.data.lng)
+    }
+    window.addEventListener("message", handler)
+    return () => window.removeEventListener("message", handler)
+  }, [showMap])
 
   const handleSave = async () => {
     if (!report.trim()) { setError("Report description is required."); return }
     setSaving(true); setError(null)
     try {
+      const location = lat != null && lng != null
+        ? { type: "Point" as const, coordinates: [lng, lat] as [number, number], bbox: [0, 0, 0, 0] as [number, number, number, number] }
+        : undefined
       const payload = {
         report:            report.trim(),
         driver_uuid:       driverUuid   || undefined,
@@ -209,6 +269,7 @@ function IssueDrawer({ open, issue, drivers, vehicles, users, onClose, onSaved }
         category:          category     || undefined,
         assigned_to_uuid:  assignedTo   || undefined,
         reported_by_uuid:  reportedBy   || undefined,
+        location,
       }
       if (isEdit && issue) {
         await updateIssue(issue.uuid, payload)
@@ -250,11 +311,66 @@ function IssueDrawer({ open, issue, drivers, vehicles, users, onClose, onSaved }
             <textarea
               value={report}
               onChange={e => setReport(e.target.value)}
-              rows={4}
+              rows={3}
               placeholder="Describe the issue…"
               className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none resize-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
             />
           </Field>
+
+          {/* ── Location picker ──────────────────────────────────────── */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Incident Location
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowMap(v => !v)}
+                className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+                  showMap
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <MapPin className="h-3 w-3" />
+                {showMap ? "Hide map" : "Pin location"}
+              </button>
+            </div>
+
+            {/* Coordinate badge / hint */}
+            {lat != null && lng != null ? (
+              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs dark:border-red-800 dark:bg-red-950/30">
+                <MapPin className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                <span className="font-mono text-red-700 dark:text-red-300 flex-1">
+                  {lat.toFixed(6)}, {lng.toFixed(6)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { setLat(null); setLng(null) }}
+                  className="ml-auto rounded p-0.5 hover:bg-red-100 dark:hover:bg-red-900/50 text-red-500"
+                  title="Clear location"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-muted-foreground/30 px-3 py-2 text-xs text-muted-foreground">
+                No location pinned — click &ldquo;Pin location&rdquo; to drop a marker on the map
+              </div>
+            )}
+
+            {/* Inline Leaflet map — 280px tall */}
+            {showMap && (
+              <div className="overflow-hidden rounded-xl border" style={{ height: 280 }}>
+                <iframe
+                  title="Incident location picker"
+                  className="h-full w-full border-0"
+                  sandbox="allow-scripts allow-same-origin"
+                  srcDoc={buildIssuePickerHtml(lat, lng, mapboxToken)}
+                />
+              </div>
+            )}
+          </div>
 
           {/* Priority + Status */}
           <div className="grid grid-cols-2 gap-3">
