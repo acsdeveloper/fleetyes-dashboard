@@ -5,7 +5,7 @@ import * as React from "react"
 import {
   Search, Download, Plus, RefreshCw, X, Loader2,
   AlertCircle, Trash2, Upload, CheckCircle2, XCircle, FileText,
-  ChevronLeft, ChevronRight, Filter, Send, Pencil,
+  Filter, Send, Pencil,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
 import { useConfirm } from "@/components/confirm-dialog"
@@ -18,6 +18,26 @@ import {
 } from "@/lib/fuel-reports-api"
 import { listVehicles, type Vehicle } from "@/lib/vehicles-api"
 import { listDrivers, type Driver } from "@/lib/drivers-api"
+
+import { AgGridReact } from "ag-grid-react"
+import {
+  type ColDef, type ICellRendererParams,
+  ModuleRegistry, AllCommunityModule, themeQuartz,
+} from "ag-grid-community"
+ModuleRegistry.registerModules([AllCommunityModule])
+
+const _teBase = {
+  fontFamily: "var(--font-sans, 'Montserrat', 'Inter', system-ui, sans-serif)",
+  fontSize: 13, rowHeight: 39, headerHeight: 38,
+  backgroundColor: "var(--background)", foregroundColor: "var(--foreground)",
+  headerBackgroundColor: "var(--muted)", headerTextColor: "var(--muted-foreground)",
+  borderColor: "var(--border)", rowBorder: false, wrapperBorder: false,
+  headerRowBorder: false, columnBorder: false,
+  cellHorizontalPaddingScale: 1.1, rowVerticalPaddingScale: 1,
+  selectedRowBackgroundColor: "var(--accent)", gridSize: 5, scrollbarWidth: 6,
+}
+const teLightTheme = themeQuartz.withParams({ ..._teBase, backgroundColor: "#ffffff", foregroundColor: "#1f2933", headerBackgroundColor: "#f9fafb", headerTextColor: "#39485d", borderColor: "#eff0f1", rowHoverColor: "#f5f7fb", selectedRowBackgroundColor: "#edf2ff" })
+const teDarkTheme  = themeQuartz.withParams({ ..._teBase, backgroundColor: "#141414", foregroundColor: "#e5e5e5", headerBackgroundColor: "#1e2531", headerTextColor: "#c9d0da",  borderColor: "#2a2a2a",  rowHoverColor: "#1f2937", selectedRowBackgroundColor: "#1e3a5f" })
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -188,6 +208,8 @@ function TollSlideOver({
 type ImportStep = "upload" | "uploading" | "importing" | "done" | "error"
 
 function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const { t } = useLang()
+  const c = t.common
   const [step, setStep] = React.useState<ImportStep>("upload")
   const [file, setFile] = React.useState<File | null>(null)
   const [result, setResult] = React.useState<Awaited<ReturnType<typeof importTollReports>> | null>(null)
@@ -303,6 +325,8 @@ interface AmazonPreview {
 }
 
 function SendToAmazonModal({ onClose, onSent }: { onClose: () => void; onSent: () => void }) {
+  const { t } = useLang()
+  const c = t.common
   const [step, setStep] = React.useState<AmazonStep>("period")
   const [fromDate, setFromDate] = React.useState("")
   const [toDate, setToDate] = React.useState("")
@@ -324,9 +348,9 @@ function SendToAmazonModal({ onClose, onSent }: { onClose: () => void; onSent: (
         start_date: fromDate || undefined,
         end_date: toDate || undefined,
       })
-      const records = res.toll_reports
-      const amount = records.reduce((a, r) => a + Number(r.amount ?? 0), 0)
-      setPreview({ total: res.meta.total, amount, currency: records[0]?.currency ?? "GBP" })
+      const records = (res.fuel_reports ?? []) as TollReport[]
+      const amount = records.reduce((a: number, r: TollReport) => a + Number(r.amount ?? 0), 0)
+      setPreview({ total: res.meta?.total ?? records.length, amount, currency: records[0]?.currency ?? "GBP" })
       setStep("preview")
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load preview")
@@ -534,6 +558,8 @@ function FilterPanel({ open, onClose, filters, setFilters, vehicles }: {
   filters: Filters; setFilters: (f: Filters) => void
   vehicles: Vehicle[]
 }) {
+  const { t } = useLang()
+  const c = t.common
   const [local, setLocal] = React.useState<Filters>(filters)
   const set = <K extends keyof Filters>(k: K, v: string) => setLocal(f => ({ ...f, [k]: v }))
   React.useEffect(() => { setLocal(filters) }, [filters])
@@ -598,15 +624,27 @@ export default function TollExpensesPage() {
   const [search, setSearch] = React.useState("")
   const [filters, setFilters] = React.useState<Filters>(EMPTY_FILTERS)
   const [page, setPage] = React.useState(1)
-  const [selected, setSelected] = React.useState<Set<string>>(new Set())
   const [slideOver, setSlideOver] = React.useState<TollReport | null | "new">(null)
   const [showImport, setShowImport] = React.useState(false)
   const [showFilter, setShowFilter] = React.useState(false)
+  const [showFilters, setShowFilters] = React.useState(false)
   const [showAmazon, setShowAmazon] = React.useState(false)
   const [showCards, setShowCards] = React.useState(false)
   const [searchFocused, setSearchFocused] = React.useState(false)
-  const [deleting, setDeleting] = React.useState<string | null>(null)
   const [exporting, setExporting] = React.useState(false)
+  const [refreshing, setRefreshing] = React.useState(false)
+  const [selectedCount, setSelectedCount] = React.useState(0)
+
+  const [isDark, setIsDark] = React.useState(false)
+  React.useEffect(() => {
+    const sync = () => setIsDark(document.documentElement.classList.contains("dark"))
+    sync()
+    const obs = new MutationObserver(sync)
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
+    return () => obs.disconnect()
+  }, [])
+
+  const gridRef = React.useRef<AgGridReact<TollReport>>(null)
 
   const [vehicles, setVehicles] = React.useState<Vehicle[]>([])
   const [drivers, setDrivers] = React.useState<Driver[]>([])
@@ -653,24 +691,18 @@ export default function TollExpensesPage() {
   React.useEffect(() => { fetchData(page) }, [page])
 
   const handleDelete = async (uuid: string) => {
-    const ok = await confirm({
-      title: "Delete toll record",
-      description: "This will permanently remove the toll expense record.",
-    })
+    const ok = await confirm({ title: "Delete toll record", description: "This will permanently remove the toll record." })
     if (!ok) return
-    setDeleting(uuid)
     try { await deleteTollReport(uuid); fetchData(page) }
     catch (e: unknown) { alert(e instanceof Error ? e.message : "Delete failed") }
-    finally { setDeleting(null) }
   }
 
   const handleBulkDelete = async () => {
-    const ok = await confirm({
-      title: `Delete ${selected.size} record${selected.size !== 1 ? "s" : ""}`,
-      description: "This action is permanent and cannot be undone.",
-    })
+    const sel = gridRef.current?.api?.getSelectedRows() ?? []
+    if (!sel.length) return
+    const ok = await confirm({ title: `Delete ${sel.length} record${sel.length !== 1 ? "s" : ""}`, description: "This action is permanent and cannot be undone." })
     if (!ok) return
-    try { await bulkDeleteFuelReports([...selected]); setSelected(new Set()); fetchData(page) }
+    try { await bulkDeleteFuelReports(sel.map(r => r.uuid)); fetchData(page) }
     catch (e: unknown) { alert(e instanceof Error ? e.message : "Delete failed") }
   }
 
@@ -681,10 +713,73 @@ export default function TollExpensesPage() {
     finally { setExporting(false) }
   }
 
-  const toggleSelect = (uuid: string) =>
-    setSelected(s => { const n = new Set(s); if (n.has(uuid)) n.delete(uuid); else n.add(uuid); return n })
-  const toggleAll = () =>
-    setSelected(s => s.size === records.length ? new Set() : new Set(records.map(r => r.uuid)))
+  const handleRefresh = async () => { setRefreshing(true); await fetchData(page); setRefreshing(false) }
+
+  // Stable actions ref
+  const actionsRef = React.useRef({ onEdit: (r: TollReport) => setSlideOver(r), onDelete: handleDelete })
+  React.useEffect(() => { actionsRef.current = { onEdit: (r: TollReport) => setSlideOver(r), onDelete: handleDelete } })
+
+  // Amazon badge map (extended)
+  const AMAZON_GRID: Record<string, { bg: string; border: string; text: string; dot: string }> = {
+    new:      { bg: "bg-blue-50 dark:bg-blue-900/20",   border: "border-blue-300/70",   text: "text-blue-800 dark:text-blue-300",   dot: "bg-blue-500" },
+    sent:     { bg: "bg-violet-50 dark:bg-violet-900/20", border: "border-violet-300/70", text: "text-violet-800 dark:text-violet-300", dot: "bg-violet-500" },
+    accepted: { bg: "bg-emerald-50 dark:bg-emerald-900/20", border: "border-emerald-300/70", text: "text-emerald-800 dark:text-emerald-300", dot: "bg-emerald-500" },
+    rejected: { bg: "bg-red-50 dark:bg-red-900/20",     border: "border-red-300/70",     text: "text-red-700 dark:text-red-400",     dot: "bg-red-500" },
+  }
+
+  const colDefs = React.useMemo<ColDef<TollReport>[]>(() => [
+    {
+      colId: "_edit", headerName: "", width: 40, minWidth: 40, maxWidth: 40,
+      sortable: false, filter: false, resizable: false, pinned: "left" as const, suppressMovable: true,
+      cellRenderer: ({ data }: ICellRendererParams<TollReport>) => data ? (
+        <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); actionsRef.current.onEdit(data) }}
+          className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
+          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z" />
+          </svg>
+        </button>
+      ) : null,
+    },
+    { headerName: "Vehicle",   valueGetter: ({ data }) => data?.vehicle?.plate_number ?? "",  filter: "agTextColumnFilter", width: 130, cellRenderer: ({ value }: ICellRendererParams) => <span className="font-mono font-bold text-xs">{value || <span className="text-muted-foreground">—</span>}</span> },
+    { headerName: "Driver",    valueGetter: ({ data }) => data?.driver?.name ?? "",             filter: "agTextColumnFilter", flex: 1.2, minWidth: 130, cellRenderer: ({ value }: ICellRendererParams) => <span className="font-medium">{value || <span className="text-muted-foreground">—</span>}</span> },
+    { headerName: "Date",      valueGetter: ({ data }) => data?.crossing_date || data?.created_at || "", filter: "agDateColumnFilter", width: 148, sort: "desc", cellRenderer: ({ data }: ICellRendererParams<TollReport>) => <span className="text-xs text-muted-foreground">{fmt(data?.crossing_date || data?.created_at)}</span> },
+    { headerName: "VRID",      field: "vr_id",      filter: "agTextColumnFilter", width: 110, cellRenderer: ({ value }: ICellRendererParams) => <span className="font-mono text-xs">{value || "—"}</span> },
+    { headerName: "Direction", field: "direction",  filter: "agTextColumnFilter", width: 110, cellRenderer: ({ value }: ICellRendererParams) => <span className="text-xs text-muted-foreground">{value || "—"}</span> },
+    { headerName: "Amount",    valueGetter: ({ data }) => data?.amount ?? 0, filter: "agNumberColumnFilter", width: 100, cellRenderer: ({ data }: ICellRendererParams<TollReport>) => <span className="font-semibold tabular-nums">{data?.currency ?? "GBP"} {Number(data?.amount ?? 0).toFixed(2)}</span> },
+    { headerName: "Incl. VAT", valueGetter: ({ data }) => data?.amount_incl_tax ?? "", filter: "agNumberColumnFilter", width: 100, cellRenderer: ({ data }: ICellRendererParams<TollReport>) => <span className="text-xs text-muted-foreground">{data?.amount_incl_tax ? `${data.currency} ${Number(data.amount_incl_tax).toFixed(2)}` : "—"}</span> },
+    {
+      headerName: "Amazon", field: "seen_status_of_amazon", filter: "agTextColumnFilter", width: 120,
+      cellRenderer: ({ value }: ICellRendererParams) => {
+        if (!value) return null
+        const s = AMAZON_GRID[value] ?? AMAZON_GRID.new
+        return <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-semibold capitalize ${s.bg} ${s.border} ${s.text}`}><span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />{AMAZON_LABELS[value] ?? value}</span>
+      },
+    },
+    {
+      colId: "_action", headerName: "", width: 60, sortable: false, filter: false, resizable: false,
+      cellRenderer: ({ data }: ICellRendererParams<TollReport>) => data ? (
+        <button onClick={e => { e.stopPropagation(); actionsRef.current.onDelete(data.uuid) }} title="Delete"
+          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-red-50 hover:text-red-600">
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      ) : null,
+    },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [])
+
+  const defaultColDef = React.useMemo<ColDef>(() => ({
+    sortable: true, resizable: true,
+    suppressHeaderMenuButton: !showFilters, suppressHeaderFilterButton: !showFilters, floatingFilter: false,
+  }), [showFilters])
+
+  React.useEffect(() => {
+    const api = gridRef.current?.api
+    if (!api) return
+    api.setGridOption("defaultColDef", { sortable: true, resizable: true, suppressHeaderMenuButton: !showFilters, suppressHeaderFilterButton: !showFilters, floatingFilter: false })
+    api.refreshHeader()
+  }, [showFilters])
+
+  React.useEffect(() => { gridRef.current?.api?.setGridOption("quickFilterText", search) }, [search])
 
   const activeFilters = Object.values(filters).filter(Boolean).length
   const totalAmount = records.reduce((a, r) => a + Number(r.amount ?? 0), 0)
@@ -722,10 +817,10 @@ export default function TollExpensesPage() {
         <div className="flex items-center gap-2">
           <div className="flex-1" />
 
-          {selected.size > 0 && (
+          {selectedCount > 0 && (
             <button onClick={handleBulkDelete}
               className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-red-500 px-3 text-xs font-semibold text-white shadow-sm transition-all hover:bg-red-600">
-              <Trash2 className="h-3.5 w-3.5" /> Delete {selected.size}
+              <Trash2 className="h-3.5 w-3.5" /> Delete {selectedCount}
             </button>
           )}
 
@@ -738,8 +833,13 @@ export default function TollExpensesPage() {
           </div>
 
           <div className="flex items-center gap-0.5 rounded-lg border bg-muted/30 p-0.5">
+            <button onClick={() => setShowFilters(v => !v)}
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showFilters ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
+              <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" d="M2 4h12M4 8h8M6 12h4" /></svg>
+              Filter
+            </button>
             <button onClick={() => setShowFilter(v => !v)}
-              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${activeFilters > 0 || showFilter ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${activeFilters > 0 || showFilter ? "bg-violet-500 text-white shadow-sm" : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
               <Filter className="h-3 w-3" /> Filters{activeFilters > 0 ? ` (${activeFilters})` : ""}
             </button>
             <button onClick={() => setShowCards(v => !v)}
@@ -751,9 +851,9 @@ export default function TollExpensesPage() {
 
           <span className="h-6 w-px bg-border" />
 
-          <button onClick={() => fetchData(page)} title="Refresh"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-            <RefreshCw className="h-3.5 w-3.5" />
+          <button onClick={handleRefresh} title="Refresh" disabled={refreshing || loading}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40">
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
           </button>
           <button onClick={() => setShowImport(true)} title="Import"
             className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
@@ -783,83 +883,31 @@ export default function TollExpensesPage() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="flex flex-1 flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
-        {loading ? (
-          <div className="flex flex-1 items-center justify-center">
+      {/* Grid */}
+      <div className="relative flex-1 overflow-hidden rounded-xl border bg-card shadow-sm">
+        {loading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-sm">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        ) : records.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">No toll records found</div>
-        ) : (
-          <div className="overflow-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/40">
-                  <th className="w-10 px-3 py-2.5 text-center"><input type="checkbox" checked={selected.size === records.length && records.length > 0} onChange={toggleAll} className="rounded" /></th>
-                  {["ID","Date","Vehicle","Driver","VRID","Direction","Amount","Incl. VAT","Amazon",""].map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {records.map(r => (
-                  <tr key={r.uuid} className="border-b last:border-0 transition-colors hover:bg-muted/20">
-                    <td className="w-10 px-3 py-2.5 text-center"><input type="checkbox" checked={selected.has(r.uuid)} onChange={() => toggleSelect(r.uuid)} className="rounded" /></td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-primary whitespace-nowrap">{r.public_id}</td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{fmt(r.crossing_date || r.created_at)}</td>
-                    <td className="px-4 py-2.5 font-mono font-bold whitespace-nowrap">{r.vehicle?.plate_number ?? "—"}</td>
-                    <td className="px-4 py-2.5 whitespace-nowrap">{r.driver?.name ?? "—"}</td>
-                    <td className="px-4 py-2.5 font-mono text-xs whitespace-nowrap">{r.vr_id ?? "—"}</td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{r.direction ?? "—"}</td>
-                    <td className="px-4 py-2.5 font-semibold whitespace-nowrap">{r.currency ?? "GBP"} {Number(r.amount ?? 0).toFixed(2)}</td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{r.amount_incl_tax ? `${r.currency} ${Number(r.amount_incl_tax).toFixed(2)}` : "—"}</td>
-                    <td className="px-4 py-2.5 whitespace-nowrap">
-                      {r.seen_status_of_amazon && (
-                        <span className={`inline-flex items-center rounded-[100px] border pl-1 pr-3 text-[11px] font-medium leading-[2] ${AMAZON_STYLES[r.seen_status_of_amazon] ?? ""}`}>
-                          <span className={`mr-2 ml-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${AMAZON_DOT[r.seen_status_of_amazon] ?? "bg-gray-400"}`} />
-                          {AMAZON_LABELS[r.seen_status_of_amazon] ?? r.seen_status_of_amazon}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => setSlideOver(r)} title="Edit"
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-                          <Pencil className="h-3 w-3" />
-                        </button>
-                        <button onClick={() => handleDelete(r.uuid)} disabled={deleting === r.uuid} title="Delete"
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border bg-background text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 hover:border-red-200 disabled:opacity-40">
-                          {deleting === r.uuid ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t bg-muted/20">
-                  <td colSpan={11} className="px-4 py-2 text-xs text-muted-foreground">
-                    <div className="flex items-center justify-between">
-                      <span>{meta.total} records · Page {meta.current_page} of {meta.last_page}</span>
-                      {meta.last_page > 1 && (
-                        <span className="flex items-center gap-1">
-                          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                            className="h-6 w-6 rounded border bg-background text-muted-foreground hover:bg-muted disabled:opacity-40 flex items-center justify-center">
-                            <ChevronLeft className="h-3.5 w-3.5" />
-                          </button>
-                          <button onClick={() => setPage(p => Math.min(meta.last_page, p + 1))} disabled={page === meta.last_page}
-                            className="h-6 w-6 rounded border bg-background text-muted-foreground hover:bg-muted disabled:opacity-40 flex items-center justify-center">
-                            <ChevronRight className="h-3.5 w-3.5" />
-                          </button>
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+        )}
+        {!loading && records.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 py-16">
+            <FileText className="h-8 w-8 text-muted-foreground/40" />
+            <p className="text-sm text-muted-foreground">No toll records found</p>
           </div>
+        ) : (
+          <AgGridReact<TollReport>
+            ref={gridRef}
+            theme={isDark ? teDarkTheme : teLightTheme}
+            rowData={records}
+            columnDefs={colDefs}
+            defaultColDef={defaultColDef}
+            rowSelection={{ mode: "multiRow", checkboxes: false }}
+            onSelectionChanged={() => setSelectedCount(gridRef.current?.api?.getSelectedRows().length ?? 0)}
+            suppressRowClickSelection
+            animateRows
+            className="h-full w-full"
+          />
         )}
       </div>
 
