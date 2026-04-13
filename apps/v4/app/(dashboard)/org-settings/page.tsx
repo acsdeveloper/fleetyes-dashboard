@@ -414,75 +414,57 @@ export default function OrgSettingsPage() {
 
         {/* ── ROTA ─────────────────────────────────────────────────────────── */}
         {tab === "rota" && (
-          <div className="h-full overflow-auto p-6">
-            <div className="max-w-2xl mx-auto flex flex-col gap-4">
-              <div className="rounded-xl border bg-card shadow-sm p-6">
-                <h2 className="text-sm font-semibold mb-1 flex items-center gap-2">
+          <div className="h-full p-6">
+            <div className="max-w-md mx-auto rounded-xl border bg-card shadow-sm p-6 flex flex-col gap-6">
+              <div>
+                <h2 className="text-sm font-semibold flex items-center gap-2">
                   <Clock className="h-4 w-4 text-primary" /> Rota Planning Hours
                 </h2>
-                <p className="text-xs text-muted-foreground mb-5">
-                  Default shift hours used when building and validating driver allocations in the Rota.
+                <p className="text-xs text-muted-foreground mt-1">
+                  Default hours per shift used when planning the Rota.
                 </p>
+              </div>
 
-                {/* Pending API notice */}
-                <div className="mb-6 flex items-center gap-2.5 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-4 py-2.5">
-                  <FlaskConical className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
-                  <p className="text-xs text-amber-700 dark:text-amber-400">
-                    <span className="font-semibold">Stored locally</span> — these values guide Rota planning in this browser. A future API update will persist them server-side.
-                  </p>
+              {/* Two inputs side by side */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium">Driving Hours</label>
+                  <input
+                    type="number" min={1} max={24} step={0.5}
+                    value={drivingHours}
+                    onChange={e => {
+                      const v = Number(e.target.value)
+                      setDrivingHours(v)
+                      if (v > workingHours) setWorkingHours(v)
+                    }}
+                    className="h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  />
                 </div>
-
-                <div className="flex flex-col gap-8">
-                  {/* Driving hours */}
-                  <Field
-                    label="Assumed Driving Hours per Shift"
-                    hint="Max hours a driver is expected to spend actively driving. Used to flag over-allocation in Rota."
-                  >
-                    <div className="flex items-center gap-4 mt-1">
-                      <div className="relative w-32">
-                        <Clock className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                        <input type="number" min={1} max={13} step={0.5} value={drivingHours}
-                          onChange={e => setDrivingHours(Math.min(13, Math.max(1, Number(e.target.value))))}
-                          className="h-9 w-full rounded-lg border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
-                      </div>
-                      <input type="range" min={1} max={13} step={0.5} value={drivingHours}
-                        onChange={e => setDrivingHours(Number(e.target.value))}
-                        className="flex-1 accent-sky-500" />
-                      <span className="w-12 text-right text-sm font-medium tabular-nums text-muted-foreground">{drivingHours}h</span>
-                    </div>
-                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden mt-2">
-                      <div className="h-full rounded-full bg-sky-500 transition-all" style={{ width: `${(drivingHours / 13) * 100}%` }} />
-                    </div>
-                  </Field>
-
-                  {/* Working hours */}
-                  <Field
-                    label="Assumed Working Hours per Shift"
-                    hint="Total shift hours including driving, breaks, loading, and non-driving duties. Must be ≥ driving hours."
-                  >
-                    <div className="flex items-center gap-4 mt-1">
-                      <div className="relative w-32">
-                        <Clock className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                        <input type="number" min={drivingHours} max={16} step={0.5} value={workingHours}
-                          onChange={e => setWorkingHours(Math.min(16, Math.max(drivingHours, Number(e.target.value))))}
-                          className="h-9 w-full rounded-lg border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
-                      </div>
-                      <input type="range" min={drivingHours} max={16} step={0.5} value={workingHours}
-                        onChange={e => setWorkingHours(Number(e.target.value))}
-                        className="flex-1 accent-violet-500" />
-                      <span className="w-12 text-right text-sm font-medium tabular-nums text-muted-foreground">{workingHours}h</span>
-                    </div>
-                    {/* Two-tone bar */}
-                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden flex mt-2">
-                      <div className="h-full rounded-l-full bg-sky-500 transition-all" style={{ width: `${(drivingHours / 16) * 100}%` }} />
-                      <div className="h-full bg-violet-400 transition-all"              style={{ width: `${((workingHours - drivingHours) / 16) * 100}%` }} />
-                    </div>
-                    <div className="flex items-center gap-5 mt-1.5 text-[10px] text-muted-foreground">
-                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full bg-sky-500" /> Driving ({drivingHours}h)</span>
-                      <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full bg-violet-400" /> Non-driving ({(workingHours - drivingHours).toFixed(1)}h)</span>
-                    </div>
-                  </Field>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium">Working Hours</label>
+                  <input
+                    type="number" min={1} max={24} step={0.5}
+                    value={workingHours}
+                    onChange={e => setWorkingHours(Number(e.target.value))}
+                    className={`h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring ${
+                      workingHours < drivingHours ? "border-red-400 focus:ring-red-300" : ""
+                    }`}
+                  />
                 </div>
+              </div>
+
+              {/* Validation */}
+              {workingHours < drivingHours && (
+                <p className="flex items-center gap-1.5 text-xs text-red-500">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  Working hours cannot be less than driving hours.
+                </p>
+              )}
+
+              {/* Pending API notice */}
+              <div className="flex items-center gap-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-2">
+                <FlaskConical className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                <p className="text-xs text-amber-700 dark:text-amber-400">Saved locally until an API is available.</p>
               </div>
             </div>
           </div>
