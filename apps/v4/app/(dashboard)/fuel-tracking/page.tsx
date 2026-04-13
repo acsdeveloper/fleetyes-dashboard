@@ -712,18 +712,18 @@ export default function FuelTrackingPage() {
               className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
           </div>
 
-          <div className="flex items-center gap-0.5 rounded-lg border bg-muted/30 p-0.5">
+          <div className="flex items-center gap-0.5 rounded-lg border bg-muted/40 p-0.5">
             <button onClick={() => setShowFilters(v => !v)}
-              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showFilters ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showFilters ? "bg-primary text-primary-foreground shadow-sm" : "text-foreground/60 hover:bg-card hover:text-foreground hover:shadow-sm"}`}>
               <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" d="M2 4h12M4 8h8M6 12h4" /></svg>
               Filter
             </button>
             <button onClick={() => setShowFilter(v => !v)}
-              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${activeFilters > 0 || showFilter ? "bg-violet-500 text-white shadow-sm" : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${activeFilters > 0 || showFilter ? "bg-violet-500 text-white shadow-sm" : "text-foreground/60 hover:bg-card hover:text-foreground hover:shadow-sm"}`}>
               <Filter className="h-3 w-3" /> Filters{activeFilters > 0 ? ` (${activeFilters})` : ""}
             </button>
             <button onClick={() => setShowCards(v => !v)}
-              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showCards ? "bg-blue-500 text-white shadow-sm" : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showCards ? "bg-blue-500 text-white shadow-sm" : "text-foreground/60 hover:bg-card hover:text-foreground hover:shadow-sm"}`}>
               <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M2 13V8M6 13V5M10 13V7M14 13V3" /></svg>
               Stats
             </button>
