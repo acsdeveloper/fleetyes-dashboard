@@ -9,6 +9,7 @@ import {
 import { useLang } from "@/components/lang-context"
 import {
   listTollReceipts, uploadTollFile, importTollImage, importTollZip,
+  processTollReceipts,
   TOLL_RECEIPT_STATUSES,
   type TollReceiptImage,
 } from "@/lib/toll-receipts-api"
@@ -327,40 +328,73 @@ function UploadWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
   )
 }
 
-// ─── Process Info Modal ───────────────────────────────────────────────────────
-// Toll receipt processing runs automatically (inline OCR) during upload.
-// This modal explains the workflow and allows the user to trigger a new upload.
+// ─── Process Receipts Modal ───────────────────────────────────────────────────────
+// Processes all pending toll receipt images — runs OCR and links them to
+// toll expense records. Mirrors the fuel receipts process flow.
 
-function ProcessInfoModal({ onClose, onUpload }: { onClose: () => void; onUpload: () => void }) {
+function ProcessModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [processing, setProcessing] = React.useState(false)
+  const [result, setResult] = React.useState<Awaited<ReturnType<typeof processTollReceipts>> | null>(null)
+  const [error, setError] = React.useState("")
+
+  const run = async () => {
+    setProcessing(true)
+    setError("")
+    try {
+      const res = await processTollReceipts()
+      setResult(res)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Processing failed")
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  React.useEffect(() => { run() }, [])
+
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
+      <div className="fixed inset-0 z-40 bg-black/30" />
       <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl border bg-card p-6 shadow-2xl">
         <div className="mb-4 flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-              <Cpu className="h-4 w-4 text-primary" />
+          <h2 className="font-bold">Process Receipts</h2>
+          {!processing && <button onClick={onClose} className="rounded-lg border p-1.5 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>}
+        </div>
+        {processing && (
+          <div className="flex flex-col items-center gap-3 py-6">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Running OCR on pending toll receipts…</p>
+          </div>
+        )}
+        {result && !processing && (
+          <div className="flex items-center gap-3 rounded-xl bg-green-50 dark:bg-green-950/20 p-4">
+            <CheckCircle2 className="h-6 w-6 text-green-600 shrink-0" />
+            <div>
+              <p className="font-medium text-green-800 dark:text-green-300">{result.message}</p>
+              {result.data && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {result.data.processed} processed · {result.data.created} created · {result.data.skipped} skipped
+                </p>
+              )}
             </div>
-            <h2 className="font-bold">Process Receipts</h2>
           </div>
-          <button onClick={onClose} className="rounded-lg border p-1.5 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
-        </div>
-        <div className="flex flex-col gap-3">
-          <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
-            <p className="mb-1 font-medium text-foreground">Processing is automatic</p>
-            <p>Toll receipts are OCR-processed inline at upload time. There is no manual process trigger — each uploaded image or PDF is sent through Mindee immediately.</p>
+        )}
+        {error && !processing && (
+          <div className="flex items-center gap-3 rounded-xl bg-red-50 dark:bg-red-950/20 p-4">
+            <XCircle className="h-6 w-6 text-red-500 shrink-0" />
+            <div>
+              <p className="font-medium text-red-700 dark:text-red-400">Processing failed</p>
+              <p className="mt-0.5 text-xs text-red-600 dark:text-red-400">{error}</p>
+            </div>
           </div>
-          <p className="text-sm text-muted-foreground">To add new receipts, upload a ZIP archive or a single image/PDF using the Upload button.</p>
-        </div>
-        <div className="mt-5 flex gap-2">
-          <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">Close</button>
-          <button
-            onClick={() => { onClose(); onUpload() }}
-            className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            Upload Receipts
-          </button>
-        </div>
+        )}
+        {!processing && (
+          <div className="mt-4">
+            <button onClick={() => { onDone(); onClose() }} className="w-full rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+              Done — Refresh List
+            </button>
+          </div>
+        )}
       </div>
     </>
   )
@@ -791,7 +825,7 @@ export default function TollReceiptsPage() {
       {/* ── Drawers ──────────────────────────────────── */}
       {detailRecord && <ReceiptDetailDrawer receipt={detailRecord} onClose={() => setDetailRecord(null)} />}
       {showUpload && <UploadWizard onClose={() => setShowUpload(false)} onDone={() => fetchData(1)} />}
-      {showProcess && <ProcessInfoModal onClose={() => setShowProcess(false)} onUpload={() => setShowUpload(true)} />}
+      {showProcess && <ProcessModal onClose={() => setShowProcess(false)} onDone={() => fetchData(1)} />}
       <FilterDrawer open={showFilter} onClose={() => setShowFilter(false)} filters={filters} setFilters={setFilters} drivers={drivers} />
     </div>
   )

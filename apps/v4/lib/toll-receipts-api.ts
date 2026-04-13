@@ -141,6 +141,47 @@ export async function importTollZip(
   })
 }
 
+// ─── Process Toll Receipts ────────────────────────────────────────────────────
+// Triggers OCR processing for pending toll receipt images (including those
+// linked from manually-entered toll expense records).
+
+export interface ProcessTollReceiptsResult {
+  status: string
+  message: string
+  data?: {
+    processed: number
+    created: number
+    skipped: number
+    total_errors?: number
+    errors?: [string, string][]
+  }
+}
+
+export async function processTollReceipts(params: {
+  driver_uuid?: string
+  date_from?: string
+  date_to?: string
+  limit?: number
+} = {}): Promise<ProcessTollReceiptsResult> {
+  const token = getToken()
+  const res = await fetch(
+    "https://ontrack-api.agilecyber.com/api/v1/expense-reports/process-toll-receipt-images",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(params),
+    }
+  )
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ message: res.statusText }))
+    throw new Error(body?.message ?? "Process failed")
+  }
+  return res.json()
+}
+
 // ─── Static Values ────────────────────────────────────────────────────────────
 
 export const TOLL_RECEIPT_STATUSES = [
