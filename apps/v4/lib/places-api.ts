@@ -108,7 +108,8 @@ export async function createPlace(data: {
 }): Promise<Place> {
   const res = await ontrackFetch<{ place: Place }>("/places", {
     method: "POST",
-    body:   JSON.stringify(data),
+    // Fleetbase PlaceController reads $request->input('place')
+    body:   JSON.stringify({ place: data }),
   })
   return res.place
 }
@@ -116,7 +117,8 @@ export async function createPlace(data: {
 export async function updatePlace(uuid: string, patch: Partial<Place>): Promise<Place> {
   const res = await ontrackFetch<{ place: Place }>(`/places/${uuid}`, {
     method: "PUT",
-    body:   JSON.stringify(patch),
+    // Fleetbase PlaceController reads $request->input('place')
+    body:   JSON.stringify({ place: patch }),
   })
   return res.place
 }
