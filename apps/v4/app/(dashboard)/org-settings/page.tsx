@@ -3,7 +3,7 @@ import * as React from "react"
 import {
   Building2, Phone, DollarSign, MapPin, Users, ImageIcon,
   Save, RefreshCw, AlertCircle, CheckCircle2, Upload, Loader2,
-  ChevronDown, Car, CalendarDays,
+  ChevronDown, Car, CalendarDays, Clock, FlaskConical,
 } from "lucide-react"
 import {
   getCompanySettings, updateCompanySettings, uploadLogo,
@@ -115,6 +115,11 @@ export default function OrgSettingsPage() {
   const [driverHoliday, setDriverHoliday] = React.useState(false)
   const [driverIssue, setDriverIssue] = React.useState(false)
 
+  // Rota planning hours — local-only until API is ready
+  const ROTA_LS_KEY = "fleetyes_rota_hours"
+  const [drivingHours, setDrivingHours] = React.useState<number>(9)
+  const [workingHours, setWorkingHours] = React.useState<number>(11)
+
   // Logo state
   const [logoUrl, setLogoUrl] = React.useState<string | null>(null)
   const [logoUuid, setLogoUuid] = React.useState<string | null>(null)
@@ -143,6 +148,20 @@ export default function OrgSettingsPage() {
     }
   }
 
+  // Load rota hours from localStorage
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const raw = localStorage.getItem(ROTA_LS_KEY)
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw)
+          if (typeof parsed.drivingHours === "number") setDrivingHours(parsed.drivingHours)
+          if (typeof parsed.workingHours === "number") setWorkingHours(parsed.workingHours)
+        } catch { /* ignore */ }
+      }
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   React.useEffect(() => { load() }, [])
 
   // Logo upload
@@ -168,6 +187,11 @@ export default function OrgSettingsPage() {
   async function handleSave() {
     setSaving(true)
     try {
+      // Persist rota hours locally (no API yet)
+      if (typeof window !== "undefined") {
+        localStorage.setItem(ROTA_LS_KEY, JSON.stringify({ drivingHours, workingHours }))
+      }
+
       const payload: CompanySettingsUpdatePayload = {
         name: name.trim(),
         description: description.trim() || undefined,
@@ -384,6 +408,111 @@ export default function OrgSettingsPage() {
             <span className="text-sm font-medium text-muted-foreground w-12 text-right">{parkingZone} km</span>
           </div>
         </Field>
+      </SectionCard>
+
+      {/* ── Rota Planning ────────────────────────────────────────────────────── */}
+      <SectionCard
+        title="Rota Planning"
+        description="Default hours used when building and validating driver shift allocations."
+        icon={Clock}
+      >
+        {/* Pending API notice */}
+        <div className="mb-5 flex items-center gap-2.5 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-4 py-2.5">
+          <FlaskConical className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            <span className="font-semibold">Stored locally</span> —  these values guide Rota planning in this browser session. A future API update will persist them server-side.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          {/* Assumed Driving Hours */}
+          <Field
+            label="Assumed Driving Hours per Shift"
+            hint="Max hours a driver is expected to spend actively driving in a single shift. Used to flag over-allocation in Rota."
+          >
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-3">
+                <div className="relative w-28">
+                  <Clock className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="number"
+                    min={1}
+                    max={13}
+                    step={0.5}
+                    value={drivingHours}
+                    onChange={e => setDrivingHours(Math.min(13, Math.max(1, Number(e.target.value))))}
+                    className="h-9 w-full rounded-lg border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+                <input
+                  type="range"
+                  min={1}
+                  max={13}
+                  step={0.5}
+                  value={drivingHours}
+                  onChange={e => setDrivingHours(Number(e.target.value))}
+                  className="flex-1 accent-primary"
+                />
+                <span className="w-14 text-right text-sm font-medium tabular-nums text-muted-foreground">{drivingHours}h</span>
+              </div>
+              {/* Visual bar */}
+              <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-sky-500 transition-all"
+                  style={{ width: `${(drivingHours / 13) * 100}%` }}
+                />
+              </div>
+            </div>
+          </Field>
+
+          {/* Assumed Working Hours */}
+          <Field
+            label="Assumed Working Hours per Shift"
+            hint="Total working hours per shift including breaks, loading, and non-driving time. Must be ≥ driving hours."
+          >
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-3">
+                <div className="relative w-28">
+                  <Clock className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="number"
+                    min={drivingHours}
+                    max={16}
+                    step={0.5}
+                    value={workingHours}
+                    onChange={e => setWorkingHours(Math.min(16, Math.max(drivingHours, Number(e.target.value))))}
+                    className="h-9 w-full rounded-lg border bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+                <input
+                  type="range"
+                  min={drivingHours}
+                  max={16}
+                  step={0.5}
+                  value={workingHours}
+                  onChange={e => setWorkingHours(Number(e.target.value))}
+                  className="flex-1 accent-primary"
+                />
+                <span className="w-14 text-right text-sm font-medium tabular-nums text-muted-foreground">{workingHours}h</span>
+              </div>
+              {/* Visual bar — two-tone: driving portion + working overhead */}
+              <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden flex">
+                <div
+                  className="h-full rounded-l-full bg-sky-500 transition-all"
+                  style={{ width: `${(drivingHours / 16) * 100}%` }}
+                />
+                <div
+                  className="h-full bg-violet-400 transition-all"
+                  style={{ width: `${((workingHours - drivingHours) / 16) * 100}%` }}
+                />
+              </div>
+              <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
+                <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-sky-500" /> Driving ({drivingHours}h)</span>
+                <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-violet-400" /> Non-driving ({(workingHours - drivingHours).toFixed(1)}h)</span>
+              </div>
+            </div>
+          </Field>
+        </div>
       </SectionCard>
 
       {/* ── Driver Permissions ───────────────────────────────────────────────── */}
