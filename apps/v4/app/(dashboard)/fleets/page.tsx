@@ -182,13 +182,11 @@ function FleetDrawer({
         }
         await updateFleet(fleet.uuid, patch)
       } else {
-        // Create: never send trip_length — the backend has an OR uniqueness
-        // constraint on trip_length that conflicts when the value is null.
-        // Users can set it after creation via edit.
         await createFleet({
           name:   name.trim(),
           task:   task || undefined,
           status: statusVal,
+          ...(tripLength !== "" ? { trip_length: Number(tripLength) } : {}),
         })
       }
       onSaved()
@@ -223,14 +221,11 @@ function FleetDrawer({
             <input type="text" value={task} onChange={e => setTask(e.target.value)} placeholder="e.g. Airport transfers"
               className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
           </div>
-          {/* Trip length — edit only (backend has uniqueness constraint on this field) */}
-          {isEdit && (
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Trip Length (hours)</label>
-              <input type="number" min={0} step={0.5} value={tripLength} onChange={e => setTripLength(e.target.value)} placeholder="e.g. 8"
-                className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
-            </div>
-          )}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Trip Length (hours)</label>
+            <input type="number" min={0} step={0.5} value={tripLength} onChange={e => setTripLength(e.target.value)} placeholder="e.g. 8"
+              className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+          </div>
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{c.status}</label>
             <div className="relative">
