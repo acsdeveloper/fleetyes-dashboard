@@ -220,7 +220,7 @@ function HolidayDrawer({
     finally   { setDeleting(false) }
   }
 
-  const status = leave?.status
+  const currentStatus = leave?.status
 
   return (
     <>
@@ -243,8 +243,8 @@ function HolidayDrawer({
           {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">{error}</div>}
 
           {/* Status — read-only badge on edit, editable pill picker on create */}
-          {isEdit && status ? (() => {
-            const m = STATUS_META[status]
+          {isEdit && currentStatus ? (() => {
+            const m = STATUS_META[currentStatus]
             const Icon = m?.icon
             return m ? (
               <div className="flex items-center gap-2">
@@ -252,7 +252,7 @@ function HolidayDrawer({
                 <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${m.badge}`}>
                   <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} />
                   {Icon && <Icon className="h-3 w-3" />}
-                  {status}
+                  {currentStatus}
                 </span>
               </div>
             ) : null
