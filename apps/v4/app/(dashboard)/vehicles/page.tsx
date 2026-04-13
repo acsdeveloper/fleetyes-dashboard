@@ -6,6 +6,7 @@ import {
   LayoutGrid, List, Car, Trash2, X, Loader2, ChevronDown, CheckCircle2, AlertCircle,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
+import { useConfirm } from "@/components/confirm-dialog"
 import { listVehicles, createVehicle, updateVehicle, exportVehicles, bulkDeleteVehicles, importVehicles, type Vehicle, type FleetVehicle } from "@/lib/vehicles-api"
 import { listFleets, assignVehicleToFleet, removeVehicleFromFleet, type Fleet } from "@/lib/fleets-api"
 import { ImportModal } from "@/components/import-modal"
@@ -137,6 +138,7 @@ function VehicleDrawer({ open, vehicle, fleets, onClose, onSaved }: {
   open: boolean; vehicle: Vehicle | null; fleets: Fleet[]; onClose: () => void; onSaved: () => void
 }) {
   const { t } = useLang()
+  const confirm = useConfirm()
   const c = t.common
   const v18n = t.vehicles
   const isEdit = !!vehicle
@@ -372,6 +374,7 @@ function VehicleDrawer({ open, vehicle, fleets, onClose, onSaved }: {
 
 export default function VehiclesPage() {
   const { t } = useLang()
+  const confirm = useConfirm()
   const c = t.common
   const v18n = t.vehicles
   const [vehicles,      setVehicles]      = React.useState<Vehicle[]>([])
@@ -422,7 +425,11 @@ export default function VehiclesPage() {
 
   // ── Delete selected ──
   const handleDeleteSelected = React.useCallback(async () => {
-    if (!window.confirm(`Delete ${selectedCount} vehicle${selectedCount !== 1 ? "s" : ""}? This cannot be undone.`)) return
+    const ok = await confirm({
+      title: `Delete ${selectedCount} vehicle${selectedCount !== 1 ? "s" : ""}`,
+      description: "This action is permanent and cannot be undone.",
+    })
+    if (!ok) return
     setDeleting(true)
     try {
       const uuids = (gridRef.current?.api?.getSelectedRows() ?? []).map(r => r.uuid)

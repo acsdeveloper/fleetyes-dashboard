@@ -5,6 +5,7 @@ import {
   CheckCircle2, Clock, XCircle, X, Loader2, Trash2,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
+import { useConfirm } from "@/components/confirm-dialog"
 import {
   listDriverLeave, createLeaveRequest, updateLeaveRequest,
   approveLeaveRequest, rejectLeaveRequest, deleteLeaveRequest,
@@ -150,6 +151,7 @@ function HolidayDrawer({
   const [saving,     setSaving]     = React.useState(false)
   const [deleting,   setDeleting]   = React.useState(false)
   const [error,      setError]      = React.useState<string | null>(null)
+  const confirm = useConfirm()
 
   React.useEffect(() => {
     if (leave) {
@@ -215,7 +217,11 @@ function HolidayDrawer({
 
   const handleDelete = async () => {
     if (!leave) return
-    if (!confirm("Delete this leave request?")) return
+    const ok = await confirm({
+      title: "Delete leave request",
+      description: "This will permanently remove the leave request. This cannot be undone.",
+    })
+    if (!ok) return
     setDeleting(true); setError(null)
     try { await deleteLeaveRequest(leave.uuid); onSaved(); onClose() }
     catch (e) { setError(e instanceof Error ? e.message : "Delete failed") }

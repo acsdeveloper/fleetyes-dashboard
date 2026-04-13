@@ -8,6 +8,7 @@ import {
   X, Loader2,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
+import { useConfirm } from "@/components/confirm-dialog"
 import { listPlaces, listAllPlaces, createPlace, updatePlace, bulkDeletePlaces, importPlaces, reverseGeocode, type Place, type GeoPoint } from "@/lib/places-api"
 import { ImportModal } from "@/components/import-modal"
 
@@ -313,6 +314,7 @@ function PlaceDrawer({
   onSaved: () => void
 }) {
   const { t } = useLang()
+  const confirm = useConfirm()
   const c = t.common
   const p18n = t.places
   const isEdit = !!place
@@ -559,6 +561,7 @@ function PlaceDrawer({
 
 export default function PlacesPage() {
   const { t } = useLang()
+  const confirm = useConfirm()
   const c = t.common
   const [places,        setPlaces]        = React.useState<PlaceEx[]>([])
   const [loading,       setLoading]       = React.useState(true)
@@ -605,9 +608,13 @@ export default function PlacesPage() {
     }
   }, [])
 
-  // ── Delete selected ── (same pattern as Trips — native browser confirm)
+  // ── Delete selected ──
   const handleDeleteSelected = React.useCallback(async () => {
-    if (!window.confirm(`Delete ${selectedCount} place${selectedCount !== 1 ? "s" : ""}? This cannot be undone.`)) return
+    const ok = await confirm({
+      title: `Delete ${selectedCount} place${selectedCount !== 1 ? "s" : ""}`,
+      description: "This action is permanent and cannot be undone.",
+    })
+    if (!ok) return
     setDeleting(true)
     try {
       const uuids = (gridRef.current?.api?.getSelectedRows() ?? []).map(r => r.uuid)

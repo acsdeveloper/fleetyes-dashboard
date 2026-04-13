@@ -5,6 +5,7 @@ import {
   Search, RefreshCw, Plus, Trash2, X, Loader2, ChevronDown,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
+import { useConfirm } from "@/components/confirm-dialog"
 import {
   listOffShifts, createOffShift, updateOffShift, deleteOffShift,
   type OffShiftPlan,
@@ -322,6 +323,7 @@ function OffShiftDrawer({ open, plan, drivers, onClose, onSaved }: DrawerProps) 
 
 export default function OffShiftPage() {
   const { t } = useLang()
+  const confirm = useConfirm()
   const c = t.common
   const o = t.offShift
 
@@ -403,10 +405,11 @@ export default function OffShiftPage() {
 
   // ── Delete ──
   const handleDelete = React.useCallback(async (plan: OffShiftPlan) => {
-    if (!window.confirm(
-      `Delete this recurring plan for ${(plan as OffShiftPlanEx)._driverName ?? "this driver"}?\n\n` +
-      `All automatically generated leave records will also be deleted.`
-    )) return
+    const ok = await confirm({
+      title: `Delete recurring plan for ${(plan as OffShiftPlanEx)._driverName ?? "this driver"}`,
+      description: "All automatically generated leave records will also be permanently deleted.",
+    })
+    if (!ok) return
     setDeleting(plan.uuid)
     try {
       await deleteOffShift(plan.uuid)

@@ -12,6 +12,7 @@ import {
 } from "@/lib/leave-requests-api"
 import { listVehicles, type Vehicle } from "@/lib/vehicles-api"
 import { useLang } from "@/components/lang-context"
+import { useConfirm } from "@/components/confirm-dialog"
 import { DatePicker } from "@/components/date-picker"
 
 // ─── File type constants & icon helper ────────────────────────────────────────
@@ -231,6 +232,7 @@ function MaintenanceDrawer({
   const [saving,      setSaving]      = React.useState(false)
   const [deleting,    setDeleting]    = React.useState(false)
   const [error,       setError]       = React.useState<string | null>(null)
+  const confirm = useConfirm()
 
   // ── File attachments (edit only) ──────────────────────────────────────────
   interface AttachedFile { uuid: string; original_filename: string; url: string; content_type?: string }
@@ -352,7 +354,11 @@ function MaintenanceDrawer({
 
   const handleDelete = async () => {
     if (!record) return
-    if (!confirm("Delete this maintenance record?")) return
+    const ok = await confirm({
+      title: "Delete maintenance record",
+      description: "This will permanently remove the maintenance period record.",
+    })
+    if (!ok) return
     setDeleting(true); setError(null)
     try { await deleteLeaveRequest(record.uuid); onSaved(); onClose() }
     catch (e) { setError(e instanceof Error ? e.message : "Delete failed") }

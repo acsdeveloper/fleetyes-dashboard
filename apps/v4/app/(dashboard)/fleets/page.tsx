@@ -7,6 +7,7 @@ import {
   X, Loader2, ChevronDown,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
+import { useConfirm } from "@/components/confirm-dialog"
 import { listFleets, createFleet, updateFleet, bulkDeleteFleets, type Fleet, type FleetStatus } from "@/lib/fleets-api"
 
 import { AgGridReact } from "ag-grid-react"
@@ -147,6 +148,7 @@ function FleetDrawer({
   onSaved: () => void
 }) {
   const { t } = useLang()
+  const confirm = useConfirm()
   const c = t.common
   const isEdit = !!fleet
   const [name,       setName]       = React.useState("")
@@ -256,6 +258,7 @@ function FleetDrawer({
 
 export default function FleetsPage() {
   const { t } = useLang()
+  const confirm = useConfirm()
   const c = t.common
   const [fleets,        setFleets]        = React.useState<Fleet[]>([])
   const [loading,       setLoading]       = React.useState(true)
@@ -298,7 +301,11 @@ export default function FleetsPage() {
 
   // ── Delete selected ──
   const handleDeleteSelected = React.useCallback(async () => {
-    if (!window.confirm(`Delete ${selectedCount} fleet${selectedCount !== 1 ? "s" : ""}? This cannot be undone.`)) return
+    const ok = await confirm({
+      title: `Delete ${selectedCount} fleet${selectedCount !== 1 ? "s" : ""}`,
+      description: "This action is permanent and cannot be undone.",
+    })
+    if (!ok) return
     setDeleting(true)
     try {
       const uuids = (gridRef.current?.api?.getSelectedRows() ?? []).map(r => r.uuid)

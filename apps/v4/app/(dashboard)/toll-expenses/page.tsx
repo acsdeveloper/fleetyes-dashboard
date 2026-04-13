@@ -8,6 +8,7 @@ import {
   ChevronLeft, ChevronRight, Filter, Send, Pencil,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
+import { useConfirm } from "@/components/confirm-dialog"
 import {
   listTollReports, createTollReport, updateTollReport,
   deleteTollReport, bulkDeleteFuelReports, exportFuelReports,
@@ -586,6 +587,7 @@ function FilterPanel({ open, onClose, filters, setFilters, vehicles }: {
 
 export default function TollExpensesPage() {
   const { t } = useLang()
+  const confirm = useConfirm()
   const c = t.common
 
   const [records, setRecords] = React.useState<TollReport[]>([])
@@ -652,7 +654,11 @@ export default function TollExpensesPage() {
   React.useEffect(() => { fetchData(page) }, [page])
 
   const handleDelete = async (uuid: string) => {
-    if (!confirm("Delete this toll record?")) return
+    const ok = await confirm({
+      title: "Delete toll record",
+      description: "This will permanently remove the toll expense record.",
+    })
+    if (!ok) return
     setDeleting(uuid)
     try { await deleteTollReport(uuid); fetchData(page) }
     catch (e: unknown) { alert(e instanceof Error ? e.message : "Delete failed") }
@@ -660,7 +666,11 @@ export default function TollExpensesPage() {
   }
 
   const handleBulkDelete = async () => {
-    if (!confirm(`Delete ${selected.size} record(s)?`)) return
+    const ok = await confirm({
+      title: `Delete ${selected.size} record${selected.size !== 1 ? "s" : ""}`,
+      description: "This action is permanent and cannot be undone.",
+    })
+    if (!ok) return
     try { await bulkDeleteFuelReports([...selected]); setSelected(new Set()); fetchData(page) }
     catch (e: unknown) { alert(e instanceof Error ? e.message : "Delete failed") }
   }

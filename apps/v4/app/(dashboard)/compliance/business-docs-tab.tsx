@@ -17,6 +17,7 @@ import {
   type ApiCategoryDocumentRow,
 } from "@/lib/compliance-docs-api"
 import { getCompanyUuid } from "@/lib/ontrack-api"
+import { useConfirm } from "@/components/confirm-dialog"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -58,6 +59,7 @@ function DocumentPanel({
   const [saving, setSaving] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
   const [signing, setSigning] = React.useState(false)
+  const confirm = useConfirm()
 
   async function save() {
     setSaving(true)
@@ -78,7 +80,11 @@ function DocumentPanel({
   }
 
   async function handleDelete() {
-    if (!confirm("Delete this document? This cannot be undone.")) return
+    const ok = await confirm({
+      title: "Delete document",
+      description: "This will permanently remove the document. This cannot be undone.",
+    })
+    if (!ok) return
     setDeleting(true)
     try {
       await onDelete(doc)

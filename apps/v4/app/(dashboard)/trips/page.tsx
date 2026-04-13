@@ -13,6 +13,7 @@ import {
 import { DayPicker } from "react-day-picker"
 import "react-day-picker/style.css"
 import { useLang } from "@/components/lang-context"
+import { useConfirm } from "@/components/confirm-dialog"
 
 import {
   listOrders, createOrder, updateOrder, deleteOrder, dispatchOrder, getOrder,
@@ -908,6 +909,7 @@ type ImportStep = "upload" | "uploading-file" | "creating-places" | "importing" 
 
 function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const { t } = useLang()
+  const confirm = useConfirm()
   const c = t.common
   const [step, setStep] = React.useState<ImportStep>("upload")
   const [file, setFile] = React.useState<File | null>(null)
@@ -2016,6 +2018,7 @@ type RowCallbacks = {
 
 export default function TripsPage() {
   const { t } = useLang()
+  const confirm = useConfirm()
   const c = t.common
   const [orders, setOrders] = React.useState<Order[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -2140,7 +2143,11 @@ export default function TripsPage() {
 
   // Actions
   const handleDelete = React.useCallback(async (order: Order) => {
-    if (!confirm(`Delete trip ${order.public_id}? This cannot be undone.`)) return
+    const ok = await confirm({
+      title: `Delete trip ${order.public_id}`,
+      description: "This action is permanent and cannot be undone.",
+    })
+    if (!ok) return
     try {
       await deleteOrder(order.uuid)
       setOrders((prev) => prev.filter((o) => o.uuid !== order.uuid))
@@ -2199,7 +2206,11 @@ export default function TripsPage() {
     if (!api) return
     const selected = api.getSelectedRows() as Order[]
     if (selected.length === 0) return
-    if (!confirm(`Delete ${selected.length} trip${selected.length > 1 ? "s" : ""}? This cannot be undone.`)) return
+    const ok = await confirm({
+      title: `Delete ${selected.length} trip${selected.length > 1 ? "s" : ""}`,
+      description: "This action is permanent and cannot be undone.",
+    })
+    if (!ok) return
     for (const order of selected) {
       try {
         await deleteOrder(order.uuid)

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useConfirm } from "@/components/confirm-dialog"
 import {
   Search, RefreshCw, Download, Trash2, X, Loader2, ChevronDown, AlertTriangle, MapPin,
 } from "lucide-react"
@@ -189,6 +190,7 @@ map.on('click',function(e){
 
 function IssueDrawer({ open, issue, drivers, vehicles, users, onClose, onSaved }: DrawerProps) {
   const { t } = useLang()
+  const confirm = useConfirm()
   const i18n = t.issues
   const c = t.common
   const isEdit = !!issue
@@ -493,6 +495,7 @@ function IssueDrawer({ open, issue, drivers, vehicles, users, onClose, onSaved }
 
 export default function IssuesPage() {
   const { t } = useLang()
+  const confirm = useConfirm()
   const c = t.common
   const i18n = t.issues
 
@@ -571,7 +574,11 @@ export default function IssuesPage() {
   }, [issues, priorityFilter, statusFilter])
 
   const handleDeleteSelected = React.useCallback(async () => {
-    if (!window.confirm(`Delete ${selectedCount} issue${selectedCount !== 1 ? "s" : ""}? This cannot be undone.`)) return
+    const ok = await confirm({
+      title: `Delete ${selectedCount} issue${selectedCount !== 1 ? "s" : ""}`,
+      description: "This action is permanent and cannot be undone.",
+    })
+    if (!ok) return
     setDeleting(true)
     try {
       const uuids = (gridRef.current?.api?.getSelectedRows() ?? []).map(r => r.uuid)

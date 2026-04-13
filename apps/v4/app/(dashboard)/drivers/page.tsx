@@ -7,6 +7,7 @@ import {
   MapPin, UserCheck, UserX, Clock, Archive, Trash2, X, Loader2, ChevronDown, Car,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
+import { useConfirm } from "@/components/confirm-dialog"
 import { ClockTimePicker } from "@/components/clock-time-picker"
 import {
   listDrivers, createDriver, updateDriver, updateDriverStatus,
@@ -214,6 +215,7 @@ function DriverDrawer({
   onSaved: () => void
 }) {
   const { t } = useLang()
+  const confirm = useConfirm()
   const c = t.common
   const isEdit = !!driver
   const [name,           setName]           = React.useState("")
@@ -577,6 +579,7 @@ function DriverDrawer({
 
 export default function DriversPage() {
   const { t } = useLang()
+  const confirm = useConfirm()
   const c = t.common
   const [drivers,       setDrivers]       = React.useState<Driver[]>([])
   const [fleets,        setFleetList]     = React.useState<Fleet[]>([])
@@ -638,7 +641,11 @@ export default function DriversPage() {
   }, [])
 
   const handleDeleteSelected = React.useCallback(async () => {
-    if (!window.confirm(`Delete ${selectedCount} driver${selectedCount !== 1 ? "s" : ""}? This cannot be undone.`)) return
+    const ok = await confirm({
+      title: `Delete ${selectedCount} driver${selectedCount !== 1 ? "s" : ""}`,
+      description: "This action is permanent and cannot be undone.",
+    })
+    if (!ok) return
     setDeleting(true)
     try {
       const uuids = (gridRef.current?.api?.getSelectedRows() ?? []).map(r => r.uuid)
