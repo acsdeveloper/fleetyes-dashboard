@@ -1810,11 +1810,11 @@ export default function RotaPage() {
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Currently assigned</p>
                   {reassignDialog.existingUuids.map(uid => {
-                    const t = tripIndex.get(uid)
+                    const trip = tripIndex.get(uid)
                     return (
                       <span key={uid} className="inline-flex items-center gap-1 rounded-[100px] border border-emerald-300/60 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 text-[11px] font-medium text-emerald-800 dark:text-emerald-300 mr-1">
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
-                        {t ? `${t.scheduled_at?.slice(11,16)} · ${t.public_id}` : uid.slice(0,8)}
+                        {trip ? `${trip.scheduled_at?.slice(11,16)} · ${trip.public_id}` : uid.slice(0,8)}
                       </span>
                     )
                   })}
@@ -1822,11 +1822,11 @@ export default function RotaPage() {
                 <div className="border-t pt-2">
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Will be replaced with</p>
                   {(() => {
-                    const t = reassignDialog.newTripOrder
+                    const trip = reassignDialog.newTripOrder
                     return (
                       <span className="inline-flex items-center gap-1 rounded-[100px] border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary mr-1">
                         <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
-                        {t ? `${t.scheduled_at?.slice(11,16)} · ${t.public_id}` : reassignDialog.newTripUuid.slice(0,8)}
+                        {trip ? `${trip.scheduled_at?.slice(11,16)} · ${trip.public_id}` : reassignDialog.newTripUuid.slice(0,8)}
                       </span>
                     )
                   })()}
