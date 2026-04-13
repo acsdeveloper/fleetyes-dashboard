@@ -24,6 +24,7 @@ import {
   type RotaComplianceReport,
   type ComplianceViolation,
 } from "@/lib/compliance-engine"
+import { shiftHours } from "@/lib/compliance-engine/shift-hours"
 import { ComplianceMatrixView } from "@/components/compliance-matrix"
 import * as ReactDOM from "react-dom"
 
@@ -1013,7 +1014,7 @@ export default function RotaPage() {
   function getDriverWeeklyHoursInfo(driverUuid: string): {
     hours: number; label: string; pct: number; color: string; tooltipText: string
   } {
-    const ms = [...annotatedTripIndex.values()]
+    const workingMs = [...annotatedTripIndex.values()]
       .filter(o => {
         const d = o.driver_assigned_uuid ?? (o.driver_assigned as { uuid?: string } | undefined)?.uuid
         if (d !== driverUuid) return false
@@ -1021,13 +1022,14 @@ export default function RotaPage() {
         return weekSet.has(o.scheduled_at.slice(0, 10))
       })
       .reduce((sum, o) => {
-        const start = new Date(o.scheduled_at!)
-        const endMs = o.estimated_end_date
-          ? new Date(o.estimated_end_date).getTime()
-          : start.getTime() + (o.time || 0) * 60000
-        return sum + Math.max(0, endMs - start.getTime())
+        const start  = new Date(o.scheduled_at!)
+        const endRaw = o.estimated_end_date
+          ? new Date(o.estimated_end_date)
+          : new Date(start.getTime() + (o.time || 0) * 1000)
+        const { workingHours } = shiftHours(start, endRaw)
+        return sum + workingHours * 3_600_000
       }, 0)
-    const hours = ms / 3600000
+    const hours = workingMs / 3_600_000
     const h     = Math.floor(hours)
     const m     = Math.round((hours % 1) * 60)
     const label = m === 0 ? `${h}h` : `${parseFloat(hours.toFixed(1))}h`
