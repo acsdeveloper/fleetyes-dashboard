@@ -116,6 +116,8 @@ export async function createIssue(data: {
 /** Update an existing issue */
 export async function updateIssue(id: string, patch: {
   report?:           string
+  driver_uuid?:      string
+  vehicle_uuid?:     string
   priority?:         IssuePriority
   category?:         string
   type?:             string

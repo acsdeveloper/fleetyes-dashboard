@@ -63,18 +63,18 @@ const darkTheme = themeQuartz.withParams({
 // ─── Style maps ───────────────────────────────────────────────────────────────
 
 // Priority/Status style maps — labels are filled in at render time from t
-const PRIORITY_STYLE: Record<IssuePriority, { badge: string; dot: string }> = {
-  low:      { badge: "bg-slate-50 text-slate-600 border border-slate-200/80 dark:bg-slate-800/30 dark:text-slate-300 dark:border-slate-700/40",         dot: "bg-slate-400"   },
-  medium:   { badge: "bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-700/40",           dot: "bg-amber-500"   },
-  high:     { badge: "bg-orange-50 text-orange-700 border border-orange-200/80 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-700/40",     dot: "bg-orange-500"  },
-  critical: { badge: "bg-red-50 text-red-700 border border-red-200/80 dark:bg-red-900/20 dark:text-red-300 dark:border-red-700/40",                       dot: "bg-red-500"     },
+const PRIORITY_STYLE: Record<IssuePriority, { badge: string; dot: string; label: string }> = {
+  low:      { label: "Low",      badge: "bg-slate-50 text-slate-600 border border-slate-200/80 dark:bg-slate-800/30 dark:text-slate-300 dark:border-slate-700/40",         dot: "bg-slate-400"   },
+  medium:   { label: "Medium",   badge: "bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-700/40",           dot: "bg-amber-500"   },
+  high:     { label: "High",     badge: "bg-orange-50 text-orange-700 border border-orange-200/80 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-700/40",     dot: "bg-orange-500"  },
+  critical: { label: "Critical", badge: "bg-red-50 text-red-700 border border-red-200/80 dark:bg-red-900/20 dark:text-red-300 dark:border-red-700/40",                       dot: "bg-red-500"     },
 }
 
-const STATUS_STYLE: Record<IssueStatus, { badge: string; dot: string }> = {
-  "pending":     { badge: "bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-700/40",         dot: "bg-amber-500"   },
-  "in-progress": { badge: "bg-blue-50 text-blue-700 border border-blue-200/80 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-700/40",               dot: "bg-blue-500"    },
-  "resolved":    { badge: "bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-700/40", dot: "bg-emerald-500" },
-  "closed":      { badge: "bg-zinc-100 text-zinc-600 border border-zinc-200/80 dark:bg-zinc-800/40 dark:text-zinc-400 dark:border-zinc-700/40",               dot: "bg-zinc-400"    },
+const STATUS_STYLE: Record<IssueStatus, { badge: string; dot: string; label: string }> = {
+  "pending":     { label: "Pending",     badge: "bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-700/40",         dot: "bg-amber-500"   },
+  "in-progress": { label: "In Progress", badge: "bg-blue-50 text-blue-700 border border-blue-200/80 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-700/40",               dot: "bg-blue-500"    },
+  "resolved":    { label: "Resolved",    badge: "bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-700/40", dot: "bg-emerald-500" },
+  "closed":      { label: "Closed",      badge: "bg-zinc-100 text-zinc-600 border border-zinc-200/80 dark:bg-zinc-800/40 dark:text-zinc-400 dark:border-zinc-700/40",               dot: "bg-zinc-400"    },
 }
 
 // ─── Cell renderers ───────────────────────────────────────────────────────────
@@ -177,7 +177,7 @@ function IssueDrawer({ open, issue, drivers, vehicles, onClose, onSaved }: Drawe
           status:            statusVal,
           category:          category || undefined,
           assigned_to_uuid:  assignedTo || undefined,
-        } as Parameters<typeof updateIssue>[1])
+        })
       } else {
         await createIssue({
           report:           report.trim(),
