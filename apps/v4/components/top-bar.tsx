@@ -164,19 +164,31 @@ const PATH_KEYS: Record<string, keyof ReturnType<typeof useLang>["t"]["nav"] | n
   "/issues":           "issues",
   "/off-shift":        "offShift",
   "/settings":         "allocationSettings",
+  "/org-settings":     null,
   "/":                 "dashboard",
 }
 
-// Stable fallbacks for paths with null nav keys (pages namespace used instead)
 const PATH_PAGE_KEYS: Record<string, keyof ReturnType<typeof useLang>["t"]["pages"]> = {
   "/rota":      "rota",
   "/vehicles":  "vehicles",
   "/fleets":    "fleets",
 }
 
+// Paths that have a fixed label not tied to i18n keys
+const PATH_FIXED_LABELS: Record<string, string> = {
+  "/org-settings": "Organisation Settings",
+}
+
 function usePageLabel() {
   const pathname = usePathname()
   const { t } = useLang()
+
+  // Check fixed label overrides first
+  const fixedKey = Object.keys(PATH_FIXED_LABELS)
+    .filter(k => pathname.startsWith(k))
+    .sort((a, b) => b.length - a.length)[0]
+  if (fixedKey) return PATH_FIXED_LABELS[fixedKey]
+
   const key = Object.keys(PATH_KEYS)
     .filter(k => pathname.startsWith(k))
     .sort((a, b) => b.length - a.length)[0]
@@ -305,7 +317,7 @@ export function TopBar() {
                 {t.topbar.profile}
               </button>
               <button
-                onClick={() => setProfileOpen(false)}
+                onClick={() => { router.push("/org-settings"); setProfileOpen(false) }}
                 className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm hover:bg-muted transition-colors"
               >
                 <Settings className="h-4 w-4 text-muted-foreground" />
