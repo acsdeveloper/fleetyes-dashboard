@@ -869,9 +869,16 @@ export default function RotaPage() {
   React.useEffect(() => {
     setLoading(true)
 
+    // getPeriod times out quickly — a 400 or slow response must not block the grid.
+    // 3s is generous; if it fails we just use fallbackDates().
+    const getPeriodFast = () => Promise.race([
+      getPeriod(),
+      new Promise<null>(resolve => setTimeout(() => resolve(null), 3_000)),
+    ]).catch(() => null)
+
     Promise.all([
       listDrivers(),
-      getPeriod().catch(() => null),                              // null → fallbackDates()
+      getPeriodFast(),
       listDriverLeave({ per_page: 500, sort: "-start_date" }),
     ]).then(([driversRes, periodRes, leaveRes]) => {
       // ── Drivers ──
