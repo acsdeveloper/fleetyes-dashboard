@@ -631,8 +631,7 @@ export default function TollExpensesPage() {
         start_date: filters.start_date || undefined,
         end_date: filters.end_date || undefined,
       })
-      const raw = res as unknown as Record<string, unknown>
-      const rows = (raw.toll_reports ?? raw.data ?? []) as TollReport[]
+      const rows = (res.fuel_reports ?? []) as TollReport[]
       setRecords(rows)
       const m = res.meta ?? { total: 0, last_page: 1, current_page: 1 }
       setMeta({ total: m.total, last_page: m.last_page, current_page: m.current_page })

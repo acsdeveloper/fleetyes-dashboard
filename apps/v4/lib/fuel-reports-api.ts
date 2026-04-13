@@ -65,9 +65,12 @@ export interface FuelReportMeta {
 }
 
 export interface TollReportListResponse {
-  toll_reports: TollReport[]
+  fuel_reports: TollReport[]   // API always returns this key regardless of report_type
   meta: FuelReportMeta
 }
+
+// Alias kept for compatibility
+export type { TollReportListResponse as TollReportsResponse }
 
 export interface FuelReportListResponse {
   fuel_reports: ParkingReport[]
@@ -133,8 +136,32 @@ export async function listTollReports(params: {
   seen_status_of_amazon?: string
   vr_id?: string
 } = {}): Promise<TollReportListResponse> {
-  const merged = { page: 1, limit: 15, sort: "-created_at", ...params }
-  const qs = buildQueryString(merged as Record<string, string | number | boolean | undefined | null>)
+  const merged = {
+    page: 1,
+    limit: 50,
+    sort: "-created_at",
+    report_type: "toll",
+    "with[]": ["driver", "vehicle", "reporter"],
+    ...params,
+  }
+  // Build query string manually so arrays expand as repeated keys
+  const base: Record<string, string | number | boolean | undefined | null> = {
+    page:    merged.page,
+    limit:   merged.limit,
+    sort:    merged.sort,
+    report_type: merged.report_type,
+    query:   merged.query,
+    vehicle: merged.vehicle,
+    driver:  merged.driver,
+    start_date: merged.start_date,
+    end_date:   merged.end_date,
+    seen_status_of_amazon: merged.seen_status_of_amazon,
+    vr_id:   merged.vr_id,
+  }
+  const qs = (
+    buildQueryString(base) +
+    "&with%5B%5D=driver&with%5B%5D=vehicle&with%5B%5D=reporter"
+  ).replace(/^&&/, "&")
   return ontrackFetch<TollReportListResponse>(`/fuel-reports${qs}`)
 }
 
@@ -211,7 +238,7 @@ export async function bulkDeleteFuelReports(ids: string[]): Promise<{ status: st
 
 // ─── Import Toll ──────────────────────────────────────────────────────────────
 
-export async function uploadReportFile(file: File, type = "fuel_report_import"): Promise<{ uuid: string; original_filename: string }> {
+export async function uploadReportFile(file: File, type = "fuel_report_import"): Promise<{ uuid: string; original_filename?: string; url?: string }> {
   const fd = new FormData()
   fd.append("file", file)
   fd.append("type", type)
@@ -222,7 +249,11 @@ export async function uploadReportFile(file: File, type = "fuel_report_import"):
     body: fd,
   })
   if (!res.ok) throw new Error("File upload failed")
-  return res.json()
+  const body = await res.json()
+  // API may return flat { uuid } or nested { file: { uuid } }
+  const fileObj = body?.file ?? body
+  if (!fileObj?.uuid) throw new Error("Upload response missing file UUID")
+  return { uuid: fileObj.uuid, original_filename: fileObj.original_filename, url: fileObj.url }
 }
 
 export async function importTollReports(fileUuids: string[]): Promise<TollImportResult> {
