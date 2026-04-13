@@ -143,6 +143,7 @@ function HolidayDrawer({
   const [startDate,  setStartDate]  = React.useState("")
   const [endDate,    setEndDate]    = React.useState("")
   const [leaveType,  setLeaveType]  = React.useState<LeaveType>("Annual Leave")
+  const [status,     setStatus]     = React.useState<LeaveStatus>("Submitted")
   const [reason,     setReason]     = React.useState("")
   const [saving,     setSaving]     = React.useState(false)
   const [deleting,   setDeleting]   = React.useState(false)
@@ -154,10 +155,11 @@ function HolidayDrawer({
       setStartDate(leave.start_date?.slice(0, 10) ?? "")
       setEndDate(leave.end_date?.slice(0, 10) ?? "")
       setLeaveType((leave.leave_type as LeaveType) ?? "Annual Leave")
+      setStatus(leave.status ?? "Submitted")
       setReason(leave.reason ?? "")
     } else {
       setDriverUuid(""); setStartDate(""); setEndDate("")
-      setLeaveType("Annual Leave"); setReason("")
+      setLeaveType("Annual Leave"); setStatus("Submitted"); setReason("")
     }
     setError(null)
   }, [leave, open])
@@ -180,6 +182,7 @@ function HolidayDrawer({
           ...(driverUuid ? { driver_uuid: driverUuid } : {}),
           start_date: startDate,
           end_date:   endDate,
+          status,
           leave_type: leaveType,
           reason:     reason || undefined,
         })
@@ -239,8 +242,8 @@ function HolidayDrawer({
         <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3">
           {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">{error}</div>}
 
-          {/* Status badge (edit only) */}
-          {isEdit && status && (() => {
+          {/* Status — read-only badge on edit, editable pill picker on create */}
+          {isEdit && status ? (() => {
             const m = STATUS_META[status]
             const Icon = m?.icon
             return m ? (
@@ -253,7 +256,28 @@ function HolidayDrawer({
                 </span>
               </div>
             ) : null
-          })()}
+          })() : (
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</label>
+              <div className="flex gap-1.5">
+                {(["Submitted", "Approved", "Rejected"] as LeaveStatus[]).map(s => {
+                  const m = STATUS_META[s]
+                  return (
+                    <button key={s} type="button" onClick={() => setStatus(s)}
+                      className={`flex-1 h-8 rounded-lg border text-xs font-medium transition-all ${
+                        status === s
+                          ? s === "Approved" ? "bg-emerald-500 text-white border-emerald-500"
+                          : s === "Rejected" ? "bg-rose-500 text-white border-rose-500"
+                          : "bg-amber-500 text-white border-amber-500"
+                          : "bg-background text-muted-foreground hover:bg-muted"
+                      }`}>
+                      {s}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Driver */}
           <div className="space-y-1">

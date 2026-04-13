@@ -151,6 +151,7 @@ export async function createLeaveRequest(data: {
   vehicle_uuid?:       string
   start_date:          string     // "YYYY-MM-DD"
   end_date:            string     // "YYYY-MM-DD"
+  status?:             LeaveStatus  // defaults to "Submitted" if omitted
   leave_type?:         LeaveType
   reason?:             string
   unavailability_type?: "vehicle"
