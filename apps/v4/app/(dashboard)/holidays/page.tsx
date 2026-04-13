@@ -70,7 +70,7 @@ const STATUS_META: Record<string, { icon: React.FC<{ className?: string }>; badg
   Rejected:  { icon: XCircle,      badge: "bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-rose-900/20 dark:text-rose-300 dark:border-rose-700/40",           dot: "bg-rose-500"   },
 }
 
-const LEAVE_TYPES: LeaveType[] = ["Annual Leave", "Sick Leave", "Vacation", "Sick", "Other"]
+const LEAVE_TYPES: LeaveType[] = ["Annual Leave", "Sick Leave", "Vacation", "Other"]
 
 function fmtDay(iso: string) { return iso?.slice(0, 10) ?? "—" }
 
