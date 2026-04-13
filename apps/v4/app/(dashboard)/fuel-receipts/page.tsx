@@ -58,14 +58,28 @@ function ReceiptDetailModal({ receipt, onClose }: { receipt: FuelReceiptImage; o
         </div>
 
         <div className="flex flex-1 gap-0 overflow-hidden">
-          {/* Image panel */}
+          {/* Image / PDF panel */}
           <div className="flex w-1/2 flex-col items-center justify-center border-r bg-muted/20 p-4">
             {receipt.file?.url ? (
-              <img
-                src={receipt.file.url}
-                alt="Receipt"
-                className="max-h-full max-w-full rounded-lg object-contain shadow"
-              />
+              (() => {
+                const url = receipt.file!.url!
+                const isPdf = url.toLowerCase().includes(".pdf") ||
+                  (receipt.file_path ?? "").toLowerCase().endsWith(".pdf")
+                return isPdf ? (
+                  <iframe
+                    src={url}
+                    title="Receipt PDF"
+                    className="h-full w-full rounded-lg border-0"
+                    style={{ minHeight: 400 }}
+                  />
+                ) : (
+                  <img
+                    src={url}
+                    alt="Receipt"
+                    className="max-h-full max-w-full rounded-lg object-contain shadow"
+                  />
+                )
+              })()
             ) : (
               <div className="flex flex-col items-center gap-3 py-12 text-muted-foreground">
                 <ImageIcon className="h-12 w-12 opacity-40" />

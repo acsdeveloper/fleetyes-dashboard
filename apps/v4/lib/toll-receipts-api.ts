@@ -99,10 +99,10 @@ export async function getTollReceipt(id: string): Promise<{ expense_receipt_imag
 
 // ─── Upload Single Image or PDF ───────────────────────────────────────────────
 
-export async function uploadTollFile(file: File): Promise<{ uuid: string; original_filename: string }> {
+export async function uploadTollFile(file: File): Promise<{ uuid: string; original_filename?: string; url?: string }> {
   const fd = new FormData()
   fd.append("file", file)
-  fd.append("type", "fuel_report_import")
+  fd.append("type", "toll_import")
   const token = getToken()
   const res = await fetch("https://ontrack-api.agilecyber.com/int/v1/files/upload", {
     method: "POST",
@@ -110,7 +110,11 @@ export async function uploadTollFile(file: File): Promise<{ uuid: string; origin
     body: fd,
   })
   if (!res.ok) throw new Error("File upload failed")
-  return res.json()
+  const body = await res.json()
+  // API returns either { uuid, url } (flat) or { file: { uuid, url, ... } } (nested)
+  const fileObj = body?.file ?? body
+  if (!fileObj?.uuid) throw new Error("Upload response missing file UUID")
+  return { uuid: fileObj.uuid, original_filename: fileObj.original_filename, url: fileObj.url }
 }
 
 // ─── Import Single Image/PDF (via fuel-reports/import) ───────────────────────

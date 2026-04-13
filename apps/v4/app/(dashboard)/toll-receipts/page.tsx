@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/page-header"
 import * as React from "react"
 import {
   Search, RefreshCw, X, Loader2, AlertCircle, Upload, CheckCircle2,
-  XCircle, FileText, Eye, ImageIcon, BarChart2, Filter,
+  XCircle, FileText, Eye, ImageIcon, BarChart2, Filter, Cpu,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
 import {
@@ -120,10 +120,24 @@ function ReceiptDetailDrawer({ receipt, onClose }: { receipt: TollReceiptImage; 
         </div>
 
         <div className="flex flex-1 gap-0 overflow-hidden">
-          {/* Image panel */}
+          {/* Image / PDF panel */}
           <div className="flex w-1/2 flex-col items-center justify-center border-r bg-muted/20 p-4">
             {receipt.file?.url ? (
-              <img src={receipt.file.url} alt="Toll Receipt" className="max-h-full max-w-full rounded-lg object-contain shadow" />
+              (() => {
+                const url = receipt.file!.url!
+                const isPdf = url.toLowerCase().includes(".pdf") ||
+                  (receipt.file_path ?? "").toLowerCase().endsWith(".pdf")
+                return isPdf ? (
+                  <iframe
+                    src={url}
+                    title="Toll Receipt PDF"
+                    className="h-full w-full rounded-lg border-0"
+                    style={{ minHeight: 400 }}
+                  />
+                ) : (
+                  <img src={url} alt="Toll Receipt" className="max-h-full max-w-full rounded-lg object-contain shadow" />
+                )
+              })()
             ) : (
               <div className="flex flex-col items-center gap-3 py-12 text-muted-foreground">
                 <ImageIcon className="h-12 w-12 opacity-40" />
@@ -313,6 +327,45 @@ function UploadWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
   )
 }
 
+// ─── Process Info Modal ───────────────────────────────────────────────────────
+// Toll receipt processing runs automatically (inline OCR) during upload.
+// This modal explains the workflow and allows the user to trigger a new upload.
+
+function ProcessInfoModal({ onClose, onUpload }: { onClose: () => void; onUpload: () => void }) {
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
+      <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl border bg-card p-6 shadow-2xl">
+        <div className="mb-4 flex items-start justify-between">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+              <Cpu className="h-4 w-4 text-primary" />
+            </div>
+            <h2 className="font-bold">Process Receipts</h2>
+          </div>
+          <button onClick={onClose} className="rounded-lg border p-1.5 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="flex flex-col gap-3">
+          <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+            <p className="mb-1 font-medium text-foreground">Processing is automatic</p>
+            <p>Toll receipts are OCR-processed inline at upload time. There is no manual process trigger — each uploaded image or PDF is sent through Mindee immediately.</p>
+          </div>
+          <p className="text-sm text-muted-foreground">To add new receipts, upload a ZIP archive or a single image/PDF using the Upload button.</p>
+        </div>
+        <div className="mt-5 flex gap-2">
+          <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">Close</button>
+          <button
+            onClick={() => { onClose(); onUpload() }}
+            className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Upload Receipts
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ─── Filter Drawer ────────────────────────────────────────────────────────────
 
 type Filters = { driver_uuid: string; status: string; start_date: string; end_date: string }
@@ -387,14 +440,15 @@ export default function TollReceiptsPage() {
   const [drivers, setDrivers]   = React.useState<Driver[]>([])
 
   // UI state
-  const [filters, setFilters]       = React.useState<Filters>(EMPTY_FILTERS)
-  const [page, setPage]             = React.useState(1)
-  const [search, setSearch]         = React.useState("")
-  const [showSearch, setShowSearch] = React.useState(false)
-  const [showCards, setShowCards]   = React.useState(false)
+  const [filters, setFilters]         = React.useState<Filters>(EMPTY_FILTERS)
+  const [page, setPage]               = React.useState(1)
+  const [search, setSearch]           = React.useState("")
+  const [showSearch, setShowSearch]   = React.useState(false)
+  const [showCards, setShowCards]     = React.useState(false)
   const [showFilters, setShowFilters] = React.useState(false)
-  const [showUpload, setShowUpload] = React.useState(false)
-  const [showFilter, setShowFilter] = React.useState(false)
+  const [showUpload, setShowUpload]   = React.useState(false)
+  const [showFilter, setShowFilter]   = React.useState(false)
+  const [showProcess, setShowProcess] = React.useState(false)
   const [detailRecord, setDetailRecord] = React.useState<TollReceiptImage | null>(null)
 
   // AG Grid
@@ -659,6 +713,15 @@ export default function TollReceiptsPage() {
             Filters{activeFilters > 0 ? ` (${activeFilters})` : ""}
           </button>
 
+          {/* Process button */}
+          <button
+            onClick={() => setShowProcess(true)}
+            title="Process Receipts"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground hover:bg-muted"
+          >
+            <Cpu className="h-3.5 w-3.5" />
+          </button>
+
           {/* Upload */}
           <button onClick={() => setShowUpload(true)}
             className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">
@@ -728,6 +791,7 @@ export default function TollReceiptsPage() {
       {/* ── Drawers ──────────────────────────────────── */}
       {detailRecord && <ReceiptDetailDrawer receipt={detailRecord} onClose={() => setDetailRecord(null)} />}
       {showUpload && <UploadWizard onClose={() => setShowUpload(false)} onDone={() => fetchData(1)} />}
+      {showProcess && <ProcessInfoModal onClose={() => setShowProcess(false)} onUpload={() => setShowUpload(true)} />}
       <FilterDrawer open={showFilter} onClose={() => setShowFilter(false)} filters={filters} setFilters={setFilters} drivers={drivers} />
     </div>
   )
