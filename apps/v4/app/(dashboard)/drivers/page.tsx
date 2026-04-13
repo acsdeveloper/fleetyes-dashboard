@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import * as React from "react"
 import {
@@ -9,7 +9,9 @@ import {
 import { useLang } from "@/components/lang-context"
 import { ClockTimePicker } from "@/components/clock-time-picker"
 import {
-  listDrivers, createDriver, updateDriver, updateDriverStatus, exportDrivers, deleteDriver, importDrivers,
+  listDrivers, createDriver, updateDriver, updateDriverStatus,
+  updateDriverShiftPreferences,
+  exportDrivers, deleteDriver, importDrivers,
   type Driver, type DriverStatus, type ShiftPreferences,
 } from "@/lib/drivers-api"
 import { listFleets, type Fleet } from "@/lib/fleets-api"
@@ -235,6 +237,7 @@ function DriverDrawer({
   )
   const [saving,         setSaving]         = React.useState(false)
   const [error,          setError]          = React.useState<string | null>(null)
+  const [country,        setCountry]        = React.useState("GB")
 
   React.useEffect(() => {
     if (driver) {
@@ -249,6 +252,7 @@ function DriverDrawer({
       setVehicleUuid(driver.vehicle_uuid ?? "")
       setMaxTrips(driver.maximum_trips_per_week != null ? String(driver.maximum_trips_per_week) : "")
       setConsecDays(driver.number_of_consecutive_working_days != null ? String(driver.number_of_consecutive_working_days) : "")
+      setCountry(driver.country ?? "GB")
       // Shift preferences
       const prefs = driver.shift_preferences
       if (prefs?.all_days) {
@@ -275,6 +279,7 @@ function DriverDrawer({
       setName(""); setEmail(""); setPhone(""); setLicence("")
       setStatusVal("active"); setSelectedFleets([]); setVehicleUuid("")
       setMaxTrips(""); setConsecDays("")
+      setCountry("GB")
       setShiftMode("none"); setShiftStart(""); setShiftEnd("")
       setDayWindows(Object.fromEntries(DAYS.map(d => [d, emptyDay()])) as Record<DayKey, DayWindow>)
     }
@@ -284,14 +289,17 @@ function DriverDrawer({
   const toggleFleet = (uuid: string) =>
     setSelectedFleets(prev => prev.includes(uuid) ? prev.filter(f => f !== uuid) : [...prev, uuid])
 
+  /** Normalise a time string to HH:mm:ss — ClockTimePicker returns HH:mm */
+  const toHms = (t: string) => !t ? t : t.length === 5 ? `${t}:00` : t
+
   const buildShiftPreferences = (): ShiftPreferences | undefined => {
     if (shiftMode === "none") return undefined
     if (shiftMode === "all_days") {
       if (!shiftStart && !shiftEnd) return undefined
       return {
         all_days: {
-          ...(shiftStart ? { start: shiftStart, start_time: shiftStart } : {}),
-          ...(shiftEnd   ? { end: shiftEnd }                              : {}),
+          ...(shiftStart ? { start: toHms(shiftStart) } : {}),
+          ...(shiftEnd   ? { end:   toHms(shiftEnd)   } : {}),
         },
       }
     }
@@ -301,8 +309,8 @@ function DriverDrawer({
       const w = dayWindows[d]
       if (w.start || w.end) {
         result[d] = [{
-          ...(w.start ? { start: w.start, start_time: w.start } : {}),
-          ...(w.end   ? { end: w.end }                           : {}),
+          ...(w.start ? { start: toHms(w.start) } : {}),
+          ...(w.end   ? { end:   toHms(w.end)   } : {}),
         }]
       }
     }
@@ -313,23 +321,39 @@ function DriverDrawer({
     if (!name.trim()) { setError("Driver name is required."); return }
     setSaving(true); setError(null)
     try {
+      // Base payload — shift_preferences intentionally excluded here:
+      // some backends reject shift_preferences on the main driver endpoint.
+      // We call updateDriverShiftPreferences separately after the base save.
       const payload: Partial<Driver> = {
         name:                                name.trim(),
         email:                               email || undefined,
         phone:                               phone || undefined,
         drivers_license_number:             licence || undefined,
         status:                              statusVal,
+        country:                             country || "GB",
         fleet_uuid:                          selectedFleets.length ? selectedFleets : [],
         vehicle_uuid:                        vehicleUuid || undefined,
         maximum_trips_per_week:             maxTrips ? Number(maxTrips) : undefined,
         number_of_consecutive_working_days: consecDays ? Number(consecDays) : undefined,
-        shift_preferences:                  buildShiftPreferences(),
       }
+
+      let targetUuid = driver?.uuid
       if (isEdit && driver) {
         await updateDriver(driver.uuid, payload)
       } else {
-        await createDriver(payload)
+        const created = await createDriver(payload)
+        targetUuid = created.uuid
       }
+
+      // Separately persist shift preferences so a prefs validation error
+      // doesn\'t roll back a successful driver create/update.
+      const shiftPrefs = buildShiftPreferences()
+      if (targetUuid && (shiftPrefs !== undefined || (isEdit && shiftMode === "none"))) {
+        await updateDriverShiftPreferences(targetUuid, {
+          shift_preferences: shiftPrefs ?? null as unknown as undefined,
+        })
+      }
+
       onSaved()
       onClose()
     } catch (e) {
@@ -370,8 +394,8 @@ function DriverDrawer({
         <div className="flex-1 px-5 py-3 space-y-3">
           {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">{error}</div>}
 
-          {/* Name + Status */}
-          <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 9rem" }}>
+          {/* Name + Status + Country */}
+          <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 7rem 5rem" }}>
             <div className="space-y-1">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Name *</label>
               <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Full name"
@@ -389,6 +413,11 @@ function DriverDrawer({
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
               </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Country</label>
+              <input type="text" value={country} onChange={e => setCountry(e.target.value.toUpperCase())} placeholder="GB" maxLength={3}
+                className="h-8 w-full rounded-lg border bg-background px-3 text-sm font-mono outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
             </div>
           </div>
 
