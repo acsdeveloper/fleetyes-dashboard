@@ -1,24 +1,4 @@
-/**
- * Weekly Hours Logic — EC 561/2006 Article 6.3
- *
- * Pure function — no API or UI dependencies.
- *
- * Rules applied to a single set of trips (typically one week's worth):
- *
- *   WEEKLY_HOURS — total hours in a calendar week:
- *     > 50h  → warning  (approaching the 56h limit)
- *     > 56h  → violation (weekly maximum exceeded)
- *
- *   BIWEEKLY_HOURS — total hours across any two consecutive weeks:
- *     NOTE: This check requires two weeks of trip data to be passed in.
- *     The caller is responsible for providing trips from the correct window.
- *     > 80h  → warning  (approaching the 90h biweekly limit)
- *     > 90h  → violation (biweekly maximum exceeded)
- *
- * Hours are clipped to day boundaries and summed across all calendar days
- * in the provided trip set. No week boundary enforcement is done here —
- * the caller provides the right trips for the right window.
- */
+import { shiftHours } from "./shift-hours"
 
 export const WEEKLY_HOURS_RULES = {
   // EU Transport Working Time Directive (2002/15/EC):
@@ -58,11 +38,16 @@ function fmtHoursMin(minutes: number): string {
   return m === 0 ? `${h}h` : `${h}h ${m}m`
 }
 
-/** Total driving milliseconds across all provided trips (with clipping to trip boundaries) */
-function totalDrivingMs(trips: TripWindow[]): number {
+/**
+ * Total derived WORKING milliseconds across all provided trips.
+ * Uses shiftHours() to convert raw block durations:
+ *   - Single-day block: working = block − 1h
+ *   - Multi-day block:  working = 11h (fixed)
+ */
+function totalWorkingMs(trips: TripWindow[]): number {
   return trips.reduce((sum, t) => {
-    const ms = t.endTime.getTime() - t.startTime.getTime()
-    return sum + Math.max(0, ms)
+    const { workingHours } = shiftHours(t.startTime, t.endTime)
+    return sum + workingHours * 3_600_000
   }, 0)
 }
 
@@ -78,7 +63,7 @@ export function checkWeeklyHours(
 ): WeeklyHoursResult | null {
   if (trips.length === 0) return null
 
-  const totalMs      = totalDrivingMs(trips)
+  const totalMs      = totalWorkingMs(trips)
   const totalMinutes = totalMs / 60000
   const uuids        = trips.map(t => t.orderId)
 
@@ -120,7 +105,7 @@ export function checkBiweeklyHours(
   const allTrips   = [...tripsWeek1, ...tripsWeek2]
   if (allTrips.length === 0) return null
 
-  const totalMs      = totalDrivingMs(allTrips)
+  const totalMs      = totalWorkingMs(allTrips)
   const totalMinutes = totalMs / 60000
   const uuids        = allTrips.map(t => t.orderId)
 
