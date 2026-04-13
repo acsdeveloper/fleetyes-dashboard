@@ -95,8 +95,8 @@ function fmt(iso?: string | null) {
 function StatusCell({ status }: { status: string }) {
   const s = STATUS_STYLES[status] ?? STATUS_STYLES.pending
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-semibold capitalize ${s.bg} ${s.border} ${s.text}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+    <span className={`inline-flex items-center rounded-[100px] border pl-1 pr-3 text-[12px] font-medium capitalize leading-[2] ${s.bg} ${s.border} ${s.text}`}>
+      <span className={`mr-2 ml-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${s.dot}`} />
       {status}
     </span>
   )

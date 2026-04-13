@@ -407,7 +407,7 @@ export default function ParkingPage() {
     { headerName: "Notes",    field: "report",         filter: "agTextColumnFilter", flex: 1,   cellRenderer: ({ value }: ICellRendererParams) => <span className="truncate text-xs text-muted-foreground">{value || "—"}</span> },
     {
       headerName: "Status", field: "status", filter: "agTextColumnFilter", width: 120,
-      cellRenderer: ({ value }: ICellRendererParams) => { const s = PK_STATUS[value] ?? PK_STATUS.pending; return value ? (<span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-semibold capitalize ${s.bg} ${s.border} ${s.text}`}><span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />{value}</span>) : null },
+      cellRenderer: ({ value }: ICellRendererParams) => { const s = PK_STATUS[value] ?? PK_STATUS.pending; return value ? (<span className={`inline-flex items-center rounded-[100px] border pl-1 pr-3 text-[12px] font-medium capitalize leading-[2] ${s.bg} ${s.border} ${s.text}`}><span className={`mr-2 ml-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${s.dot}`} />{value}</span>) : null },
     },
     {
       colId: "_action", headerName: "", width: 110, sortable: false, filter: false, resizable: false,
