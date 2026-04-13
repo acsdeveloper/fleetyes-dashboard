@@ -168,6 +168,7 @@ export type Translations = {
   holidays: {
     reason: string; start: string; end: string; days: string
     newEntry: string; searchPlaceholder: string
+    leaveTypes: { "Annual Leave": string; sick: string; Vacation: string; Other: string }
   }
   offShift: {
     cycle: string; firstLeaveDay: string; planUntil: string
@@ -347,6 +348,7 @@ export const translations: Record<Lang, Translations> = {
     holidays: {
       reason: "Reason", start: "Start", end: "End", days: "Days",
       newEntry: "New Entry", searchPlaceholder: "Search driver, reason…",
+      leaveTypes: { "Annual Leave": "Annual Leave", sick: "Sick Leave", Vacation: "Vacation", Other: "Other" },
     },
     offShift: {
       cycle: "Cycle", firstLeaveDay: "First Leave Day", planUntil: "Plan Until",
@@ -530,6 +532,7 @@ export const translations: Record<Lang, Translations> = {
     holidays: {
       reason: "Grund", start: "Beginn", end: "Ende", days: "Tage",
       newEntry: "Neuer Eintrag", searchPlaceholder: "Fahrer, Grund suchen…",
+      leaveTypes: { "Annual Leave": "Jahresurlaub", sick: "Krankheit", Vacation: "Urlaub", Other: "Sonstiges" },
     },
     offShift: {
       cycle: "Zeitraum", firstLeaveDay: "Erster Urlaubstag", planUntil: "Planen bis",
@@ -713,6 +716,7 @@ export const translations: Record<Lang, Translations> = {
     holidays: {
       reason: "Motif", start: "Début", end: "Fin", days: "Jours",
       newEntry: "Nouvelle entrée", searchPlaceholder: "Rechercher conducteur, motif…",
+      leaveTypes: { "Annual Leave": "Congé annuel", sick: "Congé maladie", Vacation: "Vacances", Other: "Autre" },
     },
     offShift: {
       cycle: "Cycle", firstLeaveDay: "Premier jour de congé", planUntil: "Planifier jusqu'au",
@@ -896,6 +900,7 @@ export const translations: Record<Lang, Translations> = {
     holidays: {
       reason: "Motivo", start: "Inicio", end: "Fin", days: "Días",
       newEntry: "Nueva entrada", searchPlaceholder: "Buscar conductor, motivo…",
+      leaveTypes: { "Annual Leave": "Vacaciones anuales", sick: "Baja por enfermedad", Vacation: "Vacaciones", Other: "Otro" },
     },
     offShift: {
       cycle: "Ciclo", firstLeaveDay: "Primer día de permiso", planUntil: "Planificar hasta",
@@ -1079,6 +1084,7 @@ export const translations: Record<Lang, Translations> = {
     holidays: {
       reason: "Motivo", start: "Inizio", end: "Fine", days: "Giorni",
       newEntry: "Nuova voce", searchPlaceholder: "Cerca autista, motivo…",
+      leaveTypes: { "Annual Leave": "Ferie annuali", sick: "Malattia", Vacation: "Vacanza", Other: "Altro" },
     },
     offShift: {
       cycle: "Ciclo", firstLeaveDay: "Primo giorno di ferie", planUntil: "Pianifica fino al",
@@ -1262,6 +1268,7 @@ export const translations: Record<Lang, Translations> = {
     holidays: {
       reason: "Powód", start: "Początek", end: "Koniec", days: "Dni",
       newEntry: "Nowy wpis", searchPlaceholder: "Szukaj kierowcy, powodu…",
+      leaveTypes: { "Annual Leave": "Urlop wypoczynkowy", sick: "Zwolnienie lekarskie", Vacation: "Urlop", Other: "Inne" },
     },
     offShift: {
       cycle: "Cykl", firstLeaveDay: "Pierwszy dzień urlopu", planUntil: "Planuj do",

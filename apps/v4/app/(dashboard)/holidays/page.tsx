@@ -70,14 +70,6 @@ const STATUS_META: Record<string, { icon: React.FC<{ className?: string }>; badg
   Rejected:  { icon: XCircle,      badge: "bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-rose-900/20 dark:text-rose-300 dark:border-rose-700/40",           dot: "bg-rose-500"   },
 }
 
-// Selectable values use the API's expected values as keys.
-// "sick" is the API value; display label is "Sick Leave".
-const LEAVE_TYPE_LABEL: Record<LeaveType, string> = {
-  "Annual Leave": "Annual Leave",
-  "sick":         "Sick Leave",
-  "Vacation":     "Vacation",
-  "Other":        "Other",
-}
 const LEAVE_TYPES: LeaveType[] = ["Annual Leave", "sick", "Vacation", "Other"]
 
 function fmtDay(iso: string) { return iso?.slice(0, 10) ?? "—" }
@@ -99,8 +91,9 @@ function DriverCell({ data }: ICellRendererParams<LeaveRequest>) {
 }
 
 function LeaveTypeCell({ value }: ICellRendererParams) {
+  const { t } = useLang()
   if (!value) return <span className="text-muted-foreground">—</span>
-  const label = LEAVE_TYPE_LABEL[value as LeaveType] ?? value
+  const label = t.holidays.leaveTypes[value as LeaveType] ?? value
   return (
     <div className="flex items-center h-full">
       <span className="inline-flex items-center rounded-full border bg-muted/40 px-2.5 py-0.5 text-xs font-medium">
@@ -329,14 +322,14 @@ function HolidayDrawer({
           <div className="space-y-1">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Leave Type</label>
             <div className="flex flex-wrap gap-1.5">
-              {LEAVE_TYPES.map(t => (
-                <button key={t} type="button" onClick={() => setLeaveType(t)}
+              {LEAVE_TYPES.map(lt => (
+                <button key={lt} type="button" onClick={() => setLeaveType(lt)}
                   className={`h-7 rounded-full px-3 text-xs font-medium border transition-all ${
-                    leaveType === t
+                    leaveType === lt
                       ? "bg-primary text-primary-foreground border-primary"
                       : "bg-background text-muted-foreground hover:bg-muted"
                   }`}>
-                  {LEAVE_TYPE_LABEL[t]}
+                  {t.holidays.leaveTypes[lt]}
                 </button>
               ))}
             </div>
