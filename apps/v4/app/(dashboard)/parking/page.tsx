@@ -44,6 +44,17 @@ const EMPTY_FORM: CreateParkingPayload = {
   status: "pending", amount: 0, currency: "GBP", payment_method: "Card",
 }
 
+// Defined at module level — NOT inside a component — so its identity stays
+// stable across renders and React doesn't remount the children (which loses focus).
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="mb-1 block text-xs font-medium text-muted-foreground">{label}</label>
+      {children}
+    </div>
+  )
+}
+
 function ParkingSlideOver({ record, vehicles, drivers, onClose, onSaved }: {
   record: ParkingReport | null
   vehicles: Vehicle[]
@@ -98,9 +109,6 @@ function ParkingSlideOver({ record, vehicles, drivers, onClose, onSaved }: {
 
   const input = "h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
   const sel = "h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-  const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div><label className="mb-1 block text-xs font-medium text-muted-foreground">{label}</label>{children}</div>
-  )
 
   return (
     <>
