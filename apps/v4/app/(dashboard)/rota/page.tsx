@@ -863,15 +863,32 @@ export default function RotaPage() {
     return out
   }, [tripIndex, dates])
 
-  // Load drivers on mount; then batch-fetch shift preferences in parallel (non-blocking)
+  // ── Mount: fire all independent fetches in parallel ─────────────────────
+  // listDrivers, getPeriod, and listDriverLeave have no dependency on each
+  // other — run them all at once rather than sequentially.
   React.useEffect(() => {
     setLoading(true)
-    listDrivers()
-      .then(async (r) => {
-        const eligible = (r.drivers ?? []).filter((d) => (d.status as string) !== "pending")
-        const deduped  = dedupBy(dedupBy(eligible, "uuid"), (d) => `${d.name}|${d.phone ?? ""}`)
-        setDrivers(deduped)
-        // Fire all detail requests in parallel — drivers = 30 max, allSettled won't throw
+
+    Promise.all([
+      listDrivers(),
+      getPeriod().catch(() => null),                              // null → fallbackDates()
+      listDriverLeave({ per_page: 500, sort: "-start_date" }),
+    ]).then(([driversRes, periodRes, leaveRes]) => {
+      // ── Drivers ──
+      const eligible = (driversRes.drivers ?? []).filter((d) => (d.status as string) !== "pending")
+      const deduped  = dedupBy(dedupBy(eligible, "uuid"), (d) => `${d.name}|${d.phone ?? ""}`)
+      setDrivers(deduped)
+
+      // ── Period ──
+      if (periodRes) setPeriod(periodRes)
+
+      // ── Leaves ──
+      setLeaves(leaveRes.data ?? [])
+
+      // ── Shift preferences — deferred so the grid renders first ──
+      // getDriver is one API call per driver; defer to idle time so it
+      // never blocks the initial paint.
+      const fetchPrefs = async () => {
         const results = await Promise.allSettled(deduped.map(d => getDriver(d.uuid)))
         const map = new Map<string, { start: string; end: string }>()
         results.forEach((res, i) => {
@@ -881,33 +898,25 @@ export default function RotaPage() {
           map.set(deduped[i].uuid, { start: sp.start.slice(0, 5), end: sp.end.slice(0, 5) })
         })
         setPrefMap(map)
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
+      }
+
+      // Use requestIdleCallback when available (Chrome/Edge) otherwise setTimeout 0
+      if (typeof requestIdleCallback !== "undefined") {
+        requestIdleCallback(() => { fetchPrefs().catch(() => {}) })
+      } else {
+        setTimeout(() => { fetchPrefs().catch(() => {}) }, 0)
+      }
+    })
+    .catch(() => {})
+    .finally(() => setLoading(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ── Fetch allocation period on mount ───────────────────────────────────────
-  // On success: sets period → dates recomputes to the API-supplied range (7 or 8 days).
-  // On failure: period stays null → dates falls back to next week's Sunday + 7 days.
-  React.useEffect(() => {
-    getPeriod()
-      .then(p => setPeriod(p))
-      .catch(() => {
-        // API not yet provisioned or unreachable — period stays null, fallbackDates() is used
-      })
-  }, [])
-
-  // Load rota + leaves on week change
+  // Load rota from localStorage on week change (sync — no API call)
   React.useEffect(() => {
     const weekRotas = getWeekRota(dates)
     setRotas(weekRotas)
     setPreferences(getAllPreferences())
-    // Note: assignedTripUuids is now derived from the live tripIndex (below),
-    // NOT from localStorage, so external API unassignments are always reflected.
-
-    listDriverLeave({ per_page: 500, sort: "-start_date" })
-      .then(res => setLeaves(res.data ?? []))
-      .catch(() => {})
   }, [dates, wk])
 
   /**
