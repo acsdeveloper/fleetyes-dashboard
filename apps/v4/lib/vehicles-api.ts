@@ -87,7 +87,8 @@ export async function createVehicle(data: {
 }): Promise<Vehicle> {
   const res = await ontrackFetch<{ vehicle: Vehicle }>("/vehicles", {
     method: "POST",
-    body:   JSON.stringify(data),
+    // Fleetbase VehicleController reads $request->input('vehicle')
+    body:   JSON.stringify({ vehicle: data }),
   })
   return res.vehicle
 }
@@ -95,7 +96,8 @@ export async function createVehicle(data: {
 export async function updateVehicle(uuid: string, patch: Partial<Vehicle>): Promise<Vehicle> {
   const res = await ontrackFetch<{ vehicle: Vehicle }>(`/vehicles/${uuid}`, {
     method: "PUT",
-    body:   JSON.stringify(patch),
+    // Fleetbase VehicleController reads $request->input('vehicle')
+    body:   JSON.stringify({ vehicle: patch }),
   })
   return res.vehicle
 }
