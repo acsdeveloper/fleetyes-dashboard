@@ -8,7 +8,7 @@ import {
   X, Loader2,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
-import { listPlaces, createPlace, updatePlace, bulkDeletePlaces, importPlaces, type Place, type GeoPoint } from "@/lib/places-api"
+import { listPlaces, createPlace, updatePlace, bulkDeletePlaces, importPlaces, reverseGeocode, type Place, type GeoPoint } from "@/lib/places-api"
 import { ImportModal } from "@/components/import-modal"
 
 import { AgGridReact } from "ag-grid-react"
@@ -255,7 +255,54 @@ function IdCell({ value }: ICellRendererParams) {
   )
 }
 
-// ─── Place Drawer ────────────────────────────────────────────────────────────
+// ─── Module-level Field helper (avoids remount-on-render focus loss) ──────────
+
+function PlaceField({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+        {label}{required && " *"}
+      </label>
+      {children}
+    </div>
+  )
+}
+
+// ─── Inline Leaflet map picker (srcdoc iframe — no external deps beyond CDN) ──
+
+function buildPickerHtml(lat: number | null, lng: number | null, mapboxToken: string): string {
+  const cLat = lat ?? 52.5
+  const cLng = lng ?? -1.7
+  const zoom = lat != null ? 13 : 6
+  const pinJs = lat != null
+    ? `var pin=L.marker([${lat},${lng}],{draggable:true}).addTo(map);
+       pin.on('dragend',function(){var ll=pin.getLatLng();window.parent.postMessage({type:'pick-coords',lat:ll.lat,lng:ll.lng},'*');});`
+    : ""
+  return `<!DOCTYPE html><html><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
+<style>*{margin:0;padding:0;box-sizing:border-box}html,body,#map{width:100%;height:100%;cursor:crosshair}
+.leaflet-container{cursor:crosshair!important}
+</style></head>
+<body><div id="map"></div><script>
+var map=L.map('map',{zoomControl:true}).setView([${cLat},${cLng}],${zoom});
+${mapboxToken
+  ? `L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/256/{z}/{x}/{y}@2x?access_token=${mapboxToken}',{maxZoom:22,tileSize:256,attribution:'© Mapbox © OSM'}).addTo(map);`
+  : `L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OSM'}).addTo(map);`
+}
+var pin=null;
+${pinJs}
+map.on('click',function(e){
+  if(pin){map.removeLayer(pin);}
+  pin=L.marker(e.latlng,{draggable:true}).addTo(map);
+  pin.on('dragend',function(){var ll=pin.getLatLng();window.parent.postMessage({type:'pick-coords',lat:ll.lat,lng:ll.lng},'*');});
+  window.parent.postMessage({type:'pick-coords',lat:e.latlng.lat,lng:e.latlng.lng},'*');
+});
+<\/script></body></html>`
+}
+
+// ─── Place Drawer ─────────────────────────────────────────────────────────────
 
 function PlaceDrawer({
   open, place, onClose, onSaved,
@@ -269,17 +316,27 @@ function PlaceDrawer({
   const c = t.common
   const p18n = t.places
   const isEdit = !!place
-  const [name,       setName]       = React.useState("")
-  const [code,       setCode]       = React.useState("")
-  const [address,    setAddress]    = React.useState("")
-  const [city,       setCity]       = React.useState("")
-  const [stateVal,   setStateVal]   = React.useState("")
-  const [country,    setCountry]    = React.useState("")
-  const [postalCode, setPostalCode] = React.useState("")
-  const [phone,      setPhone]      = React.useState("")
-  const [saving,     setSaving]     = React.useState(false)
-  const [error,      setError]      = React.useState<string | null>(null)
 
+  const [name,        setName]        = React.useState("")
+  const [code,        setCode]        = React.useState("")
+  const [address,     setAddress]     = React.useState("")
+  const [city,        setCity]        = React.useState("")
+  const [stateVal,    setStateVal]    = React.useState("")
+  const [country,     setCountry]     = React.useState("")
+  const [postalCode,  setPostalCode]  = React.useState("")
+  const [phone,       setPhone]       = React.useState("")
+  const [lat,         setLat]         = React.useState<number | null>(null)
+  const [lng,         setLng]         = React.useState<number | null>(null)
+  const [showMap,     setShowMap]     = React.useState(false)
+  const [geocoding,   setGeocoding]   = React.useState(false)
+  const [saving,      setSaving]      = React.useState(false)
+  const [error,       setError]       = React.useState<string | null>(null)
+
+  const mapboxToken = typeof window !== "undefined"
+    ? (process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "")
+    : ""
+
+  // Populate from existing place on open/switch
   React.useEffect(() => {
     if (place) {
       setName(place.name ?? "")
@@ -290,20 +347,59 @@ function PlaceDrawer({
       setCountry(place.country ?? "")
       setPostalCode(place.postal_code ?? "")
       setPhone(place.phone ?? "")
+      // Hydrate coordinates from location or flat lat/lng fields
+      if (place.location?.coordinates?.length === 2) {
+        setLng(place.location.coordinates[0])
+        setLat(place.location.coordinates[1])
+      } else if (place.latitude != null && place.longitude != null) {
+        setLat(place.latitude)
+        setLng(place.longitude)
+      } else {
+        setLat(null); setLng(null)
+      }
     } else {
       setName(""); setCode(""); setAddress(""); setCity("")
       setStateVal(""); setCountry(""); setPostalCode(""); setPhone("")
+      setLat(null); setLng(null)
     }
     setError(null)
+    setShowMap(false)
   }, [place, open])
+
+  // Listen for map pin clicks from the iframe
+  React.useEffect(() => {
+    if (!showMap) return
+    const handler = async (e: MessageEvent) => {
+      if (e.data?.type !== "pick-coords") return
+      const { lat: newLat, lng: newLng } = e.data as { lat: number; lng: number }
+      setLat(newLat)
+      setLng(newLng)
+      // Auto-fill address fields via reverse geocode
+      setGeocoding(true)
+      try {
+        const geo = await reverseGeocode(newLat, newLng)
+        if (geo.address)     setAddress(geo.address)
+        if (geo.city)        setCity(geo.city)
+        if (geo.state)       setStateVal(geo.state)
+        if (geo.country)     setCountry(geo.country)
+        if (geo.postal_code) setPostalCode(geo.postal_code)
+      } catch { /* silently ignore — user can fill manually */ }
+      finally { setGeocoding(false) }
+    }
+    window.addEventListener("message", handler)
+    return () => window.removeEventListener("message", handler)
+  }, [showMap])
 
   const handleSave = async () => {
     if (!name.trim()) { setError("Place name is required."); return }
+    if (lat == null || lng == null) { setError("Please pick a location on the map — coordinates are required."); return }
     setSaving(true); setError(null)
+    const location: GeoPoint = { type: "Point", coordinates: [lng, lat] }
     try {
       if (isEdit && place) {
         await updatePlace(place.uuid, {
           name:        name.trim(),
+          location,
           code:        code || undefined,
           address:     address || undefined,
           city:        city || undefined,
@@ -313,7 +409,6 @@ function PlaceDrawer({
           phone:       phone || undefined,
         })
       } else {
-        const location: GeoPoint = { type: "Point", coordinates: [0, 0] }
         await createPlace({
           name:        name.trim(),
           location,
@@ -335,6 +430,8 @@ function PlaceDrawer({
     }
   }
 
+  const inputCls = "h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
+
   return (
     <>
       <div
@@ -342,60 +439,112 @@ function PlaceDrawer({
         onClick={onClose}
       />
       <div className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l bg-background shadow-2xl transition-transform duration-300 ${open ? "translate-x-0" : "translate-x-full"}`}>
+        {/* Header */}
         <div className="flex items-center justify-between border-b px-5 py-4">
           <h2 className="text-sm font-bold">{isEdit ? c.edit : p18n.addPlace}</h2>
           <button onClick={onClose} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
         </div>
+
+        {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">{error}</div>}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{c.name} *</label>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Place name"
-              className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">
+              {error}
+            </div>
+          )}
+
+          {/* Name + Code */}
+          <PlaceField label={c.name} required>
+            <input type="text" value={name} onChange={e => setName(e.target.value)}
+              placeholder="Place name" className={inputCls} />
+          </PlaceField>
+          <PlaceField label={p18n.code}>
+            <input type="text" value={code} onChange={e => setCode(e.target.value)}
+              placeholder="e.g. LHR, DEP-01" className={`${inputCls} font-mono`} />
+          </PlaceField>
+
+          {/* ── Map picker ─────────────────────────────────────────────────── */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Location *
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowMap(v => !v)}
+                className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${showMap ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground hover:bg-muted"}`}
+              >
+                <MapPin className="h-3 w-3" />
+                {showMap ? "Hide map" : "Pick on map"}
+              </button>
+            </div>
+
+            {/* Coordinate badge */}
+            {lat != null && lng != null ? (
+              <div className="flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs dark:border-indigo-800 dark:bg-indigo-950/30">
+                <MapPin className="h-3.5 w-3.5 shrink-0 text-indigo-500" />
+                <span className="font-mono text-indigo-700 dark:text-indigo-300">
+                  {lat.toFixed(6)}, {lng.toFixed(6)}
+                </span>
+                {geocoding && <Loader2 className="ml-auto h-3 w-3 animate-spin text-indigo-400" />}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50/50 px-3 py-2 text-xs text-amber-700 dark:border-amber-700 dark:bg-amber-950/20 dark:text-amber-400">
+                ⚠ No coordinates set — click map or drag pin to set location
+              </div>
+            )}
+
+            {/* Inline Leaflet map */}
+            {showMap && (
+              <div className="overflow-hidden rounded-xl border" style={{ height: 260 }}>
+                <iframe
+                  title="Location picker"
+                  className="h-full w-full border-0"
+                  sandbox="allow-scripts allow-same-origin"
+                  srcDoc={buildPickerHtml(lat, lng, mapboxToken)}
+                />
+              </div>
+            )}
           </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{p18n.code}</label>
-            <input type="text" value={code} onChange={e => setCode(e.target.value)} placeholder="e.g. LHR, DEP-01"
-              className="h-9 w-full rounded-lg border bg-background px-3 text-sm font-mono outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{p18n.address}</label>
-            <input type="text" value={address} onChange={e => setAddress(e.target.value)} placeholder="Street address"
-              className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
-          </div>
+
+          {/* Address row */}
+          <PlaceField label={p18n.address}>
+            <input type="text" value={address} onChange={e => setAddress(e.target.value)}
+              placeholder="Street address" className={inputCls} />
+          </PlaceField>
+
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{p18n.city}</label>
-              <input type="text" value={city} onChange={e => setCity(e.target.value)} placeholder="City"
-                className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{p18n.postalCode}</label>
-              <input type="text" value={postalCode} onChange={e => setPostalCode(e.target.value)} placeholder="SW1A 1AA"
-                className="h-9 w-full rounded-lg border bg-background px-3 text-sm font-mono outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
-            </div>
+            <PlaceField label={p18n.city}>
+              <input type="text" value={city} onChange={e => setCity(e.target.value)}
+                placeholder="City" className={inputCls} />
+            </PlaceField>
+            <PlaceField label={p18n.postalCode}>
+              <input type="text" value={postalCode} onChange={e => setPostalCode(e.target.value)}
+                placeholder="SW1A 1AA" className={`${inputCls} font-mono`} />
+            </PlaceField>
           </div>
+
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{p18n.stateCounty}</label>
-              <input type="text" value={stateVal} onChange={e => setStateVal(e.target.value)} placeholder="e.g. England"
-                className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{p18n.country}</label>
-              <input type="text" value={country} onChange={e => setCountry(e.target.value)} placeholder="UK"
-                className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
-            </div>
+            <PlaceField label={p18n.stateCounty}>
+              <input type="text" value={stateVal} onChange={e => setStateVal(e.target.value)}
+                placeholder="e.g. England" className={inputCls} />
+            </PlaceField>
+            <PlaceField label={p18n.country}>
+              <input type="text" value={country} onChange={e => setCountry(e.target.value)}
+                placeholder="UK" className={inputCls} />
+            </PlaceField>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{c.phone}</label>
-            <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+44..."
-              className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
-          </div>
+
+          <PlaceField label={c.phone}>
+            <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+              placeholder="+44..." className={inputCls} />
+          </PlaceField>
         </div>
+
+        {/* Footer */}
         <div className="flex items-center justify-end gap-2 border-t px-5 py-4">
           <button onClick={onClose} className="h-9 rounded-lg border bg-background px-4 text-sm text-muted-foreground hover:bg-muted">{c.cancel}</button>
-          <button onClick={handleSave} disabled={saving}
+          <button onClick={handleSave} disabled={saving || lat == null || lng == null}
             className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-50">
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {isEdit ? c.save : p18n.addPlace}
