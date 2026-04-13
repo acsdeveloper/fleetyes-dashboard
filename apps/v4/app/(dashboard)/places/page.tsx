@@ -8,7 +8,7 @@ import {
   X, Loader2,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
-import { listPlaces, createPlace, updatePlace, bulkDeletePlaces, importPlaces, reverseGeocode, type Place, type GeoPoint } from "@/lib/places-api"
+import { listPlaces, listAllPlaces, createPlace, updatePlace, bulkDeletePlaces, importPlaces, reverseGeocode, type Place, type GeoPoint } from "@/lib/places-api"
 import { ImportModal } from "@/components/import-modal"
 
 import { AgGridReact } from "ag-grid-react"
@@ -592,8 +592,8 @@ export default function PlacesPage() {
   const load = React.useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const res = await listPlaces({ limit: 500 })
-      const enriched: PlaceEx[] = (res.places ?? []).map(p => {
+      const places = await listAllPlaces({ sort: "name" })
+      const enriched: PlaceEx[] = places.map(p => {
         const coords = extractCoords(p)
         return { ...p, _lat: coords?.[0] ?? undefined, _lng: coords?.[1] ?? undefined }
       })

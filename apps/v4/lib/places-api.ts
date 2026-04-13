@@ -89,6 +89,26 @@ export async function listPlaces(params: PlaceListParams = {}): Promise<PlaceLis
   return ontrackFetch<PlaceListResponse>(`/places${qs}`)
 }
 
+/**
+ * Fetch ALL places across all pages — handles backends that cap per-page results.
+ * Makes the first request, reads meta.last_page, then fetches remaining pages in
+ * parallel and returns the merged array.
+ */
+export async function listAllPlaces(params: Omit<PlaceListParams, "page"> = {}): Promise<Place[]> {
+  const perPage = 200
+  const first = await listPlaces({ ...params, page: 1, limit: perPage })
+  const places = [...(first.places ?? [])]
+  const lastPage = first.meta?.last_page ?? 1
+  if (lastPage > 1) {
+    const pages = Array.from({ length: lastPage - 1 }, (_, i) => i + 2)
+    const rest = await Promise.all(
+      pages.map(p => listPlaces({ ...params, page: p, limit: perPage }).then(r => r.places ?? []))
+    )
+    places.push(...rest.flat())
+  }
+  return places
+}
+
 export async function getPlace(uuid: string): Promise<Place> {
   const res = await ontrackFetch<{ place: Place }>(`/places/${uuid}`)
   return res.place
