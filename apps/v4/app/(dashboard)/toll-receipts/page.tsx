@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/page-header"
 import * as React from "react"
 import {
   Search, RefreshCw, X, Loader2, AlertCircle, Upload, CheckCircle2,
-  XCircle, FileText, Eye, ImageIcon, BarChart2, Filter, Cpu,
+  XCircle, FileText, Eye, ImageIcon, Filter, Cpu,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
 import {
@@ -709,56 +709,40 @@ export default function TollReceiptsPage() {
             )}
           </div>
 
-          {/* Separator */}
+          {/* Pill group */}
+          <div className="flex items-center gap-0.5 rounded-lg border bg-muted/30 p-0.5">
+            <button onClick={() => setShowFilters(v => !v)}
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showFilters ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
+              <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" d="M2 4h12M4 8h8M6 12h4" /></svg>
+              Filter
+            </button>
+            <button onClick={() => setShowFilter(v => !v)}
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${activeFilters > 0 || showFilter ? "bg-violet-500 text-white shadow-sm" : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
+              <Filter className="h-3 w-3" /> Filters{activeFilters > 0 ? ` (${activeFilters})` : ""}
+            </button>
+            <button onClick={() => setShowCards(v => !v)}
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showCards ? "bg-blue-500 text-white shadow-sm" : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
+              <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M2 13V8M6 13V5M10 13V7M14 13V3" /></svg>
+              Stats
+            </button>
+          </div>
+
           <span className="h-6 w-px bg-border" />
 
-          {/* Refresh */}
-          <button onClick={handleRefresh}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground hover:bg-muted">
+          <button onClick={handleRefresh} title="Refresh" disabled={refreshing}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40">
             <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
           </button>
 
-          {/* Stats toggle */}
-          <button
-            onClick={() => setShowCards(v => !v)}
-            title="Toggle summary cards"
-            className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-colors ${showCards ? "border-primary bg-primary/10 text-primary" : "bg-background text-muted-foreground hover:bg-muted"}`}
-          >
-            <BarChart2 className="h-3.5 w-3.5" />
-          </button>
-
-          {/* Filter columns toggle */}
-          <button
-            onClick={() => setShowFilters(v => !v)}
-            title="Toggle column filters"
-            className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-colors ${showFilters ? "border-primary bg-primary/10 text-primary" : "bg-background text-muted-foreground hover:bg-muted"}`}
-          >
-            <Filter className="h-3.5 w-3.5" />
-          </button>
-
-          {/* Separator */}
-          <span className="h-6 w-px bg-border" />
-
-          {/* Filter drawer button */}
-          <button
-            onClick={() => setShowFilter(true)}
-            className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors ${activeFilters > 0 ? "border-primary bg-primary/10 text-primary" : "bg-background text-muted-foreground hover:bg-muted"}`}
-          >
-            Filters{activeFilters > 0 ? ` (${activeFilters})` : ""}
-          </button>
-
-          {/* Process button */}
-          <button
-            onClick={() => setShowProcess(true)}
-            title="Process Receipts"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground hover:bg-muted"
-          >
+          <button onClick={() => setShowProcess(true)} title="Process Receipts (OCR)"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
             <Cpu className="h-3.5 w-3.5" />
           </button>
 
-          {/* Upload */}
+          <span className="h-6 w-px bg-border" />
+
           <button onClick={() => setShowUpload(true)}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
             <Upload className="h-3.5 w-3.5" /> Upload
           </button>
         </div>

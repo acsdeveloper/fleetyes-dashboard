@@ -5,7 +5,7 @@ import * as React from "react"
 import {
   Search, RefreshCw, X, Loader2, AlertCircle,
   Upload, CheckCircle2, XCircle, FileText,
-  ChevronLeft, ChevronRight, Filter, Eye,
+  Filter, Eye,
   Cpu, ImageIcon, Pencil,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
@@ -15,6 +15,26 @@ import {
   type FuelReceiptImage,
 } from "@/lib/fuel-receipts-api"
 import { listDrivers, type Driver } from "@/lib/drivers-api"
+
+import { AgGridReact } from "ag-grid-react"
+import {
+  type ColDef, type ICellRendererParams,
+  ModuleRegistry, AllCommunityModule, themeQuartz,
+} from "ag-grid-community"
+ModuleRegistry.registerModules([AllCommunityModule])
+
+const _frBase = {
+  fontFamily: "var(--font-sans, 'Montserrat', 'Inter', system-ui, sans-serif)",
+  fontSize: 13, rowHeight: 39, headerHeight: 38,
+  backgroundColor: "var(--background)", foregroundColor: "var(--foreground)",
+  headerBackgroundColor: "var(--muted)", headerTextColor: "var(--muted-foreground)",
+  borderColor: "var(--border)", rowBorder: false, wrapperBorder: false,
+  headerRowBorder: false, columnBorder: false,
+  cellHorizontalPaddingScale: 1.1, rowVerticalPaddingScale: 1,
+  selectedRowBackgroundColor: "var(--accent)", gridSize: 5, scrollbarWidth: 6,
+}
+const frLightTheme = themeQuartz.withParams({ ..._frBase, backgroundColor: "#ffffff", foregroundColor: "#1f2933", headerBackgroundColor: "#f9fafb", headerTextColor: "#39485d", borderColor: "#eff0f1", rowHoverColor: "#f5f7fb", selectedRowBackgroundColor: "#edf2ff" })
+const frDarkTheme  = themeQuartz.withParams({ ..._frBase, backgroundColor: "#141414", foregroundColor: "#e5e5e5", headerBackgroundColor: "#1e2531", headerTextColor: "#c9d0da",  borderColor: "#2a2a2a",  rowHoverColor: "#1f2937", selectedRowBackgroundColor: "#1e3a5f" })
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -384,9 +404,22 @@ export default function FuelReceiptsPage() {
   const [showUpload, setShowUpload] = React.useState(false)
   const [showProcess, setShowProcess] = React.useState(false)
   const [showFilter, setShowFilter] = React.useState(false)
+  const [showFilters, setShowFilters] = React.useState(false)
   const [showCards, setShowCards] = React.useState(false)
   const [searchFocused, setSearchFocused] = React.useState(false)
   const [search, setSearch] = React.useState("")
+  const [refreshing, setRefreshing] = React.useState(false)
+
+  const [isDark, setIsDark] = React.useState(false)
+  React.useEffect(() => {
+    const sync = () => setIsDark(document.documentElement.classList.contains("dark"))
+    sync()
+    const obs = new MutationObserver(sync)
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
+    return () => obs.disconnect()
+  }, [])
+
+  const gridRef = React.useRef<AgGridReact<FuelReceiptImage>>(null)
 
   const [drivers, setDrivers] = React.useState<Driver[]>([])
 
@@ -419,20 +452,61 @@ export default function FuelReceiptsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => { fetchData(page) }, [page])
 
+  const handleRefresh = async () => { setRefreshing(true); await fetchData(page); setRefreshing(false) }
+
   const activeFilters = Object.values(filters).filter(Boolean).length
   const pendingCount = records.filter(r => r.status === "pending").length
   const processedCount = records.filter(r => r.status === "processed").length
   const failedCount = records.filter(r => r.status === "failed").length
 
-  const filtered = React.useMemo(() => {
-    if (!search) return records
-    const q = search.toLowerCase()
-    return records.filter(r =>
-      (r.driver?.name ?? r.driver_name ?? "").toLowerCase().includes(q) ||
-      (r.extracted_data?.supplier_name ?? "").toLowerCase().includes(q) ||
-      (r.extracted_data?.vehicle_vrn ?? "").toLowerCase().includes(q)
-    )
-  }, [records, search])
+  // Status badge styles for AG Grid
+  const FR_STATUS: Record<string, { bg: string; border: string; text: string; dot: string }> = {
+    pending:   { bg: "bg-amber-50 dark:bg-amber-900/20",   border: "border-amber-300/70",    text: "text-amber-800 dark:text-amber-300",    dot: "bg-amber-500" },
+    processed: { bg: "bg-emerald-50 dark:bg-emerald-900/20", border: "border-emerald-300/70", text: "text-emerald-800 dark:text-emerald-300", dot: "bg-emerald-500" },
+    failed:    { bg: "bg-red-50 dark:bg-red-900/20",         border: "border-red-300/70",      text: "text-red-700 dark:text-red-400",         dot: "bg-red-500" },
+    duplicate: { bg: "bg-slate-50 dark:bg-slate-800/40",     border: "border-slate-300/70",    text: "text-slate-700 dark:text-slate-300",     dot: "bg-slate-400" },
+  }
+
+  const detailRef = React.useRef({ onView: (r: FuelReceiptImage) => setDetailRecord(r) })
+  React.useEffect(() => { detailRef.current = { onView: (r: FuelReceiptImage) => setDetailRecord(r) } })
+
+  const colDefs = React.useMemo<ColDef<FuelReceiptImage>[]>(() => [
+    { headerName: "Driver",   valueGetter: ({ data }) => data?.driver?.name ?? data?.driver_name ?? "",           filter: "agTextColumnFilter", flex: 1.2, minWidth: 140, cellRenderer: ({ value }: ICellRendererParams) => <span className="font-medium">{value || <span className="text-muted-foreground">—</span>}</span> },
+    { headerName: "Captured", valueGetter: ({ data }) => data?.captured_at ?? data?.created_at ?? "", filter: "agDateColumnFilter", width: 148, sort: "desc", cellRenderer: ({ data }: ICellRendererParams<FuelReceiptImage>) => <span className="text-xs text-muted-foreground">{fmt(data?.captured_at ?? data?.created_at)}</span> },
+    { headerName: "Supplier", valueGetter: ({ data }) => data?.extracted_data?.supplier_name ?? "",                filter: "agTextColumnFilter", flex: 1,    cellRenderer: ({ value }: ICellRendererParams) => <span className="text-xs">{value || <span className="text-muted-foreground">—</span>}</span> },
+    { headerName: "Amount",   valueGetter: ({ data }) => data?.extracted_data?.total_amount ?? data?.amount ?? "", filter: "agTextColumnFilter", width: 100, cellRenderer: ({ data }: ICellRendererParams<FuelReceiptImage>) => { const ext = data?.extracted_data; return <span className="font-semibold tabular-nums">{ext?.total_amount ? `${ext.currency ?? ""} ${ext.total_amount}` : data?.amount ?? "—"}</span> } },
+    { headerName: "Volume",   valueGetter: ({ data }) => data?.extracted_data?.volume ?? data?.product_volume ?? "", filter: "agTextColumnFilter", width: 90, cellRenderer: ({ data }: ICellRendererParams<FuelReceiptImage>) => { const ext = data?.extracted_data; return <span className="text-xs">{ext?.volume ? `${ext.volume} ${ext.volume_measurement ?? ""}` : data?.product_volume ?? "—"}</span> } },
+    { headerName: "Product",  valueGetter: ({ data }) => data?.extracted_data?.product_type ?? data?.product ?? "",  filter: "agTextColumnFilter", width: 100, cellRenderer: ({ value }: ICellRendererParams) => <span className="text-xs text-muted-foreground">{value || "—"}</span> },
+    {
+      headerName: "Status", field: "status", filter: "agTextColumnFilter", width: 120,
+      cellRenderer: ({ value }: ICellRendererParams) => { const s = FR_STATUS[value] ?? FR_STATUS.pending; return value ? (<span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-semibold capitalize ${s.bg} ${s.border} ${s.text}`}><span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />{value}</span>) : null },
+    },
+    { headerName: "Dup", field: "is_duplicate", filter: false, width: 60, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold dark:bg-slate-800">Yes</span> : null },
+    {
+      colId: "_action", headerName: "", width: 60, sortable: false, filter: false, resizable: false,
+      cellRenderer: ({ data }: ICellRendererParams<FuelReceiptImage>) => data ? (
+        <button onClick={e => { e.stopPropagation(); detailRef.current.onView(data) }} title="View detail"
+          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
+          <Eye className="h-3.5 w-3.5" />
+        </button>
+      ) : null,
+    },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [])
+
+  const defaultColDef = React.useMemo<ColDef>(() => ({
+    sortable: true, resizable: true,
+    suppressHeaderMenuButton: !showFilters, suppressHeaderFilterButton: !showFilters, floatingFilter: false,
+  }), [showFilters])
+
+  React.useEffect(() => {
+    const api = gridRef.current?.api
+    if (!api) return
+    api.setGridOption("defaultColDef", { sortable: true, resizable: true, suppressHeaderMenuButton: !showFilters, suppressHeaderFilterButton: !showFilters, floatingFilter: false })
+    api.refreshHeader()
+  }, [showFilters])
+
+  React.useEffect(() => { gridRef.current?.api?.setGridOption("quickFilterText", search) }, [search])
 
   return (
     <div className="flex flex-1 flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
@@ -476,8 +550,13 @@ export default function FuelReceiptsPage() {
 
           {/* Pill toggles */}
           <div className="flex items-center gap-0.5 rounded-lg border bg-muted/30 p-0.5">
+            <button onClick={() => setShowFilters(v => !v)}
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showFilters ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
+              <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" d="M2 4h12M4 8h8M6 12h4" /></svg>
+              Filter
+            </button>
             <button onClick={() => setShowFilter(v => !v)}
-              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${activeFilters > 0 || showFilter ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${activeFilters > 0 || showFilter ? "bg-violet-500 text-white shadow-sm" : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
               <Filter className="h-3 w-3" /> Filters{activeFilters > 0 ? ` (${activeFilters})` : ""}
             </button>
             <button onClick={() => setShowCards(v => !v)}
@@ -490,9 +569,9 @@ export default function FuelReceiptsPage() {
           <span className="h-6 w-px bg-border" />
 
           {/* Utility icon buttons */}
-          <button onClick={() => fetchData(page)} title="Refresh"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-            <RefreshCw className="h-3.5 w-3.5" />
+          <button onClick={handleRefresh} title="Refresh" disabled={refreshing || loading}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40">
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
           </button>
           <button onClick={() => setShowProcess(true)} title="Process Receipts (OCR)"
             className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
@@ -517,85 +596,30 @@ export default function FuelReceiptsPage() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="flex flex-1 flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
-        {loading ? (
-          <div className="flex flex-1 items-center justify-center">
+      {/* Grid */}
+      <div className="relative flex-1 overflow-hidden rounded-xl border bg-card shadow-sm">
+        {loading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-sm">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+        )}
+        {!loading && records.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
             <FileText className="h-8 w-8 opacity-40" />
             <p>No fuel receipts found</p>
             <p className="text-xs">Receipts sync from the driver app, or upload a ZIP above</p>
           </div>
         ) : (
-          <div className="overflow-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/40">
-                  {["Driver","Captured","Supplier","Amount","Volume","Product","Status","Dup",""].map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(r => {
-                  const ext = r.extracted_data
-                  return (
-                    <tr key={r.uuid} className="border-b last:border-0 transition-colors hover:bg-muted/20">
-                      <td className="px-4 py-2.5 whitespace-nowrap">{r.driver?.name ?? r.driver_name ?? "—"}</td>
-                      <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{fmt(r.captured_at ?? r.created_at)}</td>
-                      <td className="px-4 py-2.5 whitespace-nowrap">{ext?.supplier_name ?? "—"}</td>
-                      <td className="px-4 py-2.5 font-semibold whitespace-nowrap">
-                        {ext?.total_amount ? `${ext.currency ?? ""} ${ext.total_amount}` : r.amount ?? "—"}
-                      </td>
-                      <td className="px-4 py-2.5 text-xs whitespace-nowrap">
-                        {ext?.volume ? `${ext.volume} ${ext.volume_measurement ?? ""}` : r.product_volume ?? "—"}
-                      </td>
-                      <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{ext?.product_type ?? r.product ?? "—"}</td>
-                      <td className="px-4 py-2.5 whitespace-nowrap">
-                        <span className={`inline-flex items-center rounded-[100px] border pl-1 pr-3 text-[11px] font-medium capitalize leading-[2] ${STATUS_STYLES[r.status] ?? ""}`}>
-                          <span className={`mr-2 ml-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[r.status] ?? "bg-gray-400"}`} />
-                          {r.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 whitespace-nowrap">
-                        {r.is_duplicate && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold dark:bg-slate-800">Yes</span>}
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        <button onClick={() => setDetailRecord(r)} title="View detail"
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-                          <Eye className="h-3 w-3" />
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="border-t bg-muted/20">
-                  <td colSpan={9} className="px-4 py-2 text-xs text-muted-foreground">
-                    <div className="flex items-center justify-between">
-                      <span>{meta.total} receipts · Page {meta.current_page} of {meta.last_page}</span>
-                      {meta.last_page > 1 && (
-                        <span className="flex items-center gap-1">
-                          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                            className="h-6 w-6 rounded border bg-background text-muted-foreground hover:bg-muted disabled:opacity-40 flex items-center justify-center">
-                            <ChevronLeft className="h-3.5 w-3.5" />
-                          </button>
-                          <button onClick={() => setPage(p => Math.min(meta.last_page, p + 1))} disabled={page === meta.last_page}
-                            className="h-6 w-6 rounded border bg-background text-muted-foreground hover:bg-muted disabled:opacity-40 flex items-center justify-center">
-                            <ChevronRight className="h-3.5 w-3.5" />
-                          </button>
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+          <AgGridReact<FuelReceiptImage>
+            ref={gridRef}
+            theme={isDark ? frDarkTheme : frLightTheme}
+            rowData={records}
+            columnDefs={colDefs}
+            defaultColDef={defaultColDef}
+            suppressRowClickSelection
+            animateRows
+            className="h-full w-full"
+          />
         )}
       </div>
 
