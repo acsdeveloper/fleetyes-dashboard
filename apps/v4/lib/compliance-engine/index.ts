@@ -28,6 +28,7 @@ import { checkWeeklyHoursRule }  from "./check-weekly-hours"
 import { checkWeeklyRest }       from "./check-weekly-rest"
 import { findOverlaps }          from "./overlap"
 import { findWeeklyRestViolation } from "./weekly-rest"
+import { shiftHours, totalWorkingMs } from "./shift-hours"
 
 // Re-export types so the UI only needs to import from one place
 export type { ComplianceViolation, RotaComplianceReport } from "./types"
@@ -423,14 +424,15 @@ export function getDriverStats(
     }
   })()
 
-  // ── 2. DAILY_HOURS — peak single-day total this week ──────────────────────
+  // ── 2. DAILY_HOURS — peak single-day derived DRIVING hours this week ───────
+  //  Uses shiftHours() derivation: single-day = block−3.5h, multi-day = 9h fixed.
   //  EC 561/2006 Art.6: 9h standard (10h max, max twice per week).
   const dailyStat: DriverRuleStat = (() => {
     const dayTotals = new Map<string, number>()
     for (const trip of thisWeekTrips) {
-      const ms = trip.endTime.getTime() - trip.startTime.getTime()
-      const d  = toDayStr(trip.startTime)
-      dayTotals.set(d, (dayTotals.get(d) ?? 0) + ms)
+      const { drivingHours } = shiftHours(trip.startTime, trip.endTime)
+      const d = toDayStr(trip.startTime)
+      dayTotals.set(d, (dayTotals.get(d) ?? 0) + drivingHours * 3_600_000)
     }
     const peakMs    = dayTotals.size > 0 ? Math.max(...dayTotals.values()) : 0
     const peakMins  = peakMs / 60000
@@ -442,7 +444,7 @@ export function getDriverStats(
     return {
       ruleId: "DAILY_HOURS", usedMinutes: peakMins, limitMinutes: limitMins,
       ratio, usedLabel: thisWeekTrips.length === 0 ? "N/A" : fmtMins(peakMins), limitLabel: "10h max",
-      detail: `Peak day driving total: ${fmtMins(peakMins)}${peakDay ? ` (${peakDay})` : ""}\nLimit: 9h standard, 10h extended (max 2×/week) — EC 561/2006 Art.6.1.`, status,
+      detail: `Peak day driving (derived): ${fmtMins(peakMins)}${peakDay ? ` (${peakDay})` : ""}\nSingle-day blocks: block − 3.5h. Multi-day blocks: 9h fixed.\nLimit: 9h standard, 10h extended (max 2×/week) — EC 561/2006 Art.6.1.`, status,
     }
   })()
 
@@ -494,12 +496,11 @@ export function getDriverStats(
     }
   })()
 
-  // ── 5. WEEKLY_HOURS — total working time this week ────────────────────────
+  // ── 5. WEEKLY_HOURS — total derived WORKING time this week ──────────────────
+  //  Uses shiftHours() derivation: single-day = block−1h, multi-day = 11h fixed.
   //  EU Transport WTD (2002/15/EC): absolute max 60h/week. Warning at 55h.
-  //  NOTE: Trip duration = total shift/working time, not pure driving time.
-  //  EC 561/2006 per-trip driving limits (56h/week) do NOT apply to total shift hours.
   const weeklyStat: DriverRuleStat = (() => {
-    const totalMs   = thisWeekTrips.reduce((s, t) => s + (t.endTime.getTime() - t.startTime.getTime()), 0)
+    const totalMs   = totalWorkingMs(thisWeekTrips)
     const totalMins = totalMs / 60000
     const limitMins = 60 * 60
     const ratio     = Math.min(1, totalMins / limitMins)
@@ -507,26 +508,24 @@ export function getDriverStats(
     return {
       ruleId: "WEEKLY_HOURS", usedMinutes: totalMins, limitMinutes: limitMins,
       ratio, usedLabel: fmtMins(totalMins), limitLabel: "60h",
-      detail: `Total working hours this week: ${fmtMins(totalMins)}\nLimit: 60h/week (EU Transport WTD 2002/15/EC). Warning at 55h.\nIncludes total shift time, not just driving time.`, status,
+      detail: `Total working hours this week (derived): ${fmtMins(totalMins)}\nSingle-day trips: block − 1h. Multi-day trips: 11h fixed.\nLimit: 60h/week (EU Transport WTD 2002/15/EC). Warning at 55h.`, status,
     }
   })()
 
-  // ── 6. BIWEEKLY_HOURS — total this week + prior week ─────────────────────
+  // ── 6. BIWEEKLY_HOURS — derived working time this week + prior week ────────
   //  EC 561/2006 Art.6.3: max 90h / 2 weeks. Warning at 80h.
   const biweeklyStat: DriverRuleStat = (() => {
-    const allMs     = [...thisWeekTrips, ...priorWeekTrips].reduce(
-      (s, t) => s + (t.endTime.getTime() - t.startTime.getTime()), 0
-    )
+    const thisMs    = totalWorkingMs(thisWeekTrips)
+    const priorMs   = totalWorkingMs(priorWeekTrips)
+    const allMs     = thisMs + priorMs
     const totalMins = allMs / 60000
     const limitMins = 90 * 60
     const ratio     = Math.min(1, totalMins / limitMins)
     const status    = allMs > 90 * 3600000 ? "violation" : allMs > 80 * 3600000 ? "warning" : "compliant"
-    const thisMs  = thisWeekTrips.reduce((s, t) => s + (t.endTime.getTime() - t.startTime.getTime()), 0)
-    const priorMs = priorWeekTrips.reduce((s, t) => s + (t.endTime.getTime() - t.startTime.getTime()), 0)
     return {
       ruleId: "BIWEEKLY_HOURS", usedMinutes: totalMins, limitMinutes: limitMins,
       ratio, usedLabel: fmtMins(totalMins), limitLabel: "90h",
-      detail: `2-week total: ${fmtMins(totalMins)}\nThis week: ${fmtMins(thisMs/60000)} + Prior week: ${fmtMins(priorMs/60000)}\nLimit: 90h / 2 weeks (EC 561/2006 Art.6.3). Warning at 80h.`, status,
+      detail: `2-week working total (derived): ${fmtMins(totalMins)}\nThis week: ${fmtMins(thisMs/60000)} + Prior week: ${fmtMins(priorMs/60000)}\nSingle-day trips: block − 1h. Multi-day trips: 11h fixed.\nLimit: 90h / 2 weeks (EC 561/2006 Art.6.3). Warning at 80h.`, status,
     }
   })()
 
