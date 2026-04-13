@@ -24,6 +24,25 @@ import { listFleets, type Fleet } from "@/lib/fleets-api"
 import { listPlaces, type Place } from "@/lib/places-api"
 import { listVehicles, type Vehicle } from "@/lib/vehicles-api"
 import { dedupBy } from "@/lib/utils"
+
+// ── Lightweight sessionStorage cache (2min TTL) ───────────────────────────
+// Drivers, fleets, and vehicles change very rarely. Caching them in
+// sessionStorage means repeat page visits are instant (no API calls).
+const CACHE_TTL_MS = 2 * 60 * 1000  // 2 minutes
+
+function cacheGet<T>(key: string): T | null {
+  try {
+    const raw = sessionStorage.getItem(key)
+    if (!raw) return null
+    const { data, ts } = JSON.parse(raw) as { data: T; ts: number }
+    if (Date.now() - ts > CACHE_TTL_MS) { sessionStorage.removeItem(key); return null }
+    return data
+  } catch { return null }
+}
+
+function cacheSet<T>(key: string, data: T) {
+  try { sessionStorage.setItem(key, JSON.stringify({ data, ts: Date.now() })) } catch { /* quota exceeded — ignore */ }
+}
 import { getDriverAvailability, upsertRota, getRotaEntry, type RotaEntry } from "@/lib/rota-store"
 import { ontrackFetch, OnTrackApiError } from "@/lib/ontrack-api"
 import { prospectiveComplianceCheck } from "@/lib/compliance-engine"
@@ -1466,19 +1485,20 @@ function NewTripDrawer({
   order,
   drivers,
   fleets,
+  vehicles,
   onClose,
   onSaved,
 }: {
   order:     Order | null
   drivers:   Driver[]
   fleets:    Fleet[]
+  vehicles:  Vehicle[]
   onClose:   () => void
   onSaved:   () => void
 }) {
   const { t } = useLang()
   const c = t.common
   const isEdit = !!order
-  const [vehicles, setVehicles] = React.useState<Vehicle[]>([])
   const [form, setForm] = React.useState<CreateOrderPayload>({
     status: "created",
     pod_required: false,
@@ -1486,13 +1506,6 @@ function NewTripDrawer({
   })
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
-
-  // Load vehicles once
-  React.useEffect(() => {
-    listVehicles().then((r) =>
-      setVehicles(dedupBy(r.vehicles ?? [], "uuid"))
-    ).catch(() => {})
-  }, [])
 
   // Pre-populate form when editing an existing order
   React.useEffect(() => {
@@ -2105,7 +2118,7 @@ export default function TripsPage() {
     try {
       const res = await listOrders({
         page,
-        limit: 200,
+        limit: 75,
         sort: "created_at:desc",
         ...(opts?.from ? { scheduled_at: opts.from } : {}),
         ...(opts?.to   ? { end_date: opts.to }        : {}),
@@ -2126,13 +2139,52 @@ export default function TripsPage() {
     if (tab === "current") fetchOrders()
   }, [fetchOrders, tab])
 
+  // ── Mount: parallel fetch with sessionStorage cache (2min TTL) ─────────────
+  // Hits cache first; only calls the API if cache is stale/absent.
+  // Each resolves independently so a slow endpoint doesn’t block the others.
   React.useEffect(() => {
-    listDrivers().then((r) => {
-      const eligible = (r.drivers ?? []).filter((d) => (d.status as string) !== "pending")
-      setDrivers(dedupBy(dedupBy(eligible, "uuid"), (d) => `${d.name}|${d.phone ?? ""}`))
-    }).catch(() => {})
-    listFleets().then((r) => setFleets(dedupBy(r.fleets ?? [], "uuid"))).catch(() => {})
-    listVehicles().then((r) => setVehicles(dedupBy(r.vehicles ?? [], "uuid"))).catch(() => {})
+    const cachedDrivers  = cacheGet<Driver[]>("trips_drivers")
+    const cachedFleets   = cacheGet<Fleet[]>("trips_fleets")
+    const cachedVehicles = cacheGet<Vehicle[]>("trips_vehicles")
+
+    const fetchDrivers = cachedDrivers
+      ? Promise.resolve(cachedDrivers)
+      : listDrivers().then(r => {
+          const eligible = (r.drivers ?? []).filter((d) => (d.status as string) !== "pending")
+          const deduped  = dedupBy(dedupBy(eligible, "uuid"), (d) => `${d.name}|${d.phone ?? ""}`)
+          cacheSet("trips_drivers", deduped)
+          return deduped
+        })
+
+    const fetchFleets = cachedFleets
+      ? Promise.resolve(cachedFleets)
+      : listFleets().then(r => {
+          const deduped = dedupBy(r.fleets ?? [], "uuid")
+          cacheSet("trips_fleets", deduped)
+          return deduped
+        })
+
+    const fetchVehicles = cachedVehicles
+      ? Promise.resolve(cachedVehicles)
+      : listVehicles().then(r => {
+          const deduped = dedupBy(r.vehicles ?? [], "uuid")
+          cacheSet("trips_vehicles", deduped)
+          return deduped
+        })
+
+    // Apply cached data immediately — no waiting needed
+    if (cachedDrivers)  setDrivers(cachedDrivers)
+    if (cachedFleets)   setFleets(cachedFleets)
+    if (cachedVehicles) setVehicles(cachedVehicles)
+
+    // Resolve any uncached fetches in parallel
+    Promise.allSettled([fetchDrivers, fetchFleets, fetchVehicles]).then(
+      ([dRes, fRes, vRes]) => {
+        if (dRes.status === "fulfilled") setDrivers(dRes.value)
+        if (fRes.status === "fulfilled") setFleets(fRes.value)
+        if (vRes.status === "fulfilled") setVehicles(vRes.value)
+      }
+    )
   }, [])
 
   React.useEffect(() => {
@@ -2823,6 +2875,7 @@ export default function TripsPage() {
           order={editOrder}
           drivers={drivers}
           fleets={fleets}
+          vehicles={vehicles}
           onClose={() => { setShowNewTrip(false); setEditOrder(null) }}
           onSaved={() => fetchOrders()}
         />
