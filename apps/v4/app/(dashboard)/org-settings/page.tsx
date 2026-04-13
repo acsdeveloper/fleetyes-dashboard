@@ -276,13 +276,10 @@ export default function OrgSettingsPage() {
         {/* ── GENERAL ──────────────────────────────────────────────────────── */}
         {tab === "general" && (
           <div className="h-full overflow-auto p-6">
-            <div className="max-w-2xl mx-auto flex flex-col gap-6">
+            <div className="flex flex-col gap-6">
 
               {/* Logo + name row */}
               <div className="rounded-xl border bg-card shadow-sm p-6">
-                <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-                  <ImageIcon className="h-4 w-4 text-primary" /> Branding
-                </h2>
                 <div className="flex items-start gap-6">
                   {/* Logo */}
                   <div className="flex flex-col items-center gap-2 shrink-0">
@@ -329,9 +326,6 @@ export default function OrgSettingsPage() {
 
               {/* Contact row */}
               <div className="rounded-xl border bg-card shadow-sm p-6">
-                <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-primary" /> Contact & Locale
-                </h2>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field label="Phone Number" hint="Include country code.">
                     <div className="relative">
@@ -379,12 +373,8 @@ export default function OrgSettingsPage() {
         {/* ── OPERATIONS ───────────────────────────────────────────────────── */}
         {tab === "operations" && (
           <div className="h-full overflow-auto p-6">
-            <div className="max-w-2xl mx-auto">
+            <div>
               <div className="rounded-xl border bg-card shadow-sm p-6">
-                <h2 className="text-sm font-semibold mb-1 flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-primary" /> Operational Settings
-                </h2>
-                <p className="text-xs text-muted-foreground mb-6">Configure zone distances and operational defaults.</p>
 
                 <Field
                   label="Parking Zone Max Distance (km)"
@@ -415,15 +405,7 @@ export default function OrgSettingsPage() {
         {/* ── ROTA ─────────────────────────────────────────────────────────── */}
         {tab === "rota" && (
           <div className="h-full p-6">
-            <div className="max-w-md mx-auto rounded-xl border bg-card shadow-sm p-6 flex flex-col gap-6">
-              <div>
-                <h2 className="text-sm font-semibold flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-primary" /> Rota Planning Hours
-                </h2>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Default hours per shift used when planning the Rota.
-                </p>
-              </div>
+            <div className="rounded-xl border bg-card shadow-sm p-6 flex flex-col gap-6">
 
               {/* Two inputs side by side */}
               <div className="grid grid-cols-2 gap-4">
@@ -473,14 +455,8 @@ export default function OrgSettingsPage() {
         {/* ── PERMISSIONS ──────────────────────────────────────────────────── */}
         {tab === "permissions" && (
           <div className="h-full overflow-auto p-6">
-            <div className="max-w-2xl mx-auto">
+            <div>
               <div className="rounded-xl border bg-card shadow-sm p-6">
-                <h2 className="text-sm font-semibold mb-1 flex items-center gap-2">
-                  <Users className="h-4 w-4 text-primary" /> Driver Permissions
-                </h2>
-                <p className="text-xs text-muted-foreground mb-5">
-                  Control what drivers can do from the driver app.
-                </p>
                 <div className="flex flex-col gap-3">
                   <PermissionRow
                     icon={CalendarDays}
