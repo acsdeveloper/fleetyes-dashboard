@@ -319,7 +319,7 @@ function IssueDrawer({ open, issue, drivers, vehicles, users, onClose, onSaved }
               value={report}
               onChange={e => setReport(e.target.value)}
               rows={3}
-              placeholder="Describe the issue…"
+              placeholder={i18n.report + "…"}
               className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none resize-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
             />
           </Field>
@@ -328,7 +328,7 @@ function IssueDrawer({ open, issue, drivers, vehicles, users, onClose, onSaved }
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                Incident Location
+                {i18n.incidentLocation}
               </label>
               <button
                 type="button"
@@ -340,7 +340,7 @@ function IssueDrawer({ open, issue, drivers, vehicles, users, onClose, onSaved }
                 }`}
               >
                 <MapPin className="h-3 w-3" />
-                {showMap ? "Hide map" : "Pin location"}
+                {showMap ? i18n.hideMap : i18n.pinLocation}
               </button>
             </div>
 
@@ -355,14 +355,14 @@ function IssueDrawer({ open, issue, drivers, vehicles, users, onClose, onSaved }
                   type="button"
                   onClick={() => { setLat(null); setLng(null) }}
                   className="ml-auto rounded p-0.5 hover:bg-red-100 dark:hover:bg-red-900/50 text-red-500"
-                  title="Clear location"
+                  title={c.close}
                 >
                   <X className="h-3 w-3" />
                 </button>
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-muted-foreground/30 px-3 py-2 text-xs text-muted-foreground">
-                No location pinned — click &ldquo;Pin location&rdquo; to drop a marker on the map
+                {i18n.noLocationPinned}
               </div>
             )}
 
@@ -370,7 +370,7 @@ function IssueDrawer({ open, issue, drivers, vehicles, users, onClose, onSaved }
             {showMap && (
               <div className="overflow-hidden rounded-xl border" style={{ height: 280 }}>
                 <iframe
-                  title="Incident location picker"
+                  title={i18n.incidentLocation}
                   className="h-full w-full border-0"
                   sandbox="allow-scripts allow-same-origin"
                   srcDoc={buildIssuePickerHtml(lat, lng)}
@@ -406,7 +406,7 @@ function IssueDrawer({ open, issue, drivers, vehicles, users, onClose, onSaved }
 
           {/* Type + Category (category filtered by type) */}
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Type">
+            <Field label={i18n.type}>
               <div className="relative">
                 <select value={issueType} onChange={e => setIssueType(e.target.value as IssueType | "")} className={sel}>
                   <option value="">—</option>
@@ -417,10 +417,10 @@ function IssueDrawer({ open, issue, drivers, vehicles, users, onClose, onSaved }
                 <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               </div>
             </Field>
-            <Field label="Category">
+            <Field label={i18n.category}>
               <div className="relative">
                 <select value={category} onChange={e => setCategory(e.target.value)} className={sel} disabled={!issueType}>
-                  <option value="">{issueType ? "Select…" : "Pick type first"}</option>
+                  <option value="">{issueType ? i18n.selectCategory : i18n.pickTypFirst}</option>
                   {availableCategories.map(cat => (
                     <option key={cat} value={cat}>{cat}</option>
                   ))}
@@ -463,7 +463,7 @@ function IssueDrawer({ open, issue, drivers, vehicles, users, onClose, onSaved }
                 <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               </div>
             </Field>
-            <Field label="Reported By">
+            <Field label={i18n.reportedBy}>
               <div className="relative">
                 <select value={reportedBy} onChange={e => setReportedBy(e.target.value)} className={sel}>
                   <option value="">—</option>
@@ -635,7 +635,7 @@ export default function IssuesPage() {
         {/* Search */}
         <div className={`relative transition-all duration-200 ${searchFocused ? "w-72" : "w-40"}`}>
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input type="text" placeholder="Search issues…" value={search}
+          <input type="text" placeholder={`${c.search} issues\u2026`} value={search}
             onChange={e => setSearch(e.target.value)}
             onFocus={() => setSearchFocused(true)} onBlur={() => setSearchFocused(false)}
             className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
@@ -672,11 +672,11 @@ export default function IssuesPage() {
         </div>
 
         <span className="h-6 w-px bg-border" />
-        <button onClick={load} disabled={loading} title="Refresh"
+        <button onClick={load} disabled={loading} title={c.refresh}
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40">
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
         </button>
-        <button onClick={handleExport} disabled={exporting} title="Export"
+        <button onClick={handleExport} disabled={exporting} title={c.export}
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40">
           {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
         </button>

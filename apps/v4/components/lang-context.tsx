@@ -148,6 +148,10 @@ export type Translations = {
     inProgress: string; open: string; report: string; priority: string; assignee: string
     backlogged: string; requiresUpdate: string; inReview: string
     saveChanges: string; createIssue: string; unassigned: string
+    type: string; category: string; assignedTo: string; reportedBy: string
+    incidentLocation: string; pinLocation: string; hideMap: string; noLocationPinned: string
+    scheduledMaintenance: string; pending: string; closed: string
+    pickTypFirst: string; selectCategory: string
   }
   fuelTracking: {
     expense: string; addExpense: string; inclVat: string; volume: string; payment: string; card: string
@@ -325,6 +329,11 @@ export const translations: Record<Lang, Translations> = {
       assignee: "Assignee", backlogged: "Backlogged", requiresUpdate: "Requires Update",
       inReview: "In Review", saveChanges: "Save Changes", createIssue: "Create Issue",
       unassigned: "Unassigned",
+      type: "Type", category: "Category", assignedTo: "Assigned To", reportedBy: "Reported By",
+      incidentLocation: "Incident Location", pinLocation: "Pin location", hideMap: "Hide map",
+      noLocationPinned: "No location pinned \u2014 click \u201cPin location\u201d to drop a marker on the map",
+      scheduledMaintenance: "Scheduled Maintenance", pending: "Pending", closed: "Closed",
+      pickTypFirst: "Pick type first", selectCategory: "Select\u2026",
     },
     fuelTracking: {
       expense: "Expense", addExpense: "Add Expense", inclVat: "Incl. VAT",
@@ -490,6 +499,18 @@ export const translations: Record<Lang, Translations> = {
       statusActive: "Aktiv", statusUpcoming: "Bevorstehend", statusCompleted: "Abgeschlossen",
       today: "Heute", inDays: "In {n} T.", daysAgo: "Vor {n} T.", durationDays: "{n} T.",
     },
+    issues: {
+      newIssue: "Neue Meldung", critical: "Kritisch", high: "Hoch", medium: "Mittel", low: "Niedrig",
+      inProgress: "In Bearbeitung", open: "Offen", report: "Meldung", priority: "Priorität",
+      assignee: "Zuständig", backlogged: "Im Rückstand", requiresUpdate: "Aktualisierung erforderlich",
+      inReview: "In Prüfung", saveChanges: "Änderungen speichern", createIssue: "Meldung erstellen",
+      unassigned: "Nicht zugewiesen",
+      type: "Typ", category: "Kategorie", assignedTo: "Zugewiesen an", reportedBy: "Gemeldet von",
+      incidentLocation: "Vorfallort", pinLocation: "Ort markieren", hideMap: "Karte ausblenden",
+      noLocationPinned: "Kein Ort markiert \u2014 Klicken Sie auf \u201eOrt markieren\u201c um eine Markierung zu setzen",
+      scheduledMaintenance: "Geplante Wartung", pending: "Ausstehend", closed: "Geschlossen",
+      pickTypFirst: "Zuerst Typ wählen", selectCategory: "Auswählen\u2026",
+    },
     trips: {
       tripId: "Fahrt-ID", tripStatus: "Fahrtstatus", tractor: "Zugmaschine",
       facilitySequence: "Standortfolge", estEndTime: "Voraussichtliche Endzeit",
@@ -502,13 +523,6 @@ export const translations: Record<Lang, Translations> = {
       month: "Monat", week: "Woche", day: "Tag", allDrivers: "Alle Fahrer",
       allVehicles: "Alle Fahrzeuge", vehicleOff: "Fzg. weg", fullyAssigned: "Vollständig zugewiesen",
       noVehicle: "Kein Fahrzeug", noDriver: "Kein Fahrer", orders: "Aufträge", driverOff: "Fahrer frei",
-    },
-    issues: {
-      newIssue: "Neue Meldung", critical: "Kritisch", high: "Hoch", medium: "Mittel", low: "Niedrig",
-      inProgress: "In Bearbeitung", open: "Offen", report: "Meldung", priority: "Priorität",
-      assignee: "Zuständig", backlogged: "Im Rückstand", requiresUpdate: "Aktualisierung erforderlich",
-      inReview: "In Prüfung", saveChanges: "Änderungen speichern", createIssue: "Meldung erstellen",
-      unassigned: "Nicht zugewiesen",
     },
     fuelTracking: {
       expense: "Ausgabe", addExpense: "Ausgabe hinzufügen", inclVat: "inkl. MwSt.",
@@ -674,6 +688,18 @@ export const translations: Record<Lang, Translations> = {
       statusActive: "Actif", statusUpcoming: "À venir", statusCompleted: "Terminé",
       today: "Aujourd'hui", inDays: "Dans {n}j", daysAgo: "Il y a {n}j", durationDays: "{n}j",
     },
+    issues: {
+      newIssue: "Nouvel incident", critical: "Critique", high: "Élevé", medium: "Moyen", low: "Faible",
+      inProgress: "En cours", open: "Ouvert", report: "Signalement", priority: "Priorité",
+      assignee: "Responsable", backlogged: "En attente", requiresUpdate: "Mise à jour requise",
+      inReview: "En révision", saveChanges: "Enregistrer", createIssue: "Créer l'incident",
+      unassigned: "Non affecté",
+      type: "Type", category: "Catégorie", assignedTo: "Assigné à", reportedBy: "Rapporté par",
+      incidentLocation: "Lieu de l'incident", pinLocation: "Épingler le lieu", hideMap: "Masquer la carte",
+      noLocationPinned: "Aucun lieu épinglé \u2014 cliquez sur «Épingler le lieu» pour placer un marqueur",
+      scheduledMaintenance: "Maintenance programmée", pending: "En attente", closed: "Fermé",
+      pickTypFirst: "Choisir le type d'abord", selectCategory: "Sélectionner\u2026",
+    },
     trips: {
       tripId: "ID mission", tripStatus: "Statut mission", tractor: "Tracteur",
       facilitySequence: "Séquence sites", estEndTime: "Fin estimée",
@@ -686,13 +712,6 @@ export const translations: Record<Lang, Translations> = {
       month: "Mois", week: "Semaine", day: "Jour", allDrivers: "Tous les conducteurs",
       allVehicles: "Tous les véhicules", vehicleOff: "Veh. absent", fullyAssigned: "Entièrement affecté",
       noVehicle: "Sans véhicule", noDriver: "Sans conducteur", orders: "Commandes", driverOff: "Conducteur absent",
-    },
-    issues: {
-      newIssue: "Nouvel incident", critical: "Critique", high: "Élevé", medium: "Moyen", low: "Faible",
-      inProgress: "En cours", open: "Ouvert", report: "Signalement", priority: "Priorité",
-      assignee: "Responsable", backlogged: "En attente", requiresUpdate: "Mise à jour requise",
-      inReview: "En révision", saveChanges: "Enregistrer", createIssue: "Créer l'incident",
-      unassigned: "Non affecté",
     },
     fuelTracking: {
       expense: "Dépense", addExpense: "Ajouter une dépense", inclVat: "TVA incluse",
@@ -858,6 +877,18 @@ export const translations: Record<Lang, Translations> = {
       statusActive: "Activo", statusUpcoming: "Próximo", statusCompleted: "Completado",
       today: "Hoy", inDays: "En {n}d", daysAgo: "Hace {n}d", durationDays: "{n}d",
     },
+    issues: {
+      newIssue: "Nueva incidencia", critical: "Crítico", high: "Alto", medium: "Medio", low: "Bajo",
+      inProgress: "En progreso", open: "Abierto", report: "Informe", priority: "Prioridad",
+      assignee: "Responsable", backlogged: "Pendiente", requiresUpdate: "Requiere actualización",
+      inReview: "En revisión", saveChanges: "Guardar cambios", createIssue: "Crear incidencia",
+      unassigned: "Sin asignar",
+      type: "Tipo", category: "Categoría", assignedTo: "Asignado a", reportedBy: "Reportado por",
+      incidentLocation: "Lugar del incidente", pinLocation: "Fijar ubicación", hideMap: "Ocultar mapa",
+      noLocationPinned: "Sin ubicación fijada \u2014 haz clic en “Fijar ubicación” para marcar el punto",
+      scheduledMaintenance: "Mantenimiento programado", pending: "Pendiente", closed: "Cerrado",
+      pickTypFirst: "Seleccionar tipo primero", selectCategory: "Seleccionar\u2026",
+    },
     trips: {
       tripId: "ID servicio", tripStatus: "Estado servicio", tractor: "Tractora",
       facilitySequence: "Secuencia ubicaciones", estEndTime: "Fin estimado",
@@ -870,13 +901,6 @@ export const translations: Record<Lang, Translations> = {
       month: "Mes", week: "Semana", day: "Día", allDrivers: "Todos los conductores",
       allVehicles: "Todos los vehículos", vehicleOff: "Veh. fuera", fullyAssigned: "Totalmente asignado",
       noVehicle: "Sin vehículo", noDriver: "Sin conductor", orders: "Pedidos", driverOff: "Conductor libre",
-    },
-    issues: {
-      newIssue: "Nueva incidencia", critical: "Crítico", high: "Alto", medium: "Medio", low: "Bajo",
-      inProgress: "En progreso", open: "Abierto", report: "Informe", priority: "Prioridad",
-      assignee: "Responsable", backlogged: "Pendiente", requiresUpdate: "Requiere actualización",
-      inReview: "En revisión", saveChanges: "Guardar", createIssue: "Crear incidencia",
-      unassigned: "Sin asignar",
     },
     fuelTracking: {
       expense: "Gasto", addExpense: "Añadir gasto", inclVat: "IVA incl.",
@@ -1042,6 +1066,18 @@ export const translations: Record<Lang, Translations> = {
       statusActive: "Attivo", statusUpcoming: "In arrivo", statusCompleted: "Completato",
       today: "Oggi", inDays: "Tra {n}g", daysAgo: "{n}g fa", durationDays: "{n}g",
     },
+    issues: {
+      newIssue: "Nuova segnalazione", critical: "Critico", high: "Alto", medium: "Medio", low: "Basso",
+      inProgress: "In corso", open: "Aperto", report: "Segnalazione", priority: "Priorità",
+      assignee: "Responsabile", backlogged: "In arretrato", requiresUpdate: "Aggiornamento richiesto",
+      inReview: "In revisione", saveChanges: "Salva modifiche", createIssue: "Crea segnalazione",
+      unassigned: "Non assegnato",
+      type: "Tipo", category: "Categoria", assignedTo: "Assegnato a", reportedBy: "Segnalato da",
+      incidentLocation: "Luogo dell’incidente", pinLocation: "Segna posizione", hideMap: "Nascondi mappa",
+      noLocationPinned: "Nessuna posizione segnata \u2014 clicca su “Segna posizione” per posizionare un segnaposto",
+      scheduledMaintenance: "Manutenzione programmata", pending: "In attesa", closed: "Chiuso",
+      pickTypFirst: "Seleziona prima il tipo", selectCategory: "Seleziona\u2026",
+    },
     trips: {
       tripId: "ID viaggio", tripStatus: "Stato viaggio", tractor: "Motrice",
       facilitySequence: "Sequenza sedi", estEndTime: "Fine stimata",
@@ -1054,13 +1090,6 @@ export const translations: Record<Lang, Translations> = {
       month: "Mese", week: "Settimana", day: "Giorno", allDrivers: "Tutti gli autisti",
       allVehicles: "Tutti i veicoli", vehicleOff: "Veic. assente", fullyAssigned: "Completamente assegnato",
       noVehicle: "Nessun veicolo", noDriver: "Nessun autista", orders: "Ordini", driverOff: "Autista libero",
-    },
-    issues: {
-      newIssue: "Nuova segnalazione", critical: "Critico", high: "Alto", medium: "Medio", low: "Basso",
-      inProgress: "In lavorazione", open: "Aperto", report: "Segnalazione", priority: "Priorità",
-      assignee: "Responsabile", backlogged: "In attesa", requiresUpdate: "Aggiornamento richiesto",
-      inReview: "In revisione", saveChanges: "Salva", createIssue: "Crea segnalazione",
-      unassigned: "Non assegnato",
     },
     fuelTracking: {
       expense: "Spesa", addExpense: "Aggiungi spesa", inclVat: "IVA incl.",
