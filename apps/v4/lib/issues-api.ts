@@ -6,12 +6,38 @@ import { ontrackFetch, buildQueryString, getToken } from "./ontrack-api"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type IssuePriority = "low" | "medium" | "high" | "critical"
-export type IssueStatus   = "pending" | "in-progress" | "resolved" | "closed"
+export type IssuePriority =
+  | "low"
+  | "medium"
+  | "high"
+  | "critical"
+  | "scheduled-maintenance"
+
+export type IssueStatus =
+  | "pending"
+  | "in-progress"
+  | "backlogged"
+  | "requires-update"
+  | "in-review"
+  | "resolved"
+  | "closed"
+
+/** Values for the `type` field — from API docs section 15 */
+export type IssueType =
+  | "vehicle"
+  | "driver"
+  | "route"
+  | "payload-cargo"
+  | "software-technical"
+  | "operational"
+  | "customer"
+  | "security"
+  | "environmental-sustainability"
 
 export interface IssueLocation {
   type:        "Point"
   coordinates: [number, number]  // [longitude, latitude]
+  bbox?:       [number, number, number, number]
 }
 
 export interface Issue {
@@ -29,7 +55,7 @@ export interface Issue {
   reporter_name?:    string | null
   report?:           string | null
   priority?:         IssuePriority | null
-  type?:             string | null
+  type?:             IssueType | string | null
   category?:         string | null
   status:            IssueStatus
   location?:         IssueLocation | null
@@ -43,6 +69,16 @@ export interface Issue {
   vehicle?:          Record<string, unknown> | null
   reporter?:         Record<string, unknown> | null
   assignee?:         Record<string, unknown> | null
+}
+
+/** User record returned by /int/v1/users — used for Reported By / Assigned To dropdowns */
+export interface IssueUser {
+  uuid:      string
+  public_id: string
+  name:      string
+  email?:    string
+  phone?:    string
+  status?:   string
 }
 
 export interface IssueListParams {
@@ -70,6 +106,32 @@ export interface IssueListResponse {
     current_page: number
     last_page:    number
   }
+}
+
+// ─── Static option sets (from API docs section 15) ────────────────────────────
+
+export const ISSUE_TYPES: { value: IssueType; label: string }[] = [
+  { value: "vehicle",                      label: "Vehicle" },
+  { value: "driver",                       label: "Driver" },
+  { value: "route",                        label: "Route" },
+  { value: "payload-cargo",               label: "Payload / Cargo" },
+  { value: "software-technical",          label: "Software / Technical" },
+  { value: "operational",                 label: "Operational" },
+  { value: "customer",                    label: "Customer" },
+  { value: "security",                    label: "Security" },
+  { value: "environmental-sustainability", label: "Environmental / Sustainability" },
+]
+
+export const CATEGORIES_BY_TYPE: Record<IssueType, string[]> = {
+  "vehicle":                     ["Mechanical Problems", "Cosmetic Damages", "Tire Issues", "Electronics and Instruments", "Maintenance Alerts", "Fuel Efficiency Issues"],
+  "driver":                      ["Behavior Concerns", "Documentation", "Time Management", "Communication", "Training Needs", "Health and Safety Violations"],
+  "route":                       ["Inefficient Routes", "Safety Concerns", "Blocked Routes", "Environmental Considerations", "Unfavorable Weather Conditions"],
+  "payload-cargo":               ["Damaged Goods", "Misplaced Goods", "Documentation Issues", "Temperature-Sensitive Goods", "Incorrect Cargo Loading"],
+  "software-technical":          ["Bugs", "UI/UX Concerns", "Integration Failures", "Performance", "Feature Requests", "Security Vulnerabilities"],
+  "operational":                 ["Compliance", "Resource Allocation", "Cost Overruns", "Communication", "Vendor Management Issues"],
+  "customer":                    ["Service Quality", "Billing Discrepancies", "Communication Breakdown", "Feedback and Suggestions", "Order Errors"],
+  "security":                    ["Unauthorized Access", "Data Concerns", "Physical Security", "Data Integrity Issues"],
+  "environmental-sustainability":["Fuel Consumption", "Carbon Footprint", "Waste Management", "Green Initiatives Opportunities"],
 }
 
 // ─── API Functions ────────────────────────────────────────────────────────────
@@ -115,16 +177,18 @@ export async function createIssue(data: {
 
 /** Update an existing issue */
 export async function updateIssue(id: string, patch: {
-  report?:           string
-  driver_uuid?:      string
-  vehicle_uuid?:     string
-  priority?:         IssuePriority
-  category?:         string
-  type?:             string
-  status?:           IssueStatus
-  assigned_to_uuid?: string
-  resolved_at?:      string
-  meta?:             Record<string, unknown>
+  report?:            string
+  driver_uuid?:       string
+  vehicle_uuid?:      string
+  reported_by_uuid?:  string
+  assigned_to_uuid?:  string
+  priority?:          IssuePriority
+  category?:          string
+  type?:              string
+  status?:            IssueStatus
+  location?:          IssueLocation
+  resolved_at?:       string
+  meta?:              Record<string, unknown>
 }): Promise<Issue> {
   const res = await ontrackFetch<{ issue: Issue }>(`/issues/${id}`, {
     method: "PUT",
@@ -169,4 +233,13 @@ export async function exportIssues(selections: string[] = []): Promise<Blob> {
   )
   if (!res.ok) throw new Error(`Export failed: ${res.status}`)
   return res.blob()
+}
+
+/**
+ * Fetch users for the Reported By / Assigned To dropdowns.
+ * Docs: GET /int/v1/users?limit=500
+ */
+export async function listIssueUsers(): Promise<IssueUser[]> {
+  const res = await ontrackFetch<{ users: IssueUser[] }>("/users?limit=500")
+  return res.users ?? []
 }

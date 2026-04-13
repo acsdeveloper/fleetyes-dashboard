@@ -2,12 +2,13 @@
 
 import * as React from "react"
 import {
-  Search, RefreshCw, Plus, Download, Trash2, X, Loader2, ChevronDown, AlertTriangle,
+  Search, RefreshCw, Download, Trash2, X, Loader2, ChevronDown, AlertTriangle,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
 import {
-  listIssues, createIssue, updateIssue, bulkDeleteIssues, exportIssues,
-  type Issue, type IssuePriority, type IssueStatus,
+  listIssues, createIssue, updateIssue, bulkDeleteIssues, exportIssues, listIssueUsers,
+  ISSUE_TYPES, CATEGORIES_BY_TYPE,
+  type Issue, type IssuePriority, type IssueStatus, type IssueType, type IssueUser,
 } from "@/lib/issues-api"
 import { listDrivers, type Driver } from "@/lib/drivers-api"
 import { listVehicles, type Vehicle } from "@/lib/vehicles-api"
@@ -60,22 +61,28 @@ const darkTheme = themeQuartz.withParams({
   selectedRowBackgroundColor: "#1e3a5f",
 })
 
-// ─── Style maps ───────────────────────────────────────────────────────────────
+// ─── Style maps (all statuses + priorities per API docs) ─────────────────────
 
-// Priority/Status style maps — labels are filled in at render time from t
 const PRIORITY_STYLE: Record<IssuePriority, { badge: string; dot: string; label: string }> = {
-  low:      { label: "Low",      badge: "bg-slate-50 text-slate-600 border border-slate-200/80 dark:bg-slate-800/30 dark:text-slate-300 dark:border-slate-700/40",         dot: "bg-slate-400"   },
-  medium:   { label: "Medium",   badge: "bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-700/40",           dot: "bg-amber-500"   },
-  high:     { label: "High",     badge: "bg-orange-50 text-orange-700 border border-orange-200/80 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-700/40",     dot: "bg-orange-500"  },
-  critical: { label: "Critical", badge: "bg-red-50 text-red-700 border border-red-200/80 dark:bg-red-900/20 dark:text-red-300 dark:border-red-700/40",                       dot: "bg-red-500"     },
+  "low":                    { label: "Low",                  badge: "bg-slate-50 text-slate-600 border border-slate-200/80 dark:bg-slate-800/30 dark:text-slate-300 dark:border-slate-700/40",         dot: "bg-slate-400"   },
+  "medium":                 { label: "Medium",              badge: "bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-700/40",           dot: "bg-amber-500"   },
+  "high":                   { label: "High",                badge: "bg-orange-50 text-orange-700 border border-orange-200/80 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-700/40",     dot: "bg-orange-500"  },
+  "critical":               { label: "Critical",            badge: "bg-red-50 text-red-700 border border-red-200/80 dark:bg-red-900/20 dark:text-red-300 dark:border-red-700/40",                       dot: "bg-red-500"     },
+  "scheduled-maintenance":  { label: "Scheduled Maint.",    badge: "bg-violet-50 text-violet-700 border border-violet-200/80 dark:bg-violet-900/20 dark:text-violet-300 dark:border-violet-700/40",     dot: "bg-violet-400"  },
 }
 
 const STATUS_STYLE: Record<IssueStatus, { badge: string; dot: string; label: string }> = {
-  "pending":     { label: "Pending",     badge: "bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-700/40",         dot: "bg-amber-500"   },
-  "in-progress": { label: "In Progress", badge: "bg-blue-50 text-blue-700 border border-blue-200/80 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-700/40",               dot: "bg-blue-500"    },
-  "resolved":    { label: "Resolved",    badge: "bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-700/40", dot: "bg-emerald-500" },
-  "closed":      { label: "Closed",      badge: "bg-zinc-100 text-zinc-600 border border-zinc-200/80 dark:bg-zinc-800/40 dark:text-zinc-400 dark:border-zinc-700/40",               dot: "bg-zinc-400"    },
+  "pending":         { label: "Pending",         badge: "bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-700/40",            dot: "bg-amber-500"   },
+  "in-progress":     { label: "In Progress",     badge: "bg-blue-50 text-blue-700 border border-blue-200/80 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-700/40",                  dot: "bg-blue-500"    },
+  "backlogged":      { label: "Backlogged",      badge: "bg-slate-50 text-slate-600 border border-slate-200/80 dark:bg-slate-800/30 dark:text-slate-300 dark:border-slate-700/40",            dot: "bg-slate-400"   },
+  "requires-update": { label: "Requires Update", badge: "bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200/80 dark:bg-fuchsia-900/20 dark:text-fuchsia-300 dark:border-fuchsia-700/40", dot: "bg-fuchsia-500"  },
+  "in-review":       { label: "In Review",       badge: "bg-cyan-50 text-cyan-700 border border-cyan-200/80 dark:bg-cyan-900/20 dark:text-cyan-300 dark:border-cyan-700/40",                  dot: "bg-cyan-500"    },
+  "resolved":        { label: "Resolved",        badge: "bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-700/40", dot: "bg-emerald-500" },
+  "closed":          { label: "Closed",          badge: "bg-zinc-100 text-zinc-600 border border-zinc-200/80 dark:bg-zinc-800/40 dark:text-zinc-400 dark:border-zinc-700/40",               dot: "bg-zinc-400"    },
 }
+
+const PRIORITIES: IssuePriority[] = ["low", "medium", "high", "critical", "scheduled-maintenance"]
+const STATUSES:   IssueStatus[]   = ["pending", "in-progress", "backlogged", "requires-update", "in-review", "resolved", "closed"]
 
 // ─── Cell renderers ───────────────────────────────────────────────────────────
 
@@ -126,27 +133,49 @@ interface DrawerProps {
   issue: Issue | null
   drivers: Driver[]
   vehicles: Vehicle[]
+  users: IssueUser[]
   onClose: () => void
   onSaved: () => void
 }
 
-const PRIORITIES: IssuePriority[]  = ["low", "medium", "high", "critical"]
-const STATUSES:   IssueStatus[]    = ["pending", "in-progress", "resolved", "closed"]
+// Module-level Field wrapper — prevents focus-loss on re-render
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+        {label}{required && " *"}
+      </label>
+      {children}
+    </div>
+  )
+}
 
-function IssueDrawer({ open, issue, drivers, vehicles, onClose, onSaved }: DrawerProps) {
+function IssueDrawer({ open, issue, drivers, vehicles, users, onClose, onSaved }: DrawerProps) {
   const { t } = useLang()
   const i18n = t.issues
   const c = t.common
   const isEdit = !!issue
-  const [report,       setReport]       = React.useState("")
-  const [driverUuid,   setDriverUuid]   = React.useState("")
-  const [vehicleUuid,  setVehicleUuid]  = React.useState("")
-  const [priority,     setPriority]     = React.useState<IssuePriority | "">("")
-  const [statusVal,    setStatusVal]    = React.useState<IssueStatus>("pending")
-  const [category,     setCategory]     = React.useState("")
-  const [assignedTo,   setAssignedTo]   = React.useState("")
-  const [saving,       setSaving]       = React.useState(false)
-  const [error,        setError]        = React.useState<string | null>(null)
+
+  const [report,          setReport]         = React.useState("")
+  const [driverUuid,      setDriverUuid]      = React.useState("")
+  const [vehicleUuid,     setVehicleUuid]     = React.useState("")
+  const [priority,        setPriority]        = React.useState<IssuePriority | "">("")
+  const [statusVal,       setStatusVal]       = React.useState<IssueStatus>("pending")
+  const [issueType,       setIssueType]       = React.useState<IssueType | "">("")
+  const [category,        setCategory]        = React.useState("")
+  const [assignedTo,      setAssignedTo]      = React.useState("")
+  const [reportedBy,      setReportedBy]      = React.useState("")
+  const [saving,          setSaving]          = React.useState(false)
+  const [error,           setError]           = React.useState<string | null>(null)
+
+  // Categories available for the selected type
+  const availableCategories = React.useMemo(
+    () => issueType ? (CATEGORIES_BY_TYPE[issueType as IssueType] ?? []) : [],
+    [issueType]
+  )
+
+  // Reset category when type changes
+  React.useEffect(() => { setCategory("") }, [issueType])
 
   React.useEffect(() => {
     if (issue) {
@@ -155,11 +184,13 @@ function IssueDrawer({ open, issue, drivers, vehicles, onClose, onSaved }: Drawe
       setVehicleUuid(issue.vehicle_uuid ?? "")
       setPriority((issue.priority as IssuePriority | null) ?? "")
       setStatusVal(issue.status ?? "pending")
+      setIssueType((issue.type as IssueType | null) ?? "")
       setCategory(issue.category ?? "")
       setAssignedTo(issue.assigned_to_uuid ?? "")
+      setReportedBy(issue.reported_by_uuid ?? "")
     } else {
       setReport(""); setDriverUuid(""); setVehicleUuid(""); setPriority("")
-      setStatusVal("pending"); setCategory(""); setAssignedTo("")
+      setStatusVal("pending"); setIssueType(""); setCategory(""); setAssignedTo(""); setReportedBy("")
     }
     setError(null)
   }, [issue, open])
@@ -168,26 +199,21 @@ function IssueDrawer({ open, issue, drivers, vehicles, onClose, onSaved }: Drawe
     if (!report.trim()) { setError("Report description is required."); return }
     setSaving(true); setError(null)
     try {
+      const payload = {
+        report:            report.trim(),
+        driver_uuid:       driverUuid   || undefined,
+        vehicle_uuid:      vehicleUuid  || undefined,
+        priority:          (priority as IssuePriority)  || undefined,
+        status:            statusVal,
+        type:              issueType    || undefined,
+        category:          category     || undefined,
+        assigned_to_uuid:  assignedTo   || undefined,
+        reported_by_uuid:  reportedBy   || undefined,
+      }
       if (isEdit && issue) {
-        await updateIssue(issue.uuid, {
-          report:            report.trim(),
-          driver_uuid:       driverUuid || undefined,
-          vehicle_uuid:      vehicleUuid || undefined,
-          priority:          (priority as IssuePriority) || undefined,
-          status:            statusVal,
-          category:          category || undefined,
-          assigned_to_uuid:  assignedTo || undefined,
-        })
+        await updateIssue(issue.uuid, payload)
       } else {
-        await createIssue({
-          report:           report.trim(),
-          driver_uuid:      driverUuid || undefined,
-          vehicle_uuid:     vehicleUuid || undefined,
-          priority:         (priority as IssuePriority) || undefined,
-          status:           statusVal,
-          category:         category || undefined,
-          assigned_to_uuid: assignedTo || undefined,
-        })
+        await createIssue(payload)
       }
       onSaved()
       onClose()
@@ -197,6 +223,8 @@ function IssueDrawer({ open, issue, drivers, vehicles, onClose, onSaved }: Drawe
       setSaving(false)
     }
   }
+
+  const sel = "h-9 w-full appearance-none rounded-lg border bg-background px-3 pr-8 text-sm outline-none focus:ring-2 focus:ring-ring"
 
   return (
     <>
@@ -218,8 +246,7 @@ function IssueDrawer({ open, issue, drivers, vehicles, onClose, onSaved }: Drawe
           )}
 
           {/* Report */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{i18n.report} *</label>
+          <Field label={`${i18n.report}`} required>
             <textarea
               value={report}
               onChange={e => setReport(e.target.value)}
@@ -227,82 +254,101 @@ function IssueDrawer({ open, issue, drivers, vehicles, onClose, onSaved }: Drawe
               placeholder="Describe the issue…"
               className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none resize-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
             />
-          </div>
+          </Field>
 
           {/* Priority + Status */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{i18n.priority}</label>
+            <Field label={i18n.priority}>
               <div className="relative">
-                <select value={priority} onChange={e => setPriority(e.target.value as IssuePriority | "")}
-                  className="h-9 w-full appearance-none rounded-lg border bg-background px-3 pr-8 text-sm outline-none focus:ring-2 focus:ring-ring capitalize">
+                <select value={priority} onChange={e => setPriority(e.target.value as IssuePriority | "")} className={sel}>
                   <option value="">—</option>
-                  {PRIORITIES.map(p => <option key={p} value={p} className="capitalize">{t.issues[p as keyof typeof t.issues] as string || p}</option>)}
+                  {PRIORITIES.map(p => (
+                    <option key={p} value={p}>{PRIORITY_STYLE[p].label}</option>
+                  ))}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               </div>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{c.status}</label>
+            </Field>
+            <Field label={c.status}>
               <div className="relative">
-                <select value={statusVal} onChange={e => setStatusVal(e.target.value as IssueStatus)}
-                  className="h-9 w-full appearance-none rounded-lg border bg-background px-3 pr-8 text-sm outline-none focus:ring-2 focus:ring-ring">
-                  {STATUSES.map(s => <option key={s} value={s}>{STATUS_STYLE[s].label}</option>)}
+                <select value={statusVal} onChange={e => setStatusVal(e.target.value as IssueStatus)} className={sel}>
+                  {STATUSES.map(s => (
+                    <option key={s} value={s}>{STATUS_STYLE[s].label}</option>
+                  ))}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               </div>
-            </div>
+            </Field>
+          </div>
+
+          {/* Type + Category (category filtered by type) */}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Type">
+              <div className="relative">
+                <select value={issueType} onChange={e => setIssueType(e.target.value as IssueType | "")} className={sel}>
+                  <option value="">—</option>
+                  {ISSUE_TYPES.map(t => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+            </Field>
+            <Field label="Category">
+              <div className="relative">
+                <select value={category} onChange={e => setCategory(e.target.value)} className={sel} disabled={!issueType}>
+                  <option value="">{issueType ? "Select…" : "Pick type first"}</option>
+                  {availableCategories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+            </Field>
           </div>
 
           {/* Driver + Vehicle */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{c.driver}</label>
+            <Field label={c.driver}>
               <div className="relative">
-                <select value={driverUuid} onChange={e => setDriverUuid(e.target.value)}
-                  className="h-9 w-full appearance-none rounded-lg border bg-background px-3 pr-8 text-sm outline-none focus:ring-2 focus:ring-ring">
+                <select value={driverUuid} onChange={e => setDriverUuid(e.target.value)} className={sel}>
                   <option value="">{c.noData}</option>
                   {drivers.map(d => <option key={d.uuid} value={d.uuid}>{d.name}</option>)}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               </div>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{c.vehicle}</label>
+            </Field>
+            <Field label={c.vehicle}>
               <div className="relative">
-                <select value={vehicleUuid} onChange={e => setVehicleUuid(e.target.value)}
-                  className="h-9 w-full appearance-none rounded-lg border bg-background px-3 pr-8 text-sm outline-none focus:ring-2 focus:ring-ring">
+                <select value={vehicleUuid} onChange={e => setVehicleUuid(e.target.value)} className={sel}>
                   <option value="">{c.noData}</option>
                   {vehicles.map(v => <option key={v.uuid} value={v.uuid}>{v.plate_number ?? v.uuid}</option>)}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               </div>
-            </div>
+            </Field>
           </div>
 
-          {/* Assign To */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{i18n.assignee}</label>
-            <div className="relative">
-              <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)}
-                className="h-9 w-full appearance-none rounded-lg border bg-background px-3 pr-8 text-sm outline-none focus:ring-2 focus:ring-ring">
-                <option value="">{i18n.unassigned}</option>
-                {drivers.map(d => <option key={d.uuid} value={d.uuid}>{d.name}</option>)}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            </div>
-          </div>
-
-          {/* Category */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{c.type}</label>
-            <input
-              type="text"
-              value={category}
-              onChange={e => setCategory(e.target.value)}
-              placeholder="e.g. Vehicle, Compliance, Driver…"
-              className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
-            />
+          {/* Assigned To + Reported By — from /int/v1/users */}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={i18n.assignee}>
+              <div className="relative">
+                <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)} className={sel}>
+                  <option value="">{i18n.unassigned}</option>
+                  {users.map(u => <option key={u.uuid} value={u.uuid}>{u.name}</option>)}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+            </Field>
+            <Field label="Reported By">
+              <div className="relative">
+                <select value={reportedBy} onChange={e => setReportedBy(e.target.value)} className={sel}>
+                  <option value="">—</option>
+                  {users.map(u => <option key={u.uuid} value={u.uuid}>{u.name}</option>)}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+            </Field>
           </div>
         </div>
 
@@ -327,21 +373,22 @@ export default function IssuesPage() {
   const c = t.common
   const i18n = t.issues
 
-  const [issues,        setIssues]        = React.useState<Issue[]>([])
-  const [drivers,       setDrivers]       = React.useState<Driver[]>([])
-  const [vehicles,      setVehicles]      = React.useState<Vehicle[]>([])
-  const [loading,       setLoading]       = React.useState(true)
-  const [error,         setError]         = React.useState<string | null>(null)
-  const [search,        setSearch]        = React.useState("")
-  const [searchFocused, setSearchFocused] = React.useState(false)
+  const [issues,         setIssues]         = React.useState<Issue[]>([])
+  const [drivers,        setDrivers]        = React.useState<Driver[]>([])
+  const [vehicles,       setVehicles]       = React.useState<Vehicle[]>([])
+  const [users,          setUsers]          = React.useState<IssueUser[]>([])
+  const [loading,        setLoading]        = React.useState(true)
+  const [error,          setError]          = React.useState<string | null>(null)
+  const [search,         setSearch]         = React.useState("")
+  const [searchFocused,  setSearchFocused]  = React.useState(false)
   const [priorityFilter, setPriorityFilter] = React.useState<IssuePriority | "all">("all")
-  const [statusFilter,  setStatusFilter]  = React.useState<IssueStatus | "all">("all")
-  const [showFilters,   setShowFilters]   = React.useState(false)
-  const [selectedCount, setSelectedCount] = React.useState(0)
-  const [deleting,      setDeleting]      = React.useState(false)
-  const [drawerOpen,    setDrawerOpen]    = React.useState(false)
-  const [editIssue,     setEditIssue]     = React.useState<Issue | null>(null)
-  const [exporting,     setExporting]     = React.useState(false)
+  const [statusFilter,   setStatusFilter]   = React.useState<IssueStatus | "all">("all")
+  const [showFilters,    setShowFilters]    = React.useState(false)
+  const [selectedCount,  setSelectedCount]  = React.useState(0)
+  const [deleting,       setDeleting]       = React.useState(false)
+  const [drawerOpen,     setDrawerOpen]     = React.useState(false)
+  const [editIssue,      setEditIssue]      = React.useState<Issue | null>(null)
+  const [exporting,      setExporting]      = React.useState(false)
 
   const [isDark, setIsDark] = React.useState(() =>
     typeof window !== "undefined" && document.documentElement.classList.contains("dark")
@@ -359,14 +406,16 @@ export default function IssuesPage() {
   const load = React.useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const [issuesRes, driversRes, vehiclesRes] = await Promise.all([
+      const [issuesRes, driversRes, vehiclesRes, usersRes] = await Promise.all([
         listIssues({ limit: 500, sort: "-created_at" }),
         listDrivers({ limit: 500 }),
         listVehicles({ limit: 500 }),
+        listIssueUsers(),
       ])
       setIssues(issuesRes.issues ?? [])
       setDrivers(driversRes.drivers ?? [])
       setVehicles(vehiclesRes.vehicles ?? [])
+      setUsers(usersRes)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load issues")
     } finally {
@@ -431,12 +480,13 @@ export default function IssuesPage() {
   const colDefs = React.useMemo<ColDef<Issue>[]>(() => [
     { headerName: c.ref,         field: "public_id",    width: 130, cellRenderer: ({ value }: ICellRendererParams) => <span className="font-mono text-xs text-muted-foreground">{value ?? "—"}</span> },
     { headerName: i18n.report,   field: "report",       flex: 3, minWidth: 200, cellRenderer: ReportCell },
-    { headerName: c.driver,      field: "driver_name",  width: 160, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="text-sm">{value}</span> : <span className="text-muted-foreground text-xs">—</span> },
-    { headerName: c.vehicle,     field: "vehicle_name", width: 150, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="font-mono text-xs">{value}</span> : <span className="text-muted-foreground text-xs">—</span> },
-    { headerName: i18n.priority, field: "priority",     width: 130, cellRenderer: PriorityCell },
-    { headerName: c.status,      field: "status",       width: 140, cellRenderer: StatusCell },
-    { headerName: i18n.assignee, field: "assignee_name",width: 160, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="text-sm">{value}</span> : <span className="text-muted-foreground text-xs italic">{i18n.unassigned}</span> },
-    { headerName: c.date,        field: "created_at",   width: 130, cellRenderer: ({ value }: ICellRendererParams) => <span className="text-xs text-muted-foreground tabular-nums">{value?.slice(0, 10) ?? "—"}</span> },
+    { headerName: "Type",        field: "type",         width: 140, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="text-xs capitalize">{ISSUE_TYPES.find(t => t.value === value)?.label ?? value}</span> : <span className="text-muted-foreground text-xs">—</span> },
+    { headerName: c.driver,      field: "driver_name",  width: 150, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="text-sm">{value}</span> : <span className="text-muted-foreground text-xs">—</span> },
+    { headerName: c.vehicle,     field: "vehicle_name", width: 140, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="font-mono text-xs">{value}</span> : <span className="text-muted-foreground text-xs">—</span> },
+    { headerName: i18n.priority, field: "priority",     width: 150, cellRenderer: PriorityCell },
+    { headerName: c.status,      field: "status",       width: 150, cellRenderer: StatusCell },
+    { headerName: i18n.assignee, field: "assignee_name",width: 150, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="text-sm">{value}</span> : <span className="text-muted-foreground text-xs italic">{i18n.unassigned}</span> },
+    { headerName: c.date,        field: "created_at",   width: 120, cellRenderer: ({ value }: ICellRendererParams) => <span className="text-xs text-muted-foreground tabular-nums">{value?.slice(0, 10) ?? "—"}</span> },
   ], [c, i18n])
 
   const defaultColDef = React.useMemo<ColDef>(() => ({
@@ -449,7 +499,7 @@ export default function IssuesPage() {
     <div className="flex h-full flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
 
       {/* ── Toolbar ── */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <div className="flex-1" />
 
         {selectedCount > 0 && (
@@ -469,18 +519,21 @@ export default function IssuesPage() {
           />
         </div>
 
-        {/* Priority + Status filters */}
+        {/* Priority filter pills */}
         <div className="flex items-center gap-0.5 rounded-lg border bg-muted/30 p-0.5">
-          {(["critical","high","medium","low"] as IssuePriority[]).map(p => (
+          {(["critical","high","medium","low","scheduled-maintenance"] as IssuePriority[]).map(p => (
             <button key={p} onClick={() => setPriorityFilter(v => v === p ? "all" : p)}
-              className={`rounded-md px-2 py-1 text-xs font-medium transition-all capitalize ${priorityFilter === p ? `${p === "critical" ? "bg-red-500" : p === "high" ? "bg-orange-500" : p === "medium" ? "bg-amber-500" : "bg-slate-500"} text-white shadow-sm` : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
+              className={`rounded-md px-2 py-1 text-xs font-medium transition-all ${priorityFilter === p
+                ? (p === "critical" ? "bg-red-500" : p === "high" ? "bg-orange-500" : p === "medium" ? "bg-amber-500" : p === "scheduled-maintenance" ? "bg-violet-500" : "bg-slate-500") + " text-white shadow-sm"
+                : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
               {PRIORITY_STYLE[p].label}
             </button>
           ))}
         </div>
 
+        {/* Status filter pills (full 7 statuses) */}
         <div className="flex items-center gap-0.5 rounded-lg border bg-muted/30 p-0.5">
-          {(["pending","in-progress","resolved","closed"] as IssueStatus[]).map(s => (
+          {STATUSES.map(s => (
             <button key={s} onClick={() => setStatusFilter(v => v === s ? "all" : s)}
               className={`rounded-md px-2 py-1 text-xs font-medium transition-all ${statusFilter === s ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
               {STATUS_STYLE[s].label}
@@ -547,6 +600,7 @@ export default function IssuesPage() {
         issue={editIssue}
         drivers={drivers}
         vehicles={vehicles}
+        users={users}
         onClose={() => setDrawerOpen(false)}
         onSaved={load}
       />
