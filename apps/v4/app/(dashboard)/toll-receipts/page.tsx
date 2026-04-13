@@ -1,6 +1,6 @@
 "use client"
 
-import { PageHeader } from "@/components/page-header"
+
 import * as React from "react"
 import {
   Search, RefreshCw, X, Loader2, AlertCircle, Upload, CheckCircle2,
@@ -678,9 +678,6 @@ export default function TollReceiptsPage() {
       {/* ── Toolbar ─────────────────────────────────── */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
-
-          {/* Page title */}
-          <PageHeader pageKey="tollReceipts" />
 
           <div className="flex-1" />
 
