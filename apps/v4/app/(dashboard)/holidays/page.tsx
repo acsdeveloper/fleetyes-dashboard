@@ -151,6 +151,7 @@ function HolidayDrawer({
   const [saving,     setSaving]     = React.useState(false)
   const [deleting,   setDeleting]   = React.useState(false)
   const [error,      setError]      = React.useState<string | null>(null)
+  const { t } = useLang()
   const confirm = useConfirm()
 
   React.useEffect(() => {
