@@ -3,9 +3,9 @@
 
 import * as React from "react"
 import {
-  Search, Download, Plus, RefreshCw, X, Loader2,
+  Search, Download, RefreshCw, X, Loader2,
   AlertCircle, Trash2, Upload, CheckCircle2, XCircle, FileText,
-  Filter, Send, Pencil,
+  Filter, Send, History, ChevronLeft, ChevronRight,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
 import { useConfirm } from "@/components/confirm-dialog"
@@ -13,8 +13,9 @@ import {
   listTollReports, createTollReport, updateTollReport,
   deleteTollReport, bulkDeleteFuelReports, exportFuelReports,
   uploadReportFile, importTollReports, sendToAmazon,
+  listTollImportHistory,
   TOLL_DIRECTIONS, AMAZON_STATUSES,
-  type TollReport, type CreateTollPayload,
+  type TollReport, type CreateTollPayload, type TollImportHistoryItem,
 } from "@/lib/fuel-reports-api"
 import { listVehicles, type Vehicle } from "@/lib/vehicles-api"
 import { listDrivers, type Driver } from "@/lib/drivers-api"
@@ -94,6 +95,9 @@ function TollSlideOver({
           trip_id: record.trip_id ?? "",
           crossing_date: record.crossing_date ? record.crossing_date.slice(0, 16) : "",
           direction: record.direction ?? "",
+          toll_location: record.toll_location ?? "",
+          entry_point: record.entry_point ?? "",
+          exit_point: record.exit_point ?? "",
           amount: record.amount ?? 0,
           amount_incl_tax: record.amount_incl_tax ?? undefined,
           currency: record.currency ?? "GBP",
@@ -101,7 +105,7 @@ function TollSlideOver({
           driver_uuid: record.driver?.uuid ?? record.driver_uuid ?? "",
           status: record.status ?? "pending",
         }
-      : { vr_id: "", crossing_date: "", direction: "", amount: 0, currency: "GBP", status: "pending" }
+      : { vr_id: "", crossing_date: "", direction: "", toll_location: "", entry_point: "", exit_point: "", amount: 0, currency: "GBP", status: "pending" }
   )
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState("")
@@ -169,6 +173,13 @@ function TollSlideOver({
               </select>
             </Field>
           </div>
+          <Field label="Toll Location">
+            <input value={form.toll_location ?? ""} onChange={e => set("toll_location", e.target.value)} className={input} placeholder="e.g. M6 Toll" />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Entry Point"><input value={form.entry_point ?? ""} onChange={e => set("entry_point", e.target.value)} className={input} placeholder="Entry gate / junction" /></Field>
+            <Field label="Exit Point"><input value={form.exit_point ?? ""} onChange={e => set("exit_point", e.target.value)} className={input} placeholder="Exit gate / junction" /></Field>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label={`${c.vehicle}`}>
               <select value={form.vehicle_uuid ?? ""} onChange={e => set("vehicle_uuid", e.target.value)} className={sel}>
@@ -193,34 +204,53 @@ function TollSlideOver({
         <div className="flex gap-2 border-t p-4">
           <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">{c.cancel}</button>
           <button onClick={handleSave} disabled={saving}
-            className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2">
-            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            {saving ? c.saving : isEdit ? c.save : c.createRecord}
-          </button>
-        </div>
-      </div>
-    </>
-  )
-}
+            className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 // ─── Import Wizard (Upload + History tabs) ───────────────────────────────────────────
 
-// ─── Import Wizard ────────────────────────────────────────────────────────────
-
+type IWTab = "upload" | "history"
 type ImportStep = "upload" | "uploading" | "importing" | "done" | "error"
+
+function fmtShort(iso?: string | null) {
+  if (!iso) return "—"
+  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })
+}
 
 function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const { t } = useLang()
   const c = t.common
+  const [tab, setTab] = React.useState<IWTab>("upload")
   const [step, setStep] = React.useState<ImportStep>("upload")
   const [file, setFile] = React.useState<File | null>(null)
   const [result, setResult] = React.useState<Awaited<ReturnType<typeof importTollReports>> | null>(null)
   const [errMsg, setErrMsg] = React.useState("")
   const fileRef = React.useRef<HTMLInputElement>(null)
 
+  // History tab state
+  const [history, setHistory] = React.useState<TollImportHistoryItem[]>([])
+  const [histLoading, setHistLoading] = React.useState(false)
+  const [histError, setHistError] = React.useState("")
+
+  const loadHistory = React.useCallback(async () => {
+    setHistLoading(true)
+    setHistError("")
+    try {
+      const res = await listTollImportHistory({ limit: 20 })
+      setHistory(res.data ?? [])
+    } catch (e: unknown) {
+      setHistError(e instanceof Error ? e.message : "Failed to load history")
+    } finally {
+      setHistLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    if (tab === "history") loadHistory()
+  }, [tab, loadHistory])
+
   const runImport = async () => {
     if (!file) return
     try {
       setStep("uploading")
-      const uploaded = await uploadReportFile(file)
+      const uploaded = await uploadReportFile(file, "fuel_report_import")
       setStep("importing")
       const res = await importTollReports([uploaded.uuid])
       setResult(res)
@@ -231,81 +261,165 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
     }
   }
 
+  const HISTORY_STATUS: Record<string, string> = {
+    completed: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300",
+    failed:    "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400",
+    partial:   "bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300",
+  }
+
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/40" onClick={step === "upload" ? onClose : undefined} />
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={step === "upload" && tab === "upload" ? onClose : undefined} />
       <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col border-l bg-card shadow-2xl">
+        {/* Header */}
         <div className="flex items-center justify-between border-b px-5 py-4">
           <div>
             <h2 className="text-base font-bold">Import Toll Records</h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">Upload a CSV or Excel file</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Upload a CSV / Excel sheet or view past imports</p>
           </div>
           <button onClick={onClose} className="rounded-lg border p-1.5 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
         </div>
-        <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-5">
-          {step === "upload" && (
-            <>
-              <div onClick={() => fileRef.current?.click()}
-                className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-muted-foreground/30 py-10 transition-colors hover:border-primary/40 hover:bg-muted/20">
-                <Upload className="h-8 w-8 text-muted-foreground" />
-                <div className="text-center">
-                  <p className="text-sm font-medium">{file ? file.name : "Click to select file"}</p>
-                  <p className="text-xs text-muted-foreground">.xlsx, .xls, .csv — max 5000 rows</p>
+
+        {/* Tabs */}
+        <div className="flex border-b">
+          {(["upload", "history"] as IWTab[]).map(t => (
+            <button key={t} onClick={() => setTab(t)}
+              className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
+                tab === t ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground"
+              }`}>
+              {t === "upload" ? <span className="flex items-center justify-center gap-1.5"><Upload className="h-3.5 w-3.5" />Upload Sheet</span>
+                : <span className="flex items-center justify-center gap-1.5"><History className="h-3.5 w-3.5" />Import History</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* Upload Tab */}
+        {tab === "upload" && (
+          <>
+            <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-5">
+              {step === "upload" && (
+                <>
+                  <div onClick={() => fileRef.current?.click()}
+                    className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-muted-foreground/30 py-10 transition-colors hover:border-primary/40 hover:bg-muted/20">
+                    <Upload className="h-8 w-8 text-muted-foreground" />
+                    <div className="text-center">
+                      <p className="text-sm font-medium">{file ? file.name : "Click to select file"}</p>
+                      <p className="text-xs text-muted-foreground">.xlsx, .xls, .csv — max 5000 rows</p>
+                    </div>
+                    {file && <span className="rounded-full bg-green-100 px-3 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">Ready to import</span>}
+                  </div>
+                  <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => setFile(e.target.files?.[0] ?? null)} />
+                </>
+              )}
+              {(step === "uploading" || step === "importing") && (
+                <div className="flex flex-col items-center gap-4 py-10">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="font-medium">{step === "uploading" ? "Uploading file…" : "Importing records…"}</p>
                 </div>
-                {file && <span className="rounded-full bg-green-100 px-3 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">Ready to import</span>}
-              </div>
-              <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => setFile(e.target.files?.[0] ?? null)} />
-            </>
-          )}
-          {(step === "uploading" || step === "importing") && (
-            <div className="flex flex-col items-center gap-4 py-10">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="font-medium">{step === "uploading" ? "Uploading file…" : "Importing records…"}</p>
-            </div>
-          )}
-          {step === "done" && result && (
-            <div className="flex flex-col gap-4">
-              <div className={`flex items-center gap-3 rounded-xl p-4 ${result.success || result.partial_success ? "bg-green-50 dark:bg-green-950/20" : "bg-red-50 dark:bg-red-950/20"}`}>
-                {result.success || result.partial_success ? <CheckCircle2 className="h-6 w-6 text-green-600 shrink-0" /> : <XCircle className="h-6 w-6 text-red-500 shrink-0" />}
-                <div>
-                  <p className={`font-medium ${result.success || result.partial_success ? "text-green-800 dark:text-green-300" : "text-red-700 dark:text-red-400"}`}>
-                    {result.success ? "Import complete" : result.partial_success ? "Partial import" : "Import failed"}
-                  </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{result.message}</p>
+              )}
+              {step === "done" && result && (
+                <div className="flex flex-col gap-4">
+                  <div className={`flex items-center gap-3 rounded-xl p-4 ${result.success || result.partial_success ? "bg-green-50 dark:bg-green-950/20" : "bg-red-50 dark:bg-red-950/20"}`}>
+                    {result.success || result.partial_success ? <CheckCircle2 className="h-6 w-6 text-green-600 shrink-0" /> : <XCircle className="h-6 w-6 text-red-500 shrink-0" />}
+                    <div>
+                      <p className={`font-medium ${result.success || result.partial_success ? "text-green-800 dark:text-green-300" : "text-red-700 dark:text-red-400"}`}>
+                        {result.success ? "Import complete" : result.partial_success ? "Partial import" : "Import failed"}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{result.message}</p>
+                    </div>
+                  </div>
+                  {result.error_log_url && (
+                    <a href={result.error_log_url} className="inline-flex items-center gap-1 text-xs text-amber-700 underline" target="_blank" rel="noreferrer">
+                      <FileText className="h-3 w-3" /> Download error log
+                    </a>
+                  )}
                 </div>
-              </div>
-              {result.error_log_url && (
-                <a href={result.error_log_url} className="inline-flex items-center gap-1 text-xs text-amber-700 underline" target="_blank" rel="noreferrer">
-                  <FileText className="h-3 w-3" /> Download error log
-                </a>
+              )}
+              {step === "error" && (
+                <div className="flex items-center gap-3 rounded-xl bg-red-50 dark:bg-red-950/20 p-4">
+                  <XCircle className="h-6 w-6 text-red-500 shrink-0" />
+                  <div>
+                    <p className="font-medium text-red-700 dark:text-red-400">Import failed</p>
+                    <p className="mt-0.5 text-xs text-red-600 dark:text-red-400">{errMsg}</p>
+                  </div>
+                </div>
               )}
             </div>
-          )}
-          {step === "error" && (
-            <div className="flex items-center gap-3 rounded-xl bg-red-50 dark:bg-red-950/20 p-4">
-              <XCircle className="h-6 w-6 text-red-500 shrink-0" />
-              <div>
-                <p className="font-medium text-red-700 dark:text-red-400">Import failed</p>
-                <p className="mt-0.5 text-xs text-red-600 dark:text-red-400">{errMsg}</p>
-              </div>
+            <div className="flex gap-2 border-t p-4">
+              {step === "upload" && (
+                <>
+                  <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">{c.cancel}</button>
+                  <button onClick={runImport} disabled={!file} className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">Start Import</button>
+                </>
+              )}
+              {step === "done" && <button onClick={() => { onDone(); onClose() }} className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Done — Refresh List</button>}
+              {step === "error" && (
+                <>
+                  <button onClick={() => setStep("upload")} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">Try Again</button>
+                  <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted">Close</button>
+                </>
+              )}
             </div>
-          )}
-        </div>
-        <div className="flex gap-2 border-t p-4">
-          {step === "upload" && (
-            <>
-              <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">{c.cancel}</button>
-              <button onClick={runImport} disabled={!file} className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">Start Import</button>
-            </>
-          )}
-          {step === "done" && <button onClick={() => { onDone(); onClose() }} className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">Done — Refresh List</button>}
-          {step === "error" && (
-            <>
-              <button onClick={() => setStep("upload")} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">Try Again</button>
-              <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted">Close</button>
-            </>
-          )}
-        </div>
+          </>
+        )}
+
+        {/* History Tab */}
+        {tab === "history" && (
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <div className="flex items-center justify-between border-b px-4 py-2">
+              <p className="text-xs text-muted-foreground">Recent import sessions</p>
+              <button onClick={loadHistory} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted">
+                <svg className={`h-3.5 w-3.5 ${histLoading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              </button>
+            </div>
+            {histError && (
+              <div className="mx-4 mt-3 flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-950/20 px-3 py-2 text-xs text-red-700 dark:text-red-400">
+                <AlertCircle className="h-4 w-4 shrink-0" /> {histError}
+              </div>
+            )}
+            {histLoading ? (
+              <div className="flex flex-1 items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : history.length === 0 ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
+                <FileText className="h-8 w-8 opacity-30" />
+                <p className="text-sm">No import history found</p>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto divide-y">
+                {history.map(item => (
+                  <div key={item.uuid} className="flex items-center justify-between px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium">{item.original_filename ?? item.filename ?? item.uuid.slice(0, 8)}</p>
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">{fmtShort(item.created_at)}</p>
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">
+                        {item.inserted_count != null && `${item.inserted_count} inserted`}
+                        {item.updated_count != null && ` · ${item.updated_count} updated`}
+                        {item.skipped_count != null && ` · ${item.skipped_count} skipped`}
+                        {(item.total_errors ?? 0) > 0 && ` · ${item.total_errors} errors`}
+                      </p>
+                    </div>
+                    <div className="ml-3 flex items-center gap-2">
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${HISTORY_STATUS[item.status] ?? "bg-muted text-muted-foreground"}`}>
+                        {item.status}
+                      </span>
+                      {item.error_log_url && (
+                        <a href={item.error_log_url} target="_blank" rel="noreferrer" title="Download error log"
+                          className="text-amber-600 hover:text-amber-700">
+                          <FileText className="h-3.5 w-3.5" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="border-t p-4">
+              <button onClick={onClose} className="w-full rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">Close</button>
+            </div>
+          </div>
+        )}
       </div>
     </>
   )
@@ -333,29 +447,75 @@ function SendToAmazonModal({ onClose, onSent }: { onClose: () => void; onSent: (
   const [filter, setFilter] = React.useState<"ready_to_sent" | "unseen" | "all">("ready_to_sent")
   const [preview, setPreview] = React.useState<AmazonPreview | null>(null)
   const [previewLoading, setPreviewLoading] = React.useState(false)
+  const [downloading, setDownloading] = React.useState(false)
   const [result, setResult] = React.useState("")
   const [downloadUrl, setDownloadUrl] = React.useState("")
   const [error, setError] = React.useState("")
 
-  // Step 2: fetch preview counts using the list endpoint + same filters
+  // Step 2: fetch ALL matching records (paginated) so count and amount are exact
   const loadPreview = async () => {
     setPreviewLoading(true)
     setError("")
     try {
-      const res = await listTollReports({
-        page: 1, limit: 500,
-        seen_status_of_amazon: filter === "ready_to_sent" ? "new" : filter === "unseen" ? "unseen" : undefined,
+      const amazonFilter =
+        filter === "ready_to_sent" ? "new" : filter === "unseen" ? "unseen" : undefined
+      const PAGE_SIZE = 500
+
+      // First request — reveals true server total + first batch of records
+      const first = await listTollReports({
+        page: 1, limit: PAGE_SIZE,
+        seen_status_of_amazon: amazonFilter,
         start_date: fromDate || undefined,
         end_date: toDate || undefined,
       })
-      const records = (res.fuel_reports ?? []) as TollReport[]
-      const amount = records.reduce((a: number, r: TollReport) => a + Number(r.amount ?? 0), 0)
-      setPreview({ total: res.meta?.total ?? records.length, amount, currency: records[0]?.currency ?? "GBP" })
+      const totalCount = first.meta?.total ?? (first.fuel_reports ?? []).length
+      let allRecords = (first.fuel_reports ?? []) as TollReport[]
+
+      // Fetch remaining pages in parallel so the amount sum covers every record
+      const lastPage = first.meta?.last_page ?? 1
+      if (lastPage > 1) {
+        const rest = await Promise.all(
+          Array.from({ length: lastPage - 1 }, (_, i) =>
+            listTollReports({
+              page: i + 2, limit: PAGE_SIZE,
+              seen_status_of_amazon: amazonFilter,
+              start_date: fromDate || undefined,
+              end_date: toDate || undefined,
+            })
+          )
+        )
+        for (const r of rest) {
+          allRecords = allRecords.concat((r.fuel_reports ?? []) as TollReport[])
+        }
+      }
+
+      const amount = allRecords.reduce(
+        (a: number, r: TollReport) => a + Number(r.amount ?? 0), 0
+      )
+      setPreview({ total: totalCount, amount, currency: allRecords[0]?.currency ?? "GBP" })
       setStep("preview")
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load preview")
     } finally {
       setPreviewLoading(false)
+    }
+  }
+
+  // Step 2b: download preview as xlsx
+  const handleDownloadPreview = async () => {
+    setDownloading(true)
+    try {
+      await exportFuelReports({
+        report_type: "toll",
+        format: "xlsx",
+        from_date: fromDate || undefined,
+        to_date: toDate || undefined,
+        filter_by: filter,
+      })
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Download failed")
+    } finally {
+      setDownloading(false)
     }
   }
 
@@ -467,6 +627,19 @@ function SendToAmazonModal({ onClose, onSent }: { onClose: () => void; onSent: (
                 <div className="flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
                   <AlertCircle className="h-4 w-4 shrink-0" /> No records match these filters. Adjust the period or filter type.
                 </div>
+              )}
+              {/* Download for inspection */}
+              {preview.total > 0 && (
+                <button
+                  onClick={handleDownloadPreview}
+                  disabled={downloading}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-muted/40 hover:text-foreground disabled:opacity-50"
+                >
+                  {downloading
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <Download className="h-4 w-4" />}
+                  {downloading ? "Downloading…" : "Download data to review (xlsx)"}
+                </button>
               )}
             </div>
           )}
@@ -662,7 +835,7 @@ export default function TollExpensesPage() {
     setError("")
     try {
       const res = await listTollReports({
-        page: p, limit: 15,
+        page: p, limit: 50,
         query: debouncedSearch || undefined,
         vehicle: filters.vehicle || undefined,
         seen_status_of_amazon: filters.seen_status || undefined,
@@ -740,13 +913,16 @@ export default function TollExpensesPage() {
         </button>
       ) : null,
     },
-    { headerName: "Vehicle",   valueGetter: ({ data }) => data?.vehicle?.plate_number ?? "",  filter: "agTextColumnFilter", width: 130, cellRenderer: ({ value }: ICellRendererParams) => <span className="font-mono font-bold text-xs">{value || <span className="text-muted-foreground">—</span>}</span> },
-    { headerName: "Driver",    valueGetter: ({ data }) => data?.driver?.name ?? "",             filter: "agTextColumnFilter", flex: 1.2, minWidth: 130, cellRenderer: ({ value }: ICellRendererParams) => <span className="font-medium">{value || <span className="text-muted-foreground">—</span>}</span> },
-    { headerName: "Date",      valueGetter: ({ data }) => data?.crossing_date || data?.created_at || "", filter: "agDateColumnFilter", width: 148, sort: "desc", cellRenderer: ({ data }: ICellRendererParams<TollReport>) => <span className="text-xs text-muted-foreground">{fmt(data?.crossing_date || data?.created_at)}</span> },
-    { headerName: "VRID",      field: "vr_id",      filter: "agTextColumnFilter", width: 110, cellRenderer: ({ value }: ICellRendererParams) => <span className="font-mono text-xs">{value || "—"}</span> },
-    { headerName: "Direction", field: "direction",  filter: "agTextColumnFilter", width: 110, cellRenderer: ({ value }: ICellRendererParams) => <span className="text-xs text-muted-foreground">{value || "—"}</span> },
-    { headerName: "Amount",    valueGetter: ({ data }) => data?.amount ?? 0, filter: "agNumberColumnFilter", width: 100, cellRenderer: ({ data }: ICellRendererParams<TollReport>) => <span className="font-semibold tabular-nums">{data?.currency ?? "GBP"} {Number(data?.amount ?? 0).toFixed(2)}</span> },
-    { headerName: "Incl. VAT", valueGetter: ({ data }) => data?.amount_incl_tax ?? "", filter: "agNumberColumnFilter", width: 100, cellRenderer: ({ data }: ICellRendererParams<TollReport>) => <span className="text-xs text-muted-foreground">{data?.amount_incl_tax ? `${data.currency} ${Number(data.amount_incl_tax).toFixed(2)}` : "—"}</span> },
+    { headerName: "Vehicle",        valueGetter: ({ data }) => data?.vehicle?.plate_number ?? "",  filter: "agTextColumnFilter", width: 130, cellRenderer: ({ value }: ICellRendererParams) => <span className="font-mono font-bold text-xs">{value || <span className="text-muted-foreground">—</span>}</span> },
+    { headerName: "Driver",          valueGetter: ({ data }) => data?.driver?.name ?? "",             filter: "agTextColumnFilter", flex: 1.2, minWidth: 130, cellRenderer: ({ value }: ICellRendererParams) => <span className="font-medium">{value || <span className="text-muted-foreground">—</span>}</span> },
+    { headerName: "Date",            valueGetter: ({ data }) => data?.crossing_date || data?.created_at || "", filter: "agDateColumnFilter", width: 148, sort: "desc", cellRenderer: ({ data }: ICellRendererParams<TollReport>) => <span className="text-xs text-muted-foreground">{fmt(data?.crossing_date || data?.created_at)}</span> },
+    { headerName: "Toll Location",   valueGetter: ({ data }) => data?.toll_location ?? "", filter: "agTextColumnFilter", flex: 1, minWidth: 110, cellRenderer: ({ value }: ICellRendererParams) => <span className="text-xs truncate">{value || <span className="text-muted-foreground">—</span>}</span> },
+    { headerName: "Entry Point",     valueGetter: ({ data }) => data?.entry_point ?? "", filter: "agTextColumnFilter", width: 120, hide: true, cellRenderer: ({ value }: ICellRendererParams) => <span className="text-xs">{value || <span className="text-muted-foreground">—</span>}</span> },
+    { headerName: "Exit Point",      valueGetter: ({ data }) => data?.exit_point ?? "", filter: "agTextColumnFilter", width: 120, hide: true, cellRenderer: ({ value }: ICellRendererParams) => <span className="text-xs">{value || <span className="text-muted-foreground">—</span>}</span> },
+    { headerName: "VRID",            field: "vr_id",      filter: "agTextColumnFilter", width: 110, cellRenderer: ({ value }: ICellRendererParams) => <span className="font-mono text-xs">{value || "—"}</span> },
+    { headerName: "Direction",       field: "direction",  filter: "agTextColumnFilter", width: 110, cellRenderer: ({ value }: ICellRendererParams) => <span className="text-xs text-muted-foreground">{value || "—"}</span> },
+    { headerName: "Amount",          valueGetter: ({ data }) => data?.amount ?? 0, filter: "agNumberColumnFilter", width: 100, cellRenderer: ({ data }: ICellRendererParams<TollReport>) => <span className="font-semibold tabular-nums">{data?.currency ?? "GBP"} {Number(data?.amount ?? 0).toFixed(2)}</span> },
+    { headerName: "Incl. VAT",       valueGetter: ({ data }) => data?.amount_incl_tax ?? "", filter: "agNumberColumnFilter", width: 100, cellRenderer: ({ data }: ICellRendererParams<TollReport>) => <span className="text-xs text-muted-foreground">{data?.amount_incl_tax ? `${data.currency} ${Number(data.amount_incl_tax).toFixed(2)}` : "—"}</span> },
     {
       headerName: "Amazon", field: "seen_status_of_amazon", filter: "agTextColumnFilter", width: 120,
       cellRenderer: ({ value }: ICellRendererParams) => {
@@ -915,6 +1091,25 @@ export default function TollExpensesPage() {
           />
         )}
       </div>
+
+      {/* Pagination */}
+      {meta.last_page > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            Page {meta.current_page} of {meta.last_page} · {meta.total} records
+          </p>
+          <div className="flex gap-1.5">
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+              className="inline-flex h-8 items-center gap-1 rounded-lg border bg-background px-3 text-xs text-muted-foreground hover:bg-muted disabled:opacity-40">
+              <ChevronLeft className="h-3.5 w-3.5" /> Prev
+            </button>
+            <button onClick={() => setPage(p => Math.min(meta.last_page, p + 1))} disabled={page === meta.last_page}
+              className="inline-flex h-8 items-center gap-1 rounded-lg border bg-background px-3 text-xs text-muted-foreground hover:bg-muted disabled:opacity-40">
+              Next <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {slideOver !== null && (
         <TollSlideOver record={slideOver === "new" ? null : slideOver} vehicles={vehicles} drivers={drivers}

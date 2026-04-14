@@ -36,9 +36,12 @@ export interface TollReceiptImage {
   latitude?: string | number
   longitude?: string | number
   location_name?: string
+  toll_location?: string
+  crossing_date?: string
   extracted_data?: TollReceiptExtractedData
   product?: string
   amount?: string
+  currency?: string
   product_volume?: string
   driver?: { uuid: string; name: string }
   file?: { uuid: string; path?: string; url?: string }
@@ -163,23 +166,13 @@ export async function processTollReceipts(params: {
   date_to?: string
   limit?: number
 } = {}): Promise<ProcessTollReceiptsResult> {
-  const token = getToken()
-  const res = await fetch(
-    "https://ontrack-api.agilecyber.com/api/v1/expense-reports/process-toll-receipt-images",
+  return ontrackFetch<ProcessTollReceiptsResult>(
+    "/expense-reports/process-toll-receipt-images",
     {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
       body: JSON.stringify(params),
     }
   )
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ message: res.statusText }))
-    throw new Error(body?.message ?? "Process failed")
-  }
-  return res.json()
 }
 
 // ─── Static Values ────────────────────────────────────────────────────────────

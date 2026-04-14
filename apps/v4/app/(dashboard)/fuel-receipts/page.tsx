@@ -471,26 +471,29 @@ export default function FuelReceiptsPage() {
   React.useEffect(() => { detailRef.current = { onView: (r: FuelReceiptImage) => setDetailRecord(r) } })
 
   const colDefs = React.useMemo<ColDef<FuelReceiptImage>[]>(() => [
-    { headerName: "Driver",   valueGetter: ({ data }) => data?.driver?.name ?? data?.driver_name ?? "",           filter: "agTextColumnFilter", flex: 1.2, minWidth: 140, cellRenderer: ({ value }: ICellRendererParams) => <span className="font-medium">{value || <span className="text-muted-foreground">—</span>}</span> },
-    { headerName: "Captured", valueGetter: ({ data }) => data?.captured_at ?? data?.created_at ?? "", filter: "agDateColumnFilter", width: 148, sort: "desc", cellRenderer: ({ data }: ICellRendererParams<FuelReceiptImage>) => <span className="text-xs text-muted-foreground">{fmt(data?.captured_at ?? data?.created_at)}</span> },
-    { headerName: "Supplier", valueGetter: ({ data }) => data?.extracted_data?.supplier_name ?? "",                filter: "agTextColumnFilter", flex: 1,    cellRenderer: ({ value }: ICellRendererParams) => <span className="text-xs">{value || <span className="text-muted-foreground">—</span>}</span> },
-    { headerName: "Amount",   valueGetter: ({ data }) => data?.extracted_data?.total_amount ?? data?.amount ?? "", filter: "agTextColumnFilter", width: 100, cellRenderer: ({ data }: ICellRendererParams<FuelReceiptImage>) => { const ext = data?.extracted_data; return <span className="font-semibold tabular-nums">{ext?.total_amount ? `${ext.currency ?? ""} ${ext.total_amount}` : data?.amount ?? "—"}</span> } },
-    { headerName: "Volume",   valueGetter: ({ data }) => data?.extracted_data?.volume ?? data?.product_volume ?? "", filter: "agTextColumnFilter", width: 90, cellRenderer: ({ data }: ICellRendererParams<FuelReceiptImage>) => { const ext = data?.extracted_data; return <span className="text-xs">{ext?.volume ? `${ext.volume} ${ext.volume_measurement ?? ""}` : data?.product_volume ?? "—"}</span> } },
-    { headerName: "Product",  valueGetter: ({ data }) => data?.extracted_data?.product_type ?? data?.product ?? "",  filter: "agTextColumnFilter", width: 100, cellRenderer: ({ value }: ICellRendererParams) => <span className="text-xs text-muted-foreground">{value || "—"}</span> },
+    {
+      colId: "_view", headerName: "", width: 44, minWidth: 44, maxWidth: 44,
+      sortable: false, filter: false, resizable: false, pinned: "left" as const, suppressMovable: true,
+      cellRenderer: ({ data }: ICellRendererParams<FuelReceiptImage>) => data ? (
+        <button onClick={e => { e.stopPropagation(); detailRef.current.onView(data) }} title="View detail"
+          className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
+          <Eye className="h-3.5 w-3.5" />
+        </button>
+      ) : null,
+    },
+    { headerName: "Driver",        valueGetter: ({ data }) => data?.driver?.name ?? data?.driver_name ?? "",              filter: "agTextColumnFilter", flex: 1.2, minWidth: 140, cellRenderer: ({ value }: ICellRendererParams) => <span className="font-medium">{value || <span className="text-muted-foreground">—</span>}</span> },
+    { headerName: "Captured",      valueGetter: ({ data }) => data?.captured_at ?? data?.created_at ?? "",                filter: "agDateColumnFilter",  width: 148, sort: "desc", cellRenderer: ({ data }: ICellRendererParams<FuelReceiptImage>) => <span className="text-xs text-muted-foreground">{fmt(data?.captured_at ?? data?.created_at)}</span> },
+    { headerName: "Supplier",      valueGetter: ({ data }) => data?.extracted_data?.supplier_name ?? "",                  filter: "agTextColumnFilter", flex: 1,    cellRenderer: ({ value }: ICellRendererParams) => <span className="text-xs">{value || <span className="text-muted-foreground">—</span>}</span> },
+    { headerName: "Receipt Date",  valueGetter: ({ data }) => data?.extracted_data?.date ?? "",                           filter: "agTextColumnFilter", width: 110, cellRenderer: ({ value }: ICellRendererParams) => <span className="text-xs text-muted-foreground">{value || "—"}</span> },
+    { headerName: "Amount",        valueGetter: ({ data }) => data?.extracted_data?.total_amount ?? data?.amount ?? "",   filter: "agTextColumnFilter", width: 100, cellRenderer: ({ data }: ICellRendererParams<FuelReceiptImage>) => { const ext = data?.extracted_data; return <span className="font-semibold tabular-nums">{ext?.total_amount ? `${ext.currency ?? ""} ${ext.total_amount}` : data?.amount ?? "—"}</span> } },
+    { headerName: "Volume",        valueGetter: ({ data }) => data?.extracted_data?.volume ?? data?.product_volume ?? "", filter: "agTextColumnFilter", width: 90,  cellRenderer: ({ data }: ICellRendererParams<FuelReceiptImage>) => { const ext = data?.extracted_data; return <span className="text-xs">{ext?.volume ? `${ext.volume} ${ext.volume_measurement ?? ""}` : data?.product_volume ?? "—"}</span> } },
+    { headerName: "Product",       valueGetter: ({ data }) => data?.extracted_data?.product_type ?? data?.product ?? "",  filter: "agTextColumnFilter", width: 100, cellRenderer: ({ value }: ICellRendererParams) => <span className="text-xs text-muted-foreground">{value || "—"}</span> },
+    { headerName: "VRN",           valueGetter: ({ data }) => data?.extracted_data?.vehicle_vrn ?? "",                    filter: "agTextColumnFilter", width: 100, cellRenderer: ({ value }: ICellRendererParams) => <span className="font-mono text-xs">{value || "—"}</span> },
     {
       headerName: "Status", field: "status", filter: "agTextColumnFilter", width: 120,
       cellRenderer: ({ value }: ICellRendererParams) => { const s = FR_STATUS[value] ?? FR_STATUS.pending; return value ? (<span className={`inline-flex items-center rounded-[100px] border pl-1 pr-3 text-[12px] font-medium capitalize leading-[2] ${s.bg} ${s.border} ${s.text}`}><span className={`mr-2 ml-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${s.dot}`} />{value}</span>) : null },
     },
     { headerName: "Dup", field: "is_duplicate", filter: false, width: 60, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold dark:bg-slate-800">Yes</span> : null },
-    {
-      colId: "_action", headerName: "", width: 60, sortable: false, filter: false, resizable: false,
-      cellRenderer: ({ data }: ICellRendererParams<FuelReceiptImage>) => data ? (
-        <button onClick={e => { e.stopPropagation(); detailRef.current.onView(data) }} title="View detail"
-          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
-          <Eye className="h-3.5 w-3.5" />
-        </button>
-      ) : null,
-    },
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [])
 

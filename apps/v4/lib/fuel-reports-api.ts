@@ -17,6 +17,9 @@ export interface TollReport {
   trip_id?: string
   crossing_date?: string
   direction?: string
+  toll_location?: string
+  entry_point?: string
+  exit_point?: string
   amount?: number
   amount_incl_tax?: number
   currency?: string
@@ -82,6 +85,9 @@ export type CreateTollPayload = {
   trip_id?: string
   crossing_date?: string
   direction?: string
+  toll_location?: string
+  entry_point?: string
+  exit_point?: string
   amount?: number
   amount_incl_tax?: number
   currency?: string
@@ -141,10 +147,8 @@ export async function listTollReports(params: {
     limit: 50,
     sort: "-created_at",
     report_type: "toll",
-    "with[]": ["driver", "vehicle", "reporter"],
     ...params,
   }
-  // Build query string manually so arrays expand as repeated keys
   const base: Record<string, string | number | boolean | undefined | null> = {
     page:    merged.page,
     limit:   merged.limit,
@@ -163,6 +167,39 @@ export async function listTollReports(params: {
     "&with%5B%5D=driver&with%5B%5D=vehicle&with%5B%5D=reporter"
   ).replace(/^&&/, "&")
   return ontrackFetch<TollReportListResponse>(`/fuel-reports${qs}`)
+}
+
+// ─── Import History ───────────────────────────────────────────────────────────
+
+export interface TollImportHistoryItem {
+  uuid: string
+  filename?: string
+  original_filename?: string
+  status: string
+  inserted_count?: number
+  updated_count?: number
+  skipped_count?: number
+  total_errors?: number
+  error_log_url?: string
+  created_at: string
+  updated_at?: string
+}
+
+export interface TollImportHistoryResponse {
+  data: TollImportHistoryItem[]
+  meta?: {
+    total: number
+    current_page: number
+    last_page: number
+  }
+}
+
+export async function listTollImportHistory(params: {
+  page?: number
+  limit?: number
+} = {}): Promise<TollImportHistoryResponse> {
+  const qs = buildQueryString({ page: params.page ?? 1, limit: params.limit ?? 20 })
+  return ontrackFetch<TollImportHistoryResponse>(`/fuel-reports/import-history${qs}`)
 }
 
 export async function getTollReport(id: string): Promise<{ toll_report: TollReport }> {

@@ -96,7 +96,9 @@ export async function listFuelReceipts(params: {
 } = {}): Promise<FuelReceiptListResponse> {
   const merged = { page: 1, limit: 50, sort: "-created_at", ...params }
   const qs = buildQueryString(merged as Record<string, string | number | boolean | undefined | null>)
-  return ontrackFetch<FuelReceiptListResponse>(`/fuel-expense-receipt-images${qs}`)
+  // Include driver and file relations so the list renders names and preview URLs
+  const relations = "&with%5B%5D=driver&with%5B%5D=file"
+  return ontrackFetch<FuelReceiptListResponse>(`/fuel-expense-receipt-images${qs}${relations}`)
 }
 
 // ─── Single Record ────────────────────────────────────────────────────────────
@@ -118,7 +120,11 @@ export async function uploadFuelReceiptZip(file: File): Promise<{ uuid: string; 
     body: fd,
   })
   if (!res.ok) throw new Error("File upload failed")
-  return res.json()
+  const body = await res.json()
+  // API returns { file: { uuid, original_filename } } — unwrap like uploadReportFile does
+  const fileObj = body?.file ?? body
+  if (!fileObj?.uuid) throw new Error("Upload response missing file UUID")
+  return { uuid: fileObj.uuid, original_filename: fileObj.original_filename ?? file.name }
 }
 
 // ─── Import ZIP ───────────────────────────────────────────────────────────────

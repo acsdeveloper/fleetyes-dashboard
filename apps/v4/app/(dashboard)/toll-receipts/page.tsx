@@ -90,6 +90,12 @@ function fmt(iso?: string | null) {
   return iso.length > 10 ? `${day} ${month} ${year} ${time}` : `${day} ${month} ${year}`
 }
 
+function fmtAmount(amount?: string | number, currency?: string) {
+  if (!amount) return "—"
+  const sym = (currency ?? "").trim()
+  return sym ? `${sym} ${Number(amount).toFixed(2)}` : Number(amount).toFixed(2)
+}
+
 // ─── Status Cell Renderer ─────────────────────────────────────────────────────
 
 function StatusCell({ status }: { status: string }) {
@@ -155,9 +161,10 @@ function ReceiptDetailDrawer({ receipt, onClose }: { receipt: TollReceiptImage; 
             {ext ? (
               <div className="divide-y">
                 {([
-                  ["Total Amount", ext.total_amount ? `${ext.currency ?? ""} ${ext.total_amount}` : undefined],
-                  ["Date",         ext.parsed_date ?? ext.transaction_date],
+                  ["Total Amount", ext.total_amount ? fmtAmount(ext.total_amount, ext.currency) : undefined],
+                  ["Date",         ext.parsed_date ?? ext.transaction_date ?? receipt.crossing_date],
                   ["Time",         ext.parsed_time ?? ext.transaction_time],
+                  ["Toll Location",receipt.toll_location ?? receipt.location_name],
                   ["Entry Point",  ext.entry_point],
                   ["Exit Point",   ext.exit_point],
                   ["Vehicle Class",ext.vehicle_class],
@@ -566,15 +573,46 @@ export default function TollReceiptsPage() {
       ),
     },
     {
+      headerName: "Crossing Date",
+      valueGetter: ({ data }) => {
+        const ext = data?.extracted_data
+        return data?.crossing_date ?? ext?.parsed_date ?? ext?.transaction_date ?? ""
+      },
+      filter: "agDateColumnFilter",
+      width: 130,
+      cellRenderer: ({ data }: ICellRendererParams<TollReceiptImage>) => {
+        const ext = data?.extracted_data
+        const d = data?.crossing_date ?? ext?.parsed_date ?? ext?.transaction_date
+        return <span className="text-xs text-muted-foreground">{d ? fmt(d) : <span className="text-muted-foreground">—</span>}</span>
+      },
+    },
+    {
       headerName: "Amount",
       valueGetter: ({ data }) => {
         const ext = data?.extracted_data
-        return ext?.total_amount ? `${ext.currency ?? ""} ${ext.total_amount}` : data?.amount ?? ""
+        if (ext?.total_amount) return Number(ext.total_amount)
+        return data?.amount ? Number(data.amount) : ""
       },
       filter: "agTextColumnFilter",
       width: 110,
+      cellRenderer: ({ data }: ICellRendererParams<TollReceiptImage>) => {
+        const ext = data?.extracted_data
+        const display = ext?.total_amount
+          ? fmtAmount(ext.total_amount, ext.currency)
+          : data?.amount
+            ? fmtAmount(data.amount, data.currency)
+            : null
+        return <span className="font-semibold tabular-nums">{display ?? <span className="text-muted-foreground">—</span>}</span>
+      },
+    },
+    {
+      headerName: "Toll Location",
+      valueGetter: ({ data }) => data?.toll_location ?? data?.location_name ?? "",
+      filter: "agTextColumnFilter",
+      flex: 1,
+      minWidth: 120,
       cellRenderer: ({ value }: ICellRendererParams) => (
-        <span className="font-semibold tabular-nums">{value || <span className="text-muted-foreground">—</span>}</span>
+        <span className="text-xs truncate">{value || <span className="text-muted-foreground">—</span>}</span>
       ),
     },
     {
