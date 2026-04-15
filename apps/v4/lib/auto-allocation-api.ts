@@ -17,7 +17,7 @@ import { getToken, ONTRACK_HOST } from "./ontrack-api"
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 const ONTRACK_API_BASE  = `${ONTRACK_HOST}/api/v1`
-const ALLOCATION_ENGINE = "https://dev-resource-allocation.agilecyber.com"
+const ALLOCATION_ENGINE = process.env.NEXT_PUBLIC_ALLOCATION_HOST ?? "https://dev-resource-allocation.agilecyber.com"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

@@ -13,10 +13,10 @@
 // ─── CONFIG (edit these) ──────────────────────────────────────────────────────
 
 export const GEOTAB_CONFIG = {
-  server:   "my.geotab.com",       // e.g. "my3.geotab.com"
-  database: "YOUR_COMPANY_DB",     // e.g. "fleetyes"
-  userName: "api@fleetyes.co.uk",  // service account email
-  password: "YOUR_API_PASSWORD",   // service account password
+  server:   process.env.NEXT_PUBLIC_GEOTAB_SERVER   ?? "my.geotab.com",
+  database: process.env.NEXT_PUBLIC_GEOTAB_DATABASE ?? "YOUR_COMPANY_DB",
+  userName: process.env.GEOTAB_USERNAME             ?? "api@fleetyes.co.uk",
+  password: process.env.GEOTAB_PASSWORD             ?? "YOUR_API_PASSWORD",
 } as const
 
 // ─── GEOTAB TYPES (per API reference) ────────────────────────────────────────
