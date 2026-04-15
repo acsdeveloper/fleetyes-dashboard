@@ -309,11 +309,9 @@ function buildNav(t: NavTranslations): NavEntry[] {
     groupColor: "#f59e0b",
     groupIcon: IconTollExpenses,
     items: [
-      { label: t.nav.fuelTracking,       href: "/fuel-tracking", icon: IconFuelTracking, iconColor: "#22c55e" },
-      { label: t.nav.fuelReceipts,       href: "/fuel-receipts", icon: IconFuelReceipts, iconColor: "#10b981" },
-      { label: t.nav.parkingMonitoring,  href: "/parking",       icon: IconParking,      iconColor: "#3b82f6" },
-      { label: t.nav.tollExpenses,       href: "/toll-expenses", icon: IconTollExpenses, iconColor: "#f59e0b" },
-      { label: t.nav.tollReceipts,       href: "/toll-receipts", icon: IconTollReceipts, iconColor: "#eab308" },
+      { label: t.nav.fuel,             href: "/fuel",    icon: IconFuelTracking, iconColor: "#22c55e" },
+      { label: t.nav.toll,             href: "/toll",    icon: IconTollExpenses, iconColor: "#f59e0b" },
+      { label: t.nav.parkingMonitoring, href: "/parking", icon: IconParking,     iconColor: "#3b82f6" },
     ],
   },
   // 6 — People Management
