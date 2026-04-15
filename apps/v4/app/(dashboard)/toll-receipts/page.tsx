@@ -382,16 +382,34 @@ function ProcessModal({ onClose, onDone, selectedCount = 0 }: {
           </div>
         )}
         {result && !processing && (
-          <div className="flex items-center gap-3 rounded-xl bg-green-50 dark:bg-green-950/20 p-4">
-            <CheckCircle2 className="h-6 w-6 text-green-600 shrink-0" />
-            <div>
-              <p className="font-medium text-green-800 dark:text-green-300">{result.message}</p>
-              {result.data && (
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {result.data.processed} processed · {result.data.created} created · {result.data.skipped} skipped
-                </p>
-              )}
+          <div className="space-y-3">
+            <div className={`flex items-start gap-3 rounded-xl p-4 ${
+              result.status === "success" ? "bg-green-50 dark:bg-green-950/20" : "bg-amber-50 dark:bg-amber-950/20"
+            }`}>
+              {result.status === "success"
+                ? <CheckCircle2 className="h-6 w-6 text-green-600 shrink-0 mt-0.5" />
+                : <XCircle className="h-6 w-6 text-amber-500 shrink-0 mt-0.5" />}
+              <div>
+                <p className={`font-medium ${
+                  result.status === "success" ? "text-green-800 dark:text-green-300" : "text-amber-700 dark:text-amber-300"
+                }`}>{result.message}</p>
+                {result.data && (
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {result.data.processed} processed &middot; {result.data.created} created &middot; {result.data.skipped} skipped
+                    {result.data.total_errors ? ` · ${result.data.total_errors} error${result.data.total_errors !== 1 ? "s" : ""}` : ""}
+                  </p>
+                )}
+              </div>
             </div>
+            {result.data?.error_log_url && (
+              <a href={result.data.error_log_url} target="_blank" rel="noreferrer"
+                className="flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs text-muted-foreground hover:bg-muted transition-colors">
+                <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 2v8m0 0-3-3m3 3 3-3M2 12h12" />
+                </svg>
+                Download Error Log (.xlsx)
+              </a>
+            )}
           </div>
         )}
         {error && !processing && (

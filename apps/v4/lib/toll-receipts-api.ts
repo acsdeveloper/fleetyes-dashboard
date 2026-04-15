@@ -156,7 +156,8 @@ export interface ProcessTollReceiptsResult {
     created: number
     skipped: number
     total_errors?: number
-    errors?: [string, string][]
+    error_log_url?: string
+    errors?: [number | string, string][]
   }
 }
 
@@ -166,9 +167,28 @@ export async function processTollReceipts(params: {
   date_to?: string
   limit?: number
 } = {}): Promise<ProcessTollReceiptsResult> {
-  // Route only accepts GET — pass params as query string.
-  const qs = buildQueryString(params as Record<string, string | number | boolean | undefined | null>)
-  return ontrackFetch<ProcessTollReceiptsResult>(`/expense-receipt-images/process${qs}`)
+  // This endpoint lives at /api/v1/ (NOT /int/v1/) — cannot use ontrackFetch.
+  // Method: POST with optional JSON body (driver_uuid, date_from, date_to, limit).
+  const token = getToken()
+  const res = await fetch(
+    "https://ontrack-api.agilecyber.com/api/v1/expense-reports/process-receipt-images",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      // Only send fields that have a value
+      body: JSON.stringify(
+        Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null))
+      ),
+    }
+  )
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ message: res.statusText }))
+    throw new Error(body?.message ?? `HTTP ${res.status}`)
+  }
+  return res.json() as Promise<ProcessTollReceiptsResult>
 }
 
 // ─── Static Values ────────────────────────────────────────────────────────────
