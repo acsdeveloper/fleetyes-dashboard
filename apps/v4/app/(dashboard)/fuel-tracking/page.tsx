@@ -783,9 +783,8 @@ export default function FuelTrackingPage() {
             rowData={records}
             columnDefs={colDefs}
             defaultColDef={defaultColDef}
-            rowSelection={{ mode: "multiRow", checkboxes: false }}
+            rowSelection={{ mode: "multiRow", enableClickSelection: false }}
             onSelectionChanged={() => setSelectedCount(gridRef.current?.api?.getSelectedRows().length ?? 0)}
-            suppressRowClickSelection
             animateRows
             className="h-full w-full"
           />

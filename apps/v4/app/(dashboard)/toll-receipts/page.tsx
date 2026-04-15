@@ -339,7 +339,9 @@ function UploadWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
 // Processes all pending toll receipt images — runs OCR and links them to
 // toll expense records. Mirrors the fuel receipts process flow.
 
-function ProcessModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+function ProcessModal({ onClose, onDone, selectedCount = 0 }: {
+  onClose: () => void; onDone: () => void; selectedCount?: number
+}) {
   const [processing, setProcessing] = React.useState(false)
   const [result, setResult] = React.useState<Awaited<ReturnType<typeof processTollReceipts>> | null>(null)
   const [error, setError] = React.useState("")
@@ -348,7 +350,9 @@ function ProcessModal({ onClose, onDone }: { onClose: () => void; onDone: () => 
     setProcessing(true)
     setError("")
     try {
-      const res = await processTollReceipts()
+      // If specific rows were selected, scope via limit so we don't
+      // over-process. A future API update can pass uuids[] explicitly.
+      const res = await processTollReceipts(selectedCount > 0 ? { limit: selectedCount } : {})
       setResult(res)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Processing failed")
@@ -370,7 +374,11 @@ function ProcessModal({ onClose, onDone }: { onClose: () => void; onDone: () => 
         {processing && (
           <div className="flex flex-col items-center gap-3 py-6">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Running OCR on pending toll receipts…</p>
+            <p className="text-sm text-muted-foreground">
+              {selectedCount > 0
+                ? `Running OCR on ${selectedCount} selected receipt${selectedCount !== 1 ? "s" : ""}…`
+                : "Running OCR on pending toll receipts…"}
+            </p>
           </div>
         )}
         {result && !processing && (
@@ -490,6 +498,7 @@ export default function TollReceiptsPage() {
   const [showUpload, setShowUpload]   = React.useState(false)
   const [showFilter, setShowFilter]   = React.useState(false)
   const [showProcess, setShowProcess] = React.useState(false)
+  const [selectedCount, setSelectedCount] = React.useState(0)
   const [detailRecord, setDetailRecord] = React.useState<TollReceiptImage | null>(null)
 
   // AG Grid
@@ -724,6 +733,16 @@ export default function TollReceiptsPage() {
 
           <div className="flex-1" />
 
+          {/* Process selected — appears when rows are checked */}
+          {selectedCount > 0 && (
+            <button
+              onClick={() => setShowProcess(true)}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90"
+            >
+              <Cpu className="h-3.5 w-3.5" /> Process {selectedCount} selected
+            </button>
+          )}
+
           {/* Expanding search */}
           <div className={`flex items-center transition-all duration-200 ${showSearch ? "w-52" : "w-8"}`}>
             {showSearch ? (
@@ -815,8 +834,8 @@ export default function TollReceiptsPage() {
             rowData={records}
             columnDefs={colDefs}
             defaultColDef={defaultColDef}
-            rowSelection={{ mode: "multiRow", checkboxes: false }}
-            suppressRowClickSelection
+            rowSelection={{ mode: "multiRow", enableClickSelection: false }}
+            onSelectionChanged={() => setSelectedCount(gridRef.current?.api?.getSelectedRows().length ?? 0)}
             animateRows
             className="h-full w-full"
           />
@@ -849,7 +868,7 @@ export default function TollReceiptsPage() {
       {/* ── Drawers ──────────────────────────────────── */}
       {detailRecord && <ReceiptDetailDrawer receipt={detailRecord} onClose={() => setDetailRecord(null)} />}
       {showUpload && <UploadWizard onClose={() => setShowUpload(false)} onDone={() => fetchData(1)} />}
-      {showProcess && <ProcessModal onClose={() => setShowProcess(false)} onDone={() => fetchData(1)} />}
+      {showProcess && <ProcessModal onClose={() => setShowProcess(false)} onDone={() => fetchData(1)} selectedCount={selectedCount} />}
       <FilterDrawer open={showFilter} onClose={() => setShowFilter(false)} filters={filters} setFilters={setFilters} drivers={drivers} />
     </div>
   )
