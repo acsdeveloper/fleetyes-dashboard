@@ -11,6 +11,7 @@ import { listDriverLeave, listVehicleUnavailability, type LeaveRequest } from "@
 import { listDrivers, type Driver } from "@/lib/drivers-api"
 import { listVehicles, type Vehicle } from "@/lib/vehicles-api"
 import { getFileTypeIcon } from "@/app/(dashboard)/maintenance-trips/page"
+import { useLang } from "@/components/lang-context"
 
 // ─── Attachment file cache & hook (maintenance trips only) ───────────────────
 // Cache stores full file list so the icon doubles as a download link.
@@ -254,13 +255,13 @@ const CHIP = {
   noDriver:     "border-l-2 border-amber-500  bg-amber-100/70 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
 } as const
 
-const LEGEND = [
-  { chip: CHIP.driverLeave,  label: "Driver" },
-  { chip: CHIP.vehicleLeave, label: "Vehicle" },
-  { chip: CHIP.assigned,     label: "Fully assigned" },
-  { chip: CHIP.unassigned,   label: "Unassigned" },
-  { chip: CHIP.noVehicle,    label: "No vehicle" },
-  { chip: CHIP.noDriver,     label: "No driver" },
+const LEGEND_CHIPS = [
+  { key: "driverOff" as const, chip: CHIP.driverLeave  },
+  { key: "vehicleOff" as const,chip: CHIP.vehicleLeave },
+  { key: "fullyAssigned" as const, chip: CHIP.assigned },
+  { key: "unassigned" as const, chip: CHIP.unassigned  },
+  { key: "noVehicle" as const,  chip: CHIP.noVehicle   },
+  { key: "noDriver" as const,   chip: CHIP.noDriver    },
 ] as const
 
 function leaveChip(l: LeaveRequest): string {
@@ -300,16 +301,19 @@ function orderAccentBg(o: Order, hd: (o: Order) => boolean, hv: (o: Order) => bo
 
 // ─── Status colour map ────────────────────────────────────────────────────────
 
-const STATUS_COLORS: Record<OrderStatus, { badge: string; dot: string; label: string }> = {
-  created:    { badge: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400", dot: "bg-yellow-500", label: "Created" },
-  dispatched: { badge: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400", dot: "bg-purple-500", label: "Dispatched" },
-  started:    { badge: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",         dot: "bg-blue-500",  label: "In Progress" },
-  completed:  { badge: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",     dot: "bg-green-500", label: "Completed" },
-  canceled:   { badge: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",            dot: "bg-zinc-400",  label: "Cancelled" },
+type StatusColorsMap = Record<OrderStatus, { badge: string; dot: string; label: string }>
+function makeStatusColors(tc: { created: string; dispatched?: string; started?: string; completed: string; cancelled?: string }): StatusColorsMap {
+  return {
+    created:    { badge: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400", dot: "bg-yellow-500", label: tc.created },
+    dispatched: { badge: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400", dot: "bg-purple-500", label: tc.dispatched ?? tc.created },
+    started:    { badge: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",         dot: "bg-blue-500",  label: tc.started ?? "In Progress" },
+    completed:  { badge: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",     dot: "bg-green-500", label: tc.completed },
+    canceled:   { badge: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",            dot: "bg-zinc-400",  label: tc.cancelled ?? "Cancelled" },
+  }
 }
 
-function statusStyle(s?: string) {
-  return STATUS_COLORS[(s as OrderStatus) ?? "created"] ?? STATUS_COLORS.created
+function statusStyle(s: string | undefined, statusColors: StatusColorsMap) {
+  return statusColors[(s as OrderStatus) ?? "created"] ?? statusColors.created
 }
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
@@ -327,7 +331,13 @@ function Row({ icon, label, value, muted }: { icon: React.ReactNode; label: stri
 }
 
 function OrderCard({ order }: { order: Order }) {
-  const s    = statusStyle(order.status)
+  const { t } = useLang()
+  const tc = t.calendar
+  const STATUS_COLORS_LOCAL = makeStatusColors({
+    created: tc.created, dispatched: tc.assigned, started: "In Progress",
+    completed: t.common.completed, cancelled: t.common.cancelled,
+  })
+  const s    = statusStyle(order.status, STATUS_COLORS_LOCAL)
   const dest = order.dropoff_name ?? order.payload?.dropoff?.name ?? "—"
   return (
     <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
@@ -339,19 +349,21 @@ function OrderCard({ order }: { order: Order }) {
         </span>
       </div>
       <div className="space-y-1.5 p-3 text-xs">
-        <Row icon={<Clock   className="h-3 w-3" />} label="Scheduled"   value={fmtDate(order.scheduled_at)} />
-        <Row icon={<Clock   className="h-3 w-3" />} label="Est. End"    value={fmtDate(order.estimated_end_date)} />
-        <Row icon={<CalendarIcon className="h-3 w-3" />} label="Created" value={fmtDate(order.created_at)} />
-        <Row icon={<Users   className="h-3 w-3" />} label="Fleet"       value={order.fleet?.name ?? order.fleet_name ?? "—"} />
-        <Row icon={<IdCard  className="h-3 w-3" />} label="Driver"      value={driverName(order) ?? "No Driver"} muted={!driverName(order)} />
-        <Row icon={<Car     className="h-3 w-3" />} label="Vehicle"     value={vehiclePlate(order) ?? "No Vehicle"} muted={!vehiclePlate(order)} />
-        <Row icon={<MapPin  className="h-3 w-3" />} label="Destination" value={dest} />
+        <Row icon={<Clock   className="h-3 w-3" />} label={t.common.scheduled ?? "Scheduled"} value={fmtDate(order.scheduled_at)} />
+        <Row icon={<Clock   className="h-3 w-3" />} label={tc.estEnd}              value={fmtDate(order.estimated_end_date)} />
+        <Row icon={<CalendarIcon className="h-3 w-3" />} label={tc.created}        value={fmtDate(order.created_at)} />
+        <Row icon={<Users   className="h-3 w-3" />} label={t.common.fleet}         value={order.fleet?.name ?? order.fleet_name ?? "—"} />
+        <Row icon={<IdCard  className="h-3 w-3" />} label={t.common.driver}        value={driverName(order) ?? tc.noDriver} muted={!driverName(order)} />
+        <Row icon={<Car     className="h-3 w-3" />} label={t.common.vehicle}       value={vehiclePlate(order) ?? tc.noVehicle} muted={!vehiclePlate(order)} />
+        <Row icon={<MapPin  className="h-3 w-3" />} label={tc.destination}         value={dest} />
       </div>
     </div>
   )
 }
 
 function LeaveCard({ leave: l }: { leave: LeaveRequest }) {
+  const { t } = useLang()
+  const tc = t.calendar
   const who       = l.vehicle_name ?? l.user?.name ?? "Unknown"
   const isVehicle = l.unavailability_type === "vehicle"
   const { files } = useLeaveFiles(l.uuid, isVehicle)
@@ -362,9 +374,9 @@ function LeaveCard({ leave: l }: { leave: LeaveRequest }) {
         <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-medium">{l.status}</span>
       </div>
       <div className="space-y-1 p-3 text-xs">
-        <div className="flex justify-between"><span className="font-medium text-muted-foreground">Type</span><span>{l.leave_type}</span></div>
-        <div className="flex justify-between"><span className="font-medium text-muted-foreground">Period</span><span>{l.start_date.slice(0,10)} → {l.end_date.slice(0,10)}</span></div>
-        <div className="flex justify-between"><span className="font-medium text-muted-foreground">Days</span><span>{l.total_days}</span></div>
+        <div className="flex justify-between"><span className="font-medium text-muted-foreground">{t.common.type}</span><span>{l.leave_type}</span></div>
+        <div className="flex justify-between"><span className="font-medium text-muted-foreground">{t.common.duration}</span><span>{l.start_date.slice(0,10)} → {l.end_date.slice(0,10)}</span></div>
+        <div className="flex justify-between"><span className="font-medium text-muted-foreground">{t.common.duration}</span><span>{l.total_days}</span></div>
         {l.reason && <div className="pt-1 text-muted-foreground border-t">{l.reason}</div>}
         {isVehicle && files.length > 0 && (
           <div className="pt-2 mt-1 border-t space-y-1">
@@ -526,9 +538,12 @@ function TripSidebar({ data, onClose }: { data: SidebarData; onClose: () => void
 // ─── Legend ───────────────────────────────────────────────────────────────────
 
 function LegendBar() {
+  const { t } = useLang()
+  const tc = t.calendar
+  const legend = LEGEND_CHIPS.map(({ key, chip }) => ({ chip, label: tc[key] }))
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-      {LEGEND.map(({ chip, label }) => (
+      {legend.map(({ chip, label }) => (
         <div key={label} className="flex items-center gap-1.5">
           <span className={`inline-block h-3 w-3 rounded-sm ${chip.replace(/text-\S+/g, "").replace(/border-l-2\s/g, "").trim()}`} />
           <span className="text-[11px] text-muted-foreground font-medium">{label}</span>
@@ -1203,6 +1218,16 @@ function DayView({
 type CalView = "month" | "week" | "day"
 
 export default function CalendarPage() {
+  const { t } = useLang()
+  const tc = t.calendar
+  const LEGEND = LEGEND_CHIPS.map(({ key, chip }) => ({ chip, label: tc[key] }))
+  const STATUS_COLORS = makeStatusColors({
+    created:    tc.created,
+    dispatched: tc.assigned,
+    started:    "In Progress",
+    completed:  t.common.completed,
+    cancelled:  t.common.cancelled,
+  })
   const today = new Date()
 
   // Navigation
@@ -1232,6 +1257,7 @@ export default function CalendarPage() {
   const [filterDriver,  setFilterDriver]  = React.useState("")
   const [filterVehicle, setFilterVehicle] = React.useState("")
   const [filterFleet,   setFilterFleet]   = React.useState("")
+
 
   // ─── Data fetch ─────────────────────────────────────────────────────────────
 
@@ -1595,10 +1621,10 @@ export default function CalendarPage() {
                 <div className="flex rounded-md border overflow-hidden text-xs font-medium">
                   {(["month","week","day"] as CalView[]).map(v => (
                     <button key={v} onClick={() => setCalView(v)}
-                      className={["px-2.5 py-1 transition-colors capitalize",
+                      className={["px-2.5 py-1 transition-colors",
                         calView === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
                       ].join(" ")}>
-                      {v}
+                      {v === "month" ? tc.month : v === "week" ? tc.week : tc.day}
                     </button>
                   ))}
                 </div>
@@ -1636,7 +1662,7 @@ export default function CalendarPage() {
                     title={driverOptions.length === 0 && !filterDriver ? "No drivers match the current filters" : undefined}
                     className="h-7 rounded-md border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <option value="">All drivers{driverOptions.length === 0 && !filterDriver ? " (none)" : ""}</option>
+                    <option value="">{tc.allDrivers}{driverOptions.length === 0 && !filterDriver ? " (none)" : ""}</option>
                     {driverOptions.map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
                   <select
@@ -1646,7 +1672,7 @@ export default function CalendarPage() {
                     title={vehicleOptions.length === 0 && !filterVehicle ? "No vehicles match the current filters" : undefined}
                     className="h-7 rounded-md border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <option value="">All vehicles{vehicleOptions.length === 0 && !filterVehicle ? " (none)" : ""}</option>
+                    <option value="">{tc.allVehicles}{vehicleOptions.length === 0 && !filterVehicle ? " (none)" : ""}</option>
                     {vehicleOptions.map(v => <option key={v} value={v}>{v}</option>)}
                   </select>
                   <select
@@ -1656,7 +1682,7 @@ export default function CalendarPage() {
                     title={fleetOptions.length === 0 && !filterFleet ? "No fleets match the current filters" : undefined}
                     className="h-7 rounded-md border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <option value="">All fleets{fleetOptions.length === 0 && !filterFleet ? " (none)" : ""}</option>
+                    <option value="">{t.common.fleet}{fleetOptions.length === 0 && !filterFleet ? " (none)" : ""}</option>
                     {fleetOptions.map(f => <option key={f} value={f}>{f}</option>)}
                   </select>
                 </div>
@@ -1675,7 +1701,7 @@ export default function CalendarPage() {
                           : "bg-foreground text-background shadow-sm"
                           : "text-muted-foreground hover:text-foreground"
                       }`}>
-                      {v}
+                      {v === "all" ? t.common.all : v === "assigned" ? tc.assigned : tc.unassigned}
                     </button>
                   ))}
                 </div>
@@ -1684,9 +1710,9 @@ export default function CalendarPage() {
 
                 {/* Type visibility pills */}
                 <div className="flex items-center gap-1 shrink-0">
-                  <FilterPill label="Trips"    active={showOrders}       dot="bg-foreground"  onClick={() => setShowOrders(v => !v)} />
-                  <FilterPill label="Driver"   active={showDriverLeave}  dot="bg-red-500"     onClick={() => setShowDriverLeave(v => !v)} />
-                  <FilterPill label="Vehicle"  active={showVehicleLeave} dot="bg-neutral-700" onClick={() => setShowVehicleLeave(v => !v)} />
+                  <FilterPill label={tc.orders}    active={showOrders}       dot="bg-foreground"  onClick={() => setShowOrders(v => !v)} />
+                  <FilterPill label={tc.driverOff}  active={showDriverLeave}  dot="bg-red-500"     onClick={() => setShowDriverLeave(v => !v)} />
+                  <FilterPill label={tc.vehicleOff} active={showVehicleLeave} dot="bg-neutral-700" onClick={() => setShowVehicleLeave(v => !v)} />
                 </div>
 
                 {error && <span className="text-[10px] text-red-500 self-center">{error}</span>}
