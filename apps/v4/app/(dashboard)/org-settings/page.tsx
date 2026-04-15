@@ -4,11 +4,15 @@ import {
   Building2, Phone, DollarSign, MapPin, Users, ImageIcon,
   Save, RefreshCw, AlertCircle, CheckCircle2, Upload, Loader2,
   ChevronDown, Car, CalendarDays, Clock, FlaskConical, Settings2,
+  Plug, Eye, EyeOff, Wifi, WifiOff, PlugZap,
 } from "lucide-react"
 import {
   getCompanySettings, updateCompanySettings, uploadLogo,
   CURRENCIES, type CompanySettings, type CompanySettingsUpdatePayload,
 } from "@/lib/company-settings-api"
+import {
+  getGeotabSettings, saveGeotabSettings, type GeotabSettings,
+} from "@/lib/geotab-settings"
 
 // ─── Util components ──────────────────────────────────────────────────────────
 
@@ -67,13 +71,14 @@ function Toast({ type, message, onDismiss }: { type: "success" | "error"; messag
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 
-type TabId = "general" | "operations" | "rota" | "permissions"
+type TabId = "general" | "operations" | "rota" | "permissions" | "integrations"
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
-  { id: "general",     label: "General",     icon: Building2  },
-  { id: "operations",  label: "Operations",  icon: MapPin     },
-  { id: "rota",        label: "Rota",        icon: Clock      },
-  { id: "permissions", label: "Permissions", icon: Users      },
+  { id: "general",      label: "General",      icon: Building2 },
+  { id: "operations",   label: "Operations",   icon: MapPin    },
+  { id: "rota",         label: "Rota",         icon: Clock     },
+  { id: "permissions",  label: "Permissions",  icon: Users     },
+  { id: "integrations", label: "Integrations", icon: Plug      },
 ]
 
 // ─── Rota hours localStorage key ──────────────────────────────────────────────
@@ -113,6 +118,13 @@ export default function OrgSettingsPage() {
   // Permissions
   const [driverHoliday, setDriverHoliday] = React.useState(false)
   const [driverIssue, setDriverIssue]     = React.useState(false)
+
+  // Integrations — Geotab (localStorage)
+  const [geotab, setGeotab]               = React.useState<GeotabSettings>(() => getGeotabSettings())
+  const [showPassword, setShowPassword]   = React.useState(false)
+  const [geotabTesting, setGeotabTesting] = React.useState(false)
+  const [geotabStatus, setGeotabStatus]   = React.useState<"idle" | "ok" | "error">("idle")
+  const [geotabMsg, setGeotabMsg]         = React.useState("")
 
   // ── Load ─────────────────────────────────────────────────────────────────────
   async function load() {
@@ -172,6 +184,9 @@ export default function OrgSettingsPage() {
       if (typeof window !== "undefined") {
         localStorage.setItem(ROTA_LS_KEY, JSON.stringify({ drivingHours, workingHours }))
       }
+      // Persist Geotab settings locally
+      saveGeotabSettings(geotab)
+
       const payload: CompanySettingsUpdatePayload = {
         name: name.trim(), description: description.trim() || undefined,
         phone: phone.trim() || undefined, currency,
@@ -448,6 +463,129 @@ export default function OrgSettingsPage() {
                 <FlaskConical className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
                 <p className="text-xs text-amber-700 dark:text-amber-400">Saved locally until an API is available.</p>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── INTEGRATIONS ─────────────────────────────────────────────── */}
+        {tab === "integrations" && (
+          <div className="h-full overflow-auto p-6">
+            <div className="flex flex-col gap-4">
+
+              {/* Geotab card */}
+              <div className="rounded-xl border bg-card shadow-sm p-6 flex flex-col gap-5">
+
+                {/* Header row */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg border bg-muted/40">
+                      <PlugZap className="h-4 w-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">MyGeotab</p>
+                      <p className="text-xs text-muted-foreground">Connect your Geotab fleet tracking account</p>
+                    </div>
+                  </div>
+                  {/* Enable toggle */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{geotab.enabled ? "Enabled" : "Disabled"}</span>
+                    <Toggle on={geotab.enabled} onChange={() => setGeotab(g => ({ ...g, enabled: !g.enabled }))} />
+                  </div>
+                </div>
+
+                {/* Connection status badge */}
+                {geotabStatus !== "idle" && (
+                  <div className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium ${
+                    geotabStatus === "ok"
+                      ? "border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400"
+                      : "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400"
+                  }`}>
+                    {geotabStatus === "ok" ? <Wifi className="h-3.5 w-3.5 shrink-0" /> : <WifiOff className="h-3.5 w-3.5 shrink-0" />}
+                    {geotabMsg}
+                  </div>
+                )}
+
+                {/* Fields */}
+                <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 transition-opacity ${geotab.enabled ? "" : "opacity-40 pointer-events-none"}`}>
+                  <Field label="Server" hint='e.g. my.geotab.com or my3.geotab.com'>
+                    <input
+                      value={geotab.server}
+                      onChange={e => setGeotab(g => ({ ...g, server: e.target.value }))}
+                      placeholder="my.geotab.com"
+                      className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
+                    />
+                  </Field>
+                  <Field label="Company Database" hint="Your organisation's database name in MyGeotab">
+                    <input
+                      value={geotab.database}
+                      onChange={e => setGeotab(g => ({ ...g, database: e.target.value }))}
+                      placeholder="fleetyes"
+                      className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
+                    />
+                  </Field>
+                  <Field label="Username" hint="Service account email address">
+                    <input
+                      type="email"
+                      value={geotab.userName}
+                      onChange={e => setGeotab(g => ({ ...g, userName: e.target.value }))}
+                      placeholder="api@yourcompany.com"
+                      className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
+                    />
+                  </Field>
+                  <Field label="Password" hint="Service account password">
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={geotab.password}
+                        onChange={e => setGeotab(g => ({ ...g, password: e.target.value }))}
+                        placeholder="••••••••"
+                        className="h-9 w-full rounded-lg border bg-background px-3 pr-9 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(v => !v)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
+                  </Field>
+                </div>
+
+                {/* Test connection */}
+                <div className="flex items-center gap-3">
+                  <button
+                    disabled={!geotab.enabled || geotabTesting || !geotab.server || !geotab.database || !geotab.userName || !geotab.password}
+                    onClick={async () => {
+                      setGeotabTesting(true); setGeotabStatus("idle")
+                      // Save first so geotab.ts picks up the latest values
+                      saveGeotabSettings(geotab)
+                      try {
+                        const { geotabApi } = await import("@/lib/geotab")
+                        const devices = await geotabApi.getDevices()
+                        setGeotabStatus("ok")
+                        setGeotabMsg(`Connected — ${devices.length} device${devices.length !== 1 ? "s" : ""} found`)
+                      } catch (err) {
+                        setGeotabStatus("error")
+                        setGeotabMsg(err instanceof Error ? err.message : "Connection failed")
+                      } finally {
+                        setGeotabTesting(false)
+                      }
+                    }}
+                    className="inline-flex items-center gap-2 rounded-lg border bg-muted/40 px-4 py-1.5 text-sm font-medium transition-colors hover:bg-muted/70 disabled:opacity-40"
+                  >
+                    {geotabTesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plug className="h-3.5 w-3.5" />}
+                    {geotabTesting ? "Testing…" : "Test Connection"}
+                  </button>
+                </div>
+
+                {/* Pending API notice */}
+                <div className="flex items-center gap-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-2">
+                  <FlaskConical className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <p className="text-xs text-amber-700 dark:text-amber-400">Credentials are saved locally in this browser. Multi-device sync will be available once the API is ready.</p>
+                </div>
+              </div>
+
             </div>
           </div>
         )}
