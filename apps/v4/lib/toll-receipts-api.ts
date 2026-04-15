@@ -166,16 +166,9 @@ export async function processTollReceipts(params: {
   date_to?: string
   limit?: number
 } = {}): Promise<ProcessTollReceiptsResult> {
-  // NOTE: If the correct endpoint or method changes, update here.
-  // Previous attempt: POST /expense-reports/process-toll-receipt-images → 405
-  // Correct path follows the resource sub-action pattern used by this API.
-  return ontrackFetch<ProcessTollReceiptsResult>(
-    "/expense-receipt-images/process",
-    {
-      method: "POST",
-      body: JSON.stringify(params),
-    }
-  )
+  // Route only accepts GET — pass params as query string.
+  const qs = buildQueryString(params as Record<string, string | number | boolean | undefined | null>)
+  return ontrackFetch<ProcessTollReceiptsResult>(`/expense-receipt-images/process${qs}`)
 }
 
 // ─── Static Values ────────────────────────────────────────────────────────────
