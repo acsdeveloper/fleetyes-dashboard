@@ -77,6 +77,7 @@ export type Translations = {
     noDriverAssigned: string; driverAssigned: string; ongoing: string
     noUpcomingDowntime: string; noUpcomingLeave: string
     consumptionByVehicle: string
+    at: string; for: string; of: string
   }
   pages: {
     dashboard:          PageEntry
@@ -141,6 +142,28 @@ export type Translations = {
     statusActive: string; statusUpcoming: string; statusCompleted: string
     today: string; inDays: string; daysAgo: string
     durationDays: string
+  }
+  maintenanceHub: {
+    tabDashboard: string; tabPMI: string; tabDefects: string; tabSettings: string
+    kpiVOR: string; kpiVORSub: string; kpiDueSoon: string; kpiDueSoonSub: string
+    kpiCompliant: string; kpiCompliantSub: string; kpiPMIRate: string; kpiPMIRateSub: string
+    earnedRecognition: string; dvsaScheme: string; target: string
+    fleetStatusBoard: string; compliant: string; dueSoon: string; overdueVOR: string
+    pmiSchedule: string; noPMIsDue: string
+    driver: string; nextPMI: string; daysOverdue: string; dueToday: string; dueIn: string
+    pmiSheet: string; allVehicles: string; clickToInspect: string
+    inspectionProgress: string; itemsCompleted: string; results: string; location: string; interval: string
+    technicianDecl: string; sign: string; signed: string; signFirst: string
+    submitPMI: string; pmiSubmitted: string; backToSchedule: string
+    brakeTest: string; axle1: string; axle2: string; meetsDVSA: string; belowDVSA: string
+    openDefects: string; resolved: string; totalDefects: string
+    requiresAction: string; completed: string; allTime: string
+    rectificationRecord: string; partsUsed: string; labour: string; signedOffBy: string
+    logRectification: string; markRoadworthy: string; signedOffRoadworthy: string
+    vehicleProfiles: string; addVehicle: string; userRolesPerms: string; inviteUser: string
+    notificationEngine: string; customChecklist: string; addItem: string; remove: string
+    dataExport: string; vorAlert: string; schedule: string
+    pass: string; advisory: string; fail: string
   }
   trips: {
     tripId: string; tripStatus: string; tractor: string; facilitySequence: string
@@ -268,6 +291,7 @@ export const translations: Record<Lang, Translations> = {
       goodMorning:"Good morning",goodAfternoon:"Good afternoon",goodEvening:"Good evening",
       searchPlaceholder:"Search…",searchVehicles:"Search by reg, driver, depot…",searchDrivers:"Search drivers…",
       noDriverAssigned:"No driver assigned",driverAssigned:"Driver assigned",ongoing:"Ongoing",noUpcomingDowntime:"No upcoming vehicle downtime",noUpcomingLeave:"No upcoming leave in the next 7 days",consumptionByVehicle:"Consumption by Vehicle (30 days)",address:"Address",
+      at:"at",for:"for",of:"of",
     },
     pages: {
       dashboard:          { title: "Dashboard",               subtitle: "Your operational summary for today." },
@@ -332,6 +356,31 @@ export const translations: Record<Lang, Translations> = {
       noHistorical: "No historical records",    noHistoricalDesc: "No past maintenance events found.",
       statusActive: "Active", statusUpcoming: "Upcoming", statusCompleted: "Completed",
       today: "Today", inDays: "In {n}d", daysAgo: "{n}d ago", durationDays: "{n}d",
+    },
+    maintenanceHub: {
+      tabDashboard: "Dashboard", tabPMI: "PMI Sheet", tabDefects: "Defects", tabSettings: "Settings",
+      kpiVOR: "VOR (Off Road)", kpiVORSub: "vehicles grounded",
+      kpiDueSoon: "Due Within 7 Days", kpiDueSoonSub: "needs booking",
+      kpiCompliant: "Fully Compliant", kpiCompliantSub: "vehicles in green",
+      kpiPMIRate: "PMI On-Time Rate", kpiPMIRateSub: "DVSA target: 100%",
+      earnedRecognition: "Earned Recognition KPIs", dvsaScheme: "DVSA Scheme", target: "Target: {n}%",
+      fleetStatusBoard: "Fleet Status Board", compliant: "Compliant", dueSoon: "Due Soon", overdueVOR: "Overdue/VOR",
+      pmiSchedule: "8-Week PMI Schedule", noPMIsDue: "No PMIs due",
+      driver: "Driver", nextPMI: "Next PMI", daysOverdue: "{n}d overdue", dueToday: "Due today", dueIn: "Due in {n}d",
+      pmiSheet: "PMI Schedule — All Vehicles", allVehicles: "All Vehicles", clickToInspect: "Click a row to open inspection sheet",
+      inspectionProgress: "Inspection Progress", itemsCompleted: "Items Completed", results: "Results", location: "Location", interval: "Interval",
+      technicianDecl: "Technician Declaration", sign: "Sign", signed: "Signed", signFirst: "Sign the declaration above to enable submission.",
+      submitPMI: "Submit PMI Report", pmiSubmitted: "PMI Submitted", backToSchedule: "← Back to Schedule",
+      brakeTest: "Brake Test Results (DVSA Required)", axle1: "Axle 1 Efficiency (%)", axle2: "Axle 2 Efficiency (%)",
+      meetsDVSA: "✓ Meets DVSA minimum (50%)", belowDVSA: "✗ Below DVSA minimum – FAIL",
+      openDefects: "Open Defects", resolved: "Resolved", totalDefects: "Total Defects",
+      requiresAction: "requires action", completed: "completed", allTime: "all time",
+      rectificationRecord: "Rectification Record", partsUsed: "Parts Used:", labour: "Labour:", signedOffBy: "Signed off by:",
+      logRectification: "Log Rectification", markRoadworthy: "Mark Roadworthy & Sign Off", signedOffRoadworthy: "✓ Signed off as Roadworthy",
+      vehicleProfiles: "Vehicle Profiles", addVehicle: "Add Vehicle", userRolesPerms: "User Roles & Permissions", inviteUser: "Invite User",
+      notificationEngine: "Notification Engine", customChecklist: "Custom Checklist Items", addItem: "Add Item", remove: "Remove",
+      dataExport: "Data Export & Integrations", vorAlert: "{n} Vehicle{s} Off Road", schedule: "← Schedule",
+      pass: "P", advisory: "A", fail: "F",
     },
     trips: {
       tripId: "Trip ID", tripStatus: "Trip Status", tractor: "Tractor",
@@ -470,6 +519,7 @@ export const translations: Record<Lang, Translations> = {
       goodMorning:"Guten Morgen",goodAfternoon:"Guten Tag",goodEvening:"Guten Abend",
       searchPlaceholder:"Suchen…",searchVehicles:"Nach Kennzeichen, Fahrer, Depot suchen…",searchDrivers:"Fahrer suchen…",
       noDriverAssigned:"Kein Fahrer zugewiesen",driverAssigned:"Fahrer zugewiesen",ongoing:"Laufend",noUpcomingDowntime:"Keine anstehenden Fahrzeugausfälle",noUpcomingLeave:"Kein Urlaub in den nächsten 7 Tagen",consumptionByVehicle:"Verbrauch nach Fahrzeug (30 Tage)",address:"Adresse",
+      at:"um",for:"für",of:"von",
     },
     pages: {
       dashboard:          { title: "Dashboard",                    subtitle: "Ihre betriebliche Zusammenfassung für heute." },
@@ -534,6 +584,31 @@ export const translations: Record<Lang, Translations> = {
       noHistorical: "Keine vergangenen Einträge",   noHistoricalDesc: "Keine früheren Wartungsereignisse gefunden.",
       statusActive: "Aktiv", statusUpcoming: "Bevorstehend", statusCompleted: "Abgeschlossen",
       today: "Heute", inDays: "In {n} T.", daysAgo: "Vor {n} T.", durationDays: "{n} T.",
+    },
+    maintenanceHub: {
+      tabDashboard: "Dashboard", tabPMI: "PMI-Blatt", tabDefects: "Mängel", tabSettings: "Einstellungen",
+      kpiVOR: "VOR (Ausser Betrieb)", kpiVORSub: "Fahrzeuge stillgelegt",
+      kpiDueSoon: "Fällig in 7 Tagen", kpiDueSoonSub: "Buchung erforderlich",
+      kpiCompliant: "Vollständig konform", kpiCompliantSub: "Fahrzeuge im grünen Bereich",
+      kpiPMIRate: "PMI-Pünktlichkeitsrate", kpiPMIRateSub: "DVSA-Ziel: 100%",
+      earnedRecognition: "Verdiente Anerkennung KPIs", dvsaScheme: "DVSA-Programm", target: "Ziel: {n}%",
+      fleetStatusBoard: "Flottenstatus-Board", compliant: "Konform", dueSoon: "Bald fällig", overdueVOR: "Verzögert/VOR",
+      pmiSchedule: "8-Wochen-PMI-Zeitplan", noPMIsDue: "Keine PMIs fällig",
+      driver: "Fahrer", nextPMI: "Nächste PMI", daysOverdue: "{n}T überschritten", dueToday: "Heute fällig", dueIn: "Fällig in {n}T",
+      pmiSheet: "PMI-Zeitplan — Alle Fahrzeuge", allVehicles: "Alle Fahrzeuge", clickToInspect: "Zeile anklicken um Prüfbogen zu öffnen",
+      inspectionProgress: "Prüfungsfortschritt", itemsCompleted: "Abgeschlossene Punkte", results: "Ergebnisse", location: "Standort", interval: "Intervall",
+      technicianDecl: "Techniker-Erklärung", sign: "Unterzeichnen", signed: "Unterzeichnet", signFirst: "Bitte die Erklärung oben unterzeichnen.",
+      submitPMI: "PMI-Bericht einreichen", pmiSubmitted: "PMI eingereicht", backToSchedule: "← Zurück zum Zeitplan",
+      brakeTest: "Bremstestergebnisse (DVSA erforderlich)", axle1: "Achse 1 Effizienz (%)", axle2: "Achse 2 Effizienz (%)",
+      meetsDVSA: "✓ Erfüllt DVSA-Minimum (50%)", belowDVSA: "✗ Unter DVSA-Minimum – NICHT BESTANDEN",
+      openDefects: "Offene Mängel", resolved: "Behoben", totalDefects: "Gesamt Mängel",
+      requiresAction: "Massnahme erforderlich", completed: "Abgeschlossen", allTime: "Gesamt",
+      rectificationRecord: "Reparaturprotokoll", partsUsed: "Verwendete Teile:", labour: "Arbeitszeit:", signedOffBy: "Abgezeichnet von:",
+      logRectification: "Reparatur protokollieren", markRoadworthy: "Fahrtauglich bestimmen & Abzeichnen", signedOffRoadworthy: "✓ Als fahrtauglich abgezeichnet",
+      vehicleProfiles: "Fahrzeugprofile", addVehicle: "Fahrzeug hinzufügen", userRolesPerms: "Benutzerrollen & Berechtigungen", inviteUser: "Benutzer einladen",
+      notificationEngine: "Benachrichtigungs-Engine", customChecklist: "Benutzerdefinierte Checkliste", addItem: "Element hinzufügen", remove: "Entfernen",
+      dataExport: "Datenexport & Integrationen", vorAlert: "{n} Fahrzeug{s} ausser Betrieb", schedule: "← Zeitplan",
+      pass: "B", advisory: "H", fail: "F",
     },
     issues: {
       newIssue: "Neue Meldung", critical: "Kritisch", high: "Hoch", medium: "Mittel", low: "Niedrig",
@@ -672,6 +747,7 @@ export const translations: Record<Lang, Translations> = {
       goodMorning:"Bonjour",goodAfternoon:"Bon après-midi",goodEvening:"Bonsoir",
       searchPlaceholder:"Rechercher…",searchVehicles:"Rechercher par immat., conducteur, dépôt…",searchDrivers:"Rechercher des conducteurs…",
       noDriverAssigned:"Aucun conducteur affecté",driverAssigned:"Conducteur affecté",ongoing:"En cours",noUpcomingDowntime:"Aucune immobilisation prévue",noUpcomingLeave:"Aucun congé dans les 7 prochains jours",consumptionByVehicle:"Consommation par véhicule (30 jours)",address:"Adresse",
+      at:"à",for:"pour",of:"de",
     },
     pages: {
       dashboard:          { title: "Tableau de bord",              subtitle: "Votre résumé opérationnel du jour." },
@@ -736,6 +812,31 @@ export const translations: Record<Lang, Translations> = {
       noHistorical: "Aucun historique",              noHistoricalDesc: "Aucun événement de maintenance passé trouvé.",
       statusActive: "Actif", statusUpcoming: "À venir", statusCompleted: "Terminé",
       today: "Aujourd'hui", inDays: "Dans {n}j", daysAgo: "Il y a {n}j", durationDays: "{n}j",
+    },
+    maintenanceHub: {
+      tabDashboard: "Tableau de bord", tabPMI: "Fiche PMI", tabDefects: "Défauts", tabSettings: "Paramètres",
+      kpiVOR: "VOR (Hors route)", kpiVORSub: "véhicules immobilisés",
+      kpiDueSoon: "Échéance sous 7 jours", kpiDueSoonSub: "réservation nécessaire",
+      kpiCompliant: "Entièrement conforme", kpiCompliantSub: "véhicules au vert",
+      kpiPMIRate: "Taux PMI dans les délais", kpiPMIRateSub: "Objectif DVSA : 100 %",
+      earnedRecognition: "KPIs Reconnaissance méritée", dvsaScheme: "Programme DVSA", target: "Objectif : {n} %",
+      fleetStatusBoard: "Tableau d’état de flotte", compliant: "Conforme", dueSoon: "Bientôt dû", overdueVOR: "En retard/VOR",
+      pmiSchedule: "Planning PMI 8 semaines", noPMIsDue: "Aucun PMI prévu",
+      driver: "Conducteur", nextPMI: "Prochain PMI", daysOverdue: "{n}j de retard", dueToday: "Dû aujourd’hui", dueIn: "Dû dans {n}j",
+      pmiSheet: "Planning PMI — Tous les véhicules", allVehicles: "Tous les véhicules", clickToInspect: "Cliquer sur une ligne pour ouvrir la fiche d’inspection",
+      inspectionProgress: "Progression de l’inspection", itemsCompleted: "Éléments complétés", results: "Résultats", location: "Lieu", interval: "Intervalle",
+      technicianDecl: "Déclaration du technicien", sign: "Signer", signed: "Signé", signFirst: "Signer la déclaration ci-dessus pour activer la soumission.",
+      submitPMI: "Soumettre le rapport PMI", pmiSubmitted: "PMI soumis", backToSchedule: "← Retour au planning",
+      brakeTest: "Résultats du test de freinage (requis DVSA)", axle1: "Efficacité essieu 1 (%)", axle2: "Efficacité essieu 2 (%)",
+      meetsDVSA: "✓ Conforme au minimum DVSA (50 %)", belowDVSA: "✗ Inférieur au minimum DVSA – ÉCHEC",
+      openDefects: "Défauts ouverts", resolved: "Résolu", totalDefects: "Total défauts",
+      requiresAction: "action requise", completed: "terminé", allTime: "total",
+      rectificationRecord: "Fiche de rectification", partsUsed: "Pièces utilisées :", labour: "Main-d’œuvre :", signedOffBy: "Validé par :",
+      logRectification: "Enregistrer la rectification", markRoadworthy: "Marquer apte à la route & Valider", signedOffRoadworthy: "✓ Validé apte à la route",
+      vehicleProfiles: "Profils de véhicule", addVehicle: "Ajouter un véhicule", userRolesPerms: "Rôles & permissions utilisateurs", inviteUser: "Inviter un utilisateur",
+      notificationEngine: "Moteur de notifications", customChecklist: "Éléments de liste personnalisée", addItem: "Ajouter un élément", remove: "Supprimer",
+      dataExport: "Export des données & intégrations", vorAlert: "{n} véhicule{s} hors route", schedule: "← Planning",
+      pass: "P", advisory: "A", fail: "F",
     },
     issues: {
       newIssue: "Nouvel incident", critical: "Critique", high: "Élevé", medium: "Moyen", low: "Faible",
@@ -874,6 +975,7 @@ export const translations: Record<Lang, Translations> = {
       goodMorning:"Buenos días",goodAfternoon:"Buenas tardes",goodEvening:"Buenas noches",
       searchPlaceholder:"Buscar…",searchVehicles:"Buscar por matrícula, conductor, base…",searchDrivers:"Buscar conductores…",
       noDriverAssigned:"Sin conductor asignado",driverAssigned:"Conductor asignado",ongoing:"En curso",noUpcomingDowntime:"Sin inactividad prevista",noUpcomingLeave:"Sin permisos en los próximos 7 días",consumptionByVehicle:"Consumo por vehículo (30 días)",address:"Dirección",
+      at:"a las",for:"para",of:"de",
     },
     pages: {
       dashboard:          { title: "Panel",                        subtitle: "Tu resumen operativo del día." },
@@ -938,6 +1040,31 @@ export const translations: Record<Lang, Translations> = {
       noHistorical: "Sin registros históricos",      noHistoricalDesc: "No se encontraron eventos de mantenimiento pasados.",
       statusActive: "Activo", statusUpcoming: "Próximo", statusCompleted: "Completado",
       today: "Hoy", inDays: "En {n}d", daysAgo: "Hace {n}d", durationDays: "{n}d",
+    },
+    maintenanceHub: {
+      tabDashboard: "Panel", tabPMI: "Hoja PMI", tabDefects: "Defectos", tabSettings: "Configuración",
+      kpiVOR: "VOR (Fuera de ruta)", kpiVORSub: "vehículos inmovilizados",
+      kpiDueSoon: "Vence en 7 días", kpiDueSoonSub: "reserva necesaria",
+      kpiCompliant: "Plenamente conforme", kpiCompliantSub: "vehículos en verde",
+      kpiPMIRate: "Tasa PMI a tiempo", kpiPMIRateSub: "Objetivo DVSA: 100%",
+      earnedRecognition: "KPIs Reconocimiento ganado", dvsaScheme: "Programa DVSA", target: "Objetivo: {n}%",
+      fleetStatusBoard: "Panel de estado de flota", compliant: "Conforme", dueSoon: "Pronto", overdueVOR: "Vencido/VOR",
+      pmiSchedule: "Programa PMI 8 semanas", noPMIsDue: "Sin PMIs programados",
+      driver: "Conductor", nextPMI: "Próximo PMI", daysOverdue: "{n}d de retraso", dueToday: "Vence hoy", dueIn: "Vence en {n}d",
+      pmiSheet: "Programa PMI — Todos los vehículos", allVehicles: "Todos los vehículos", clickToInspect: "Clic en una fila para abrir la hoja de inspección",
+      inspectionProgress: "Progreso de la inspección", itemsCompleted: "Elementos completados", results: "Resultados", location: "Ubicación", interval: "Intervalo",
+      technicianDecl: "Declaración del técnico", sign: "Firmar", signed: "Firmado", signFirst: "Firma la declaración anterior para habilitar el envío.",
+      submitPMI: "Enviar informe PMI", pmiSubmitted: "PMI enviado", backToSchedule: "← Volver al programa",
+      brakeTest: "Resultados de la prueba de frenos (requerido DVSA)", axle1: "Eficiencia eje 1 (%)", axle2: "Eficiencia eje 2 (%)",
+      meetsDVSA: "✓ Cumple mínimo DVSA (50%)", belowDVSA: "✗ Por debajo del mínimo DVSA – FALLO",
+      openDefects: "Defectos abiertos", resolved: "Resuelto", totalDefects: "Total defectos",
+      requiresAction: "requiere acción", completed: "completado", allTime: "total",
+      rectificationRecord: "Registro de rectificación", partsUsed: "Piezas usadas:", labour: "Mano de obra:", signedOffBy: "Firmado por:",
+      logRectification: "Registrar rectificación", markRoadworthy: "Marcar apto para rodar & Firmar", signedOffRoadworthy: "✓ Firmado como apto para rodar",
+      vehicleProfiles: "Perfiles de vehículo", addVehicle: "Añadir vehículo", userRolesPerms: "Roles & permisos de usuario", inviteUser: "Invitar usuario",
+      notificationEngine: "Motor de notificaciones", customChecklist: "Elementos de lista personalizada", addItem: "Añadir elemento", remove: "Eliminar",
+      dataExport: "Exportación de datos & integraciones", vorAlert: "{n} vehículo{s} fuera de ruta", schedule: "← Programa",
+      pass: "A", advisory: "O", fail: "F",
     },
     issues: {
       newIssue: "Nueva incidencia", critical: "Crítico", high: "Alto", medium: "Medio", low: "Bajo",
@@ -1076,6 +1203,7 @@ export const translations: Record<Lang, Translations> = {
       goodMorning:"Buongiorno",goodAfternoon:"Buon pomeriggio",goodEvening:"Buonasera",
       searchPlaceholder:"Cerca…",searchVehicles:"Cerca per targa, autista, deposito…",searchDrivers:"Cerca autisti…",
       noDriverAssigned:"Nessun autista assegnato",driverAssigned:"Autista assegnato",ongoing:"In corso",noUpcomingDowntime:"Nessun fermo veicoli previsto",noUpcomingLeave:"Nessuna ferie nei prossimi 7 giorni",consumptionByVehicle:"Consumo per veicolo (30 giorni)",address:"Indirizzo",
+      at:"alle",for:"per",of:"di",
     },
     pages: {
       dashboard:          { title: "Dashboard",                    subtitle: "Il tuo riepilogo operativo di oggi." },
@@ -1140,6 +1268,31 @@ export const translations: Record<Lang, Translations> = {
       noHistorical: "Nessuno storico",               noHistoricalDesc: "Nessun evento di manutenzione passato trovato.",
       statusActive: "Attivo", statusUpcoming: "In arrivo", statusCompleted: "Completato",
       today: "Oggi", inDays: "Tra {n}g", daysAgo: "{n}g fa", durationDays: "{n}g",
+    },
+    maintenanceHub: {
+      tabDashboard: "Dashboard", tabPMI: "Scheda PMI", tabDefects: "Difetti", tabSettings: "Impostazioni",
+      kpiVOR: "VOR (Fuori strada)", kpiVORSub: "veicoli fermi",
+      kpiDueSoon: "Scadenza entro 7 giorni", kpiDueSoonSub: "prenotazione necessaria",
+      kpiCompliant: "Completamente conforme", kpiCompliantSub: "veicoli in verde",
+      kpiPMIRate: "Tasso PMI puntuale", kpiPMIRateSub: "Obiettivo DVSA: 100%",
+      earnedRecognition: "KPI Riconoscimento guadagnato", dvsaScheme: "Programma DVSA", target: "Obiettivo: {n}%",
+      fleetStatusBoard: "Bacheca stato flotta", compliant: "Conforme", dueSoon: "In scadenza", overdueVOR: "Scaduto/VOR",
+      pmiSchedule: "Programma PMI 8 settimane", noPMIsDue: "Nessun PMI previsto",
+      driver: "Conducente", nextPMI: "Prossimo PMI", daysOverdue: "{n}g di ritardo", dueToday: "Scade oggi", dueIn: "Scade tra {n}g",
+      pmiSheet: "Programma PMI — Tutti i veicoli", allVehicles: "Tutti i veicoli", clickToInspect: "Clic su una riga per aprire la scheda di ispezione",
+      inspectionProgress: "Avanzamento ispezione", itemsCompleted: "Elementi completati", results: "Risultati", location: "Posizione", interval: "Intervallo",
+      technicianDecl: "Dichiarazione del tecnico", sign: "Firma", signed: "Firmato", signFirst: "Firmare la dichiarazione sopra per abilitare l’invio.",
+      submitPMI: "Invia rapporto PMI", pmiSubmitted: "PMI inviato", backToSchedule: "← Torna al programma",
+      brakeTest: "Risultati test freni (richiesto DVSA)", axle1: "Efficienza assale 1 (%)", axle2: "Efficienza assale 2 (%)",
+      meetsDVSA: "✓ Soddisfa il minimo DVSA (50%)", belowDVSA: "✗ Sotto il minimo DVSA – FALLITO",
+      openDefects: "Difetti aperti", resolved: "Risolto", totalDefects: "Totale difetti",
+      requiresAction: "azione richiesta", completed: "completato", allTime: "totale",
+      rectificationRecord: "Registro di rettifica", partsUsed: "Parti usate:", labour: "Manodopera:", signedOffBy: "Validato da:",
+      logRectification: "Registra rettifica", markRoadworthy: "Segna idoneo alla guida & Valida", signedOffRoadworthy: "✓ Validato come idoneo alla guida",
+      vehicleProfiles: "Profili veicolo", addVehicle: "Aggiungi veicolo", userRolesPerms: "Ruoli & permessi utente", inviteUser: "Invita utente",
+      notificationEngine: "Motore notifiche", customChecklist: "Elementi lista personalizzata", addItem: "Aggiungi elemento", remove: "Rimuovi",
+      dataExport: "Esportazione dati & integrazioni", vorAlert: "{n} veicolo/i fuori strada", schedule: "← Programma",
+      pass: "P", advisory: "A", fail: "F",
     },
     issues: {
       newIssue: "Nuova segnalazione", critical: "Critico", high: "Alto", medium: "Medio", low: "Basso",
@@ -1278,6 +1431,7 @@ export const translations: Record<Lang, Translations> = {
       goodMorning:"Dzień dobry",goodAfternoon:"Dzień dobry",goodEvening:"Dobry wieczór",
       searchPlaceholder:"Szukaj…",searchVehicles:"Szukaj wg rejestr., kierowcy, bazy…",searchDrivers:"Szukaj kierowców…",
       noDriverAssigned:"Brak przypisanego kierowcy",driverAssigned:"Kierowca przypisany",ongoing:"W toku",noUpcomingDowntime:"Brak zaplanowanych przestojów",noUpcomingLeave:"Brak urlopów w ciągu 7 dni",consumptionByVehicle:"Zużycie wg pojazdu (30 dni)",address:"Adres",
+      at:"o",for:"dla",of:"z",
     },
     pages: {
       dashboard:          { title: "Panel",                        subtitle: "Twoje operacyjne podsumowanie dnia." },
@@ -1355,6 +1509,31 @@ export const translations: Record<Lang, Translations> = {
       month: "Miesiąc", week: "Tydzień", day: "Dzień", allDrivers: "Wszyscy kierowcy",
       allVehicles: "Wszystkie pojazdy", vehicleOff: "Pojazd nieob.", fullyAssigned: "W pełni przypisany",
       noVehicle: "Brak pojazdu", noDriver: "Brak kierowcy", orders: "Zlecenia", driverOff: "Kierowca wolny",
+    },
+    maintenanceHub: {
+      tabDashboard: "Dashboard", tabPMI: "Arkusz PMI", tabDefects: "Usterki", tabSettings: "Ustawienia",
+      kpiVOR: "VOR (Wyłączony)", kpiVORSub: "unieruchomione pojazdy",
+      kpiDueSoon: "Termin za 7 dni", kpiDueSoonSub: "wymaga rezerwacji",
+      kpiCompliant: "W pełni zgodny", kpiCompliantSub: "pojazdy w zielonym",
+      kpiPMIRate: "Terminowość PMI", kpiPMIRateSub: "Cel DVSA: 100%",
+      earnedRecognition: "KPI Wypracowane uznanie", dvsaScheme: "Program DVSA", target: "Cel: {n}%",
+      fleetStatusBoard: "Tablica statusu floty", compliant: "Zgodny", dueSoon: "Wkrótce wymagany", overdueVOR: "Przeterminowany/VOR",
+      pmiSchedule: "8-tygodniowy harmonogram PMI", noPMIsDue: "Brak PMI do wykonania",
+      driver: "Kierowca", nextPMI: "Następny PMI", daysOverdue: "{n}d spóźnienia", dueToday: "Wymagany dziś", dueIn: "Wymagany za {n}d",
+      pmiSheet: "Harmonogram PMI — Wszystkie pojazdy", allVehicles: "Wszystkie pojazdy", clickToInspect: "Kliknij wiersz, aby otworzyć arkusz inspekcji",
+      inspectionProgress: "Postęp inspekcji", itemsCompleted: "Ukończone elementy", results: "Wyniki", location: "Lokalizacja", interval: "Interwał",
+      technicianDecl: "Oświadczenie technika", sign: "Podpisz", signed: "Podpisano", signFirst: "Podpisz powyższe oświadczenie, aby umożliwić przesłanie.",
+      submitPMI: "Wyślij raport PMI", pmiSubmitted: "PMI wysłany", backToSchedule: "← Powrót do harmonogramu",
+      brakeTest: "Wyniki testu hamulców (wymagane DVSA)", axle1: "Skuteczność osi 1 (%)", axle2: "Skuteczność osi 2 (%)",
+      meetsDVSA: "✓ Spełnia minimum DVSA (50%)", belowDVSA: "✗ Poniżej minimum DVSA – NIEZALICZONY",
+      openDefects: "Otwarte usterki", resolved: "Rozwiązano", totalDefects: "Wszystkie usterki",
+      requiresAction: "wymaga działania", completed: "ukończono", allTime: "łącznie",
+      rectificationRecord: "Protokół naprawy", partsUsed: "Użyte części:", labour: "Roboczogodziny:", signedOffBy: "Zatwierdzone przez:",
+      logRectification: "Zarejestruj naprawę", markRoadworthy: "Oznacz jako zdatny do drogi & Zatwierdź", signedOffRoadworthy: "✓ Zatwierdzone jako zdatne do drogi",
+      vehicleProfiles: "Profile pojazdów", addVehicle: "Dodaj pojazd", userRolesPerms: "Role & uprawnienia użytkownika", inviteUser: "Zaprosić użytkownika",
+      notificationEngine: "Silnik powiadomień", customChecklist: "Elementy listy kontrolnej", addItem: "Dodaj element", remove: "Usuń",
+      dataExport: "Eksport danych & integracje", vorAlert: "{n} pojazd{s} wyłączony", schedule: "← Harmonogram",
+      pass: "Z", advisory: "D", fail: "N",
     },
     issues: {
       newIssue: "Nowe zgłoszenie", critical: "Krytyczny", high: "Wysoki", medium: "Średni", low: "Niski",
