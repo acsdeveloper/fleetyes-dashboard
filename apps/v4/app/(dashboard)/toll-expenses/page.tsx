@@ -204,7 +204,16 @@ function TollSlideOver({
         <div className="flex gap-2 border-t p-4">
           <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">{c.cancel}</button>
           <button onClick={handleSave} disabled={saving}
-            className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 // ─── Import Wizard (Upload + History tabs) ───────────────────────────────────────────
+            className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : isEdit ? c.save : c.addNew}
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ─── Import Wizard (Upload + History tabs) ────────────────────────────────────
 
 type IWTab = "upload" | "history"
 type ImportStep = "upload" | "uploading" | "importing" | "done" | "error"
