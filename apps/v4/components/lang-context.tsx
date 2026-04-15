@@ -233,6 +233,18 @@ export type Translations = {
     checkInbox: string; checkInboxDesc: string
     errorDefault: string
   }
+  inventoryHub: {
+    tabDashboard: string; tabParts: string; tabJobCards: string; tabPurchasing: string; tabTyres: string
+    totalStockValue: string; stockoutVOR: string; lowStockParts: string; deadStock: string
+    reorderAlerts: string; stockValueByCategory: string; recentMovements: string
+    safetyCritical: string; addPart: string; scan: string; adjust: string
+    partsIssued: string; scanPart: string; issueKit: string; newJobCard: string
+    openPOs: string; autoReorder: string; coreReturns: string; raisePO: string; raiseAllPOs: string
+    newPO: string; purchaseOrders: string; autoReorderSuggestions: string
+    tyresToReplace: string; advisoryTyres: string; tyresTracked: string
+    tyreManagement: string; fitTyre: string; bulkFluidDispensing: string
+    dispense: string; confirm: string; issuePMIKit: string; stockout: string; reorder: string
+  }
 }
 
 // ─── TRANSLATIONS ─────────────────────────────────────────────────────────────
@@ -465,6 +477,18 @@ export const translations: Record<Lang, Translations> = {
       checkInboxDesc:"If {email} is registered, you'll receive a reset link shortly.",
       errorDefault:  "Login failed. Check your credentials and try again.",
     },
+    inventoryHub: {
+      tabDashboard:"Dashboard",tabParts:"Parts",tabJobCards:"Job Cards",tabPurchasing:"Purchasing",tabTyres:"Tyres & Fluids",
+      totalStockValue:"Total Stock Value",stockoutVOR:"Stockout VOR Risk",lowStockParts:"Low Stock Parts",deadStock:"Dead Stock (>12m)",
+      reorderAlerts:"Reorder Alerts",stockValueByCategory:"Stock Value by Category",recentMovements:"Recent Stock Movements",
+      safetyCritical:"SAFETY CRITICAL",addPart:"Add Part",scan:"Scan",adjust:"Adjust",
+      partsIssued:"Parts Issued",scanPart:"Scan Part",issueKit:"Issue Kit",newJobCard:"New Job Card",
+      openPOs:"Open POs",autoReorder:"Auto-Reorder Due",coreReturns:"Core Returns £",raisePO:"Raise PO",raiseAllPOs:"Raise All POs",
+      newPO:"New PO",purchaseOrders:"Purchase Orders",autoReorderSuggestions:"Auto-Reorder Suggestions",
+      tyresToReplace:"Tyres to Replace",advisoryTyres:"Advisory Tyres",tyresTracked:"Tyres Tracked",
+      tyreManagement:"Tyre Management",fitTyre:"Fit Tyre",bulkFluidDispensing:"Bulk Fluid Dispensing",
+      dispense:"Dispense",confirm:"Confirm",issuePMIKit:"Issue PMI Kit",stockout:"Stockout",reorder:"Reorder",
+    },
   },
 
   // ── German ──────────────────────────────────────────────────────────────────
@@ -692,6 +716,18 @@ export const translations: Record<Lang, Translations> = {
       checkInbox:    "Posteingang prüfen",
       checkInboxDesc:"Falls {email} registriert ist, erhalten Sie in Kürze einen Reset-Link.",
       errorDefault:  "Anmeldung fehlgeschlagen. Bitte Zugangsdaten prüfen und erneut versuchen.",
+    },
+    inventoryHub: {
+      tabDashboard:"Dashboard",tabParts:"Teile",tabJobCards:"Auftragsübersicht",tabPurchasing:"Einkauf",tabTyres:"Reifen & Flüssigkeiten",
+      totalStockValue:"Gesamtlagerwert",stockoutVOR:"VOR-Fehlbestand",lowStockParts:"Teile mit geringem Bestand",deadStock:"Toter Bestand (>12M)",
+      reorderAlerts:"Nachbestellungshinweise",stockValueByCategory:"Lagerwert nach Kategorie",recentMovements:"Letzte Lagerbewegungen",
+      safetyCritical:"SICHERHEITSKRITISCH",addPart:"Teil hinzufügen",scan:"Scannen",adjust:"Korrigieren",
+      partsIssued:"Ausgegebene Teile",scanPart:"Teil scannen",issueKit:"Kit ausgeben",newJobCard:"Neuer Auftrag",
+      openPOs:"Offene Bestellungen",autoReorder:"Nachbestellung fällig",coreReturns:"Kernrückgaben €",raisePO:"Bestellung aufgeben",raiseAllPOs:"Alle Bestellungen aufgeben",
+      newPO:"Neue Bestellung",purchaseOrders:"Bestellungen",autoReorderSuggestions:"Automatische Nachbestellvorschläge",
+      tyresToReplace:"Reifen auszutauschen",advisoryTyres:"Warnreifen",tyresTracked:"Erfasste Reifen",
+      tyreManagement:"Reifenverwaltung",fitTyre:"Reifen montieren",bulkFluidDispensing:"Flüssigkeitsausgabe",
+      dispense:"Ausgeben",confirm:"Bestätigen",issuePMIKit:"PMI-Kit ausgeben",stockout:"Ausgelagert",reorder:"Nachbestellen",
     },
   },
 
@@ -921,6 +957,18 @@ export const translations: Record<Lang, Translations> = {
       checkInboxDesc:"Si {email} est enregistré, vous recevrez un lien de réinitialisation.",
       errorDefault:  "Échec de la connexion. Vérifiez vos identifiants et réessayez.",
     },
+    inventoryHub: {
+      tabDashboard:"Tableau de bord",tabParts:"Pièces",tabJobCards:"Ordres de travail",tabPurchasing:"Achats",tabTyres:"Pneus & Fluides",
+      totalStockValue:"Valeur totale du stock",stockoutVOR:"Risque VOR",lowStockParts:"Pièces en stock bas",deadStock:"Stock dormant (>12m)",
+      reorderAlerts:"Alertes de réapprovisionnement",stockValueByCategory:"Valeur du stock par catégorie",recentMovements:"Mouvements de stock récents",
+      safetyCritical:"SÉCURITÉ CRITIQUE",addPart:"Ajouter une pièce",scan:"Scanner",adjust:"Ajuster",
+      partsIssued:"Pièces émises",scanPart:"Scanner la pièce",issueKit:"Livrer un kit",newJobCard:"Nouvel ordre de travail",
+      openPOs:"OA ouverts",autoReorder:"Réapprovisionnement à faire",coreReturns:"Retours noyau €",raisePO:"Créer OA",raiseAllPOs:"Créer tous les OA",
+      newPO:"Nouvel OA",purchaseOrders:"Commandes d'achat",autoReorderSuggestions:"Suggestions de réapprovisionnement",
+      tyresToReplace:"Pneus à remplacer",advisoryTyres:"Pneus sous surveillance",tyresTracked:"Pneus suivis",
+      tyreManagement:"Gestion des pneus",fitTyre:"Monter un pneu",bulkFluidDispensing:"Distribution de fluides en vrac",
+      dispense:"Distribuer",confirm:"Confirmer",issuePMIKit:"Livrer kit PMI",stockout:"Rupture",reorder:"Réapprovisionner",
+    },
   },
 
   // ── Spanish ─────────────────────────────────────────────────────────────────
@@ -1148,6 +1196,18 @@ export const translations: Record<Lang, Translations> = {
       checkInbox:    "Revisa tu bandeja de entrada",
       checkInboxDesc:"Si {email} está registrado, recibirás un enlace en breve.",
       errorDefault:  "Error al iniciar sesión. Comprueba tus credenciales e inténtalo de nuevo.",
+    },
+    inventoryHub: {
+      tabDashboard:"Panel",tabParts:"Piezas",tabJobCards:"Órdenes de trabajo",tabPurchasing:"Compras",tabTyres:"Neumáticos & Fluidos",
+      totalStockValue:"Valor total del stock",stockoutVOR:"Riesgo VOR sin stock",lowStockParts:"Piezas con stock bajo",deadStock:"Stock muerto (>12m)",
+      reorderAlerts:"Alertas de reposición",stockValueByCategory:"Valor del stock por categoría",recentMovements:"Movimientos recientes del stock",
+      safetyCritical:"CRÍTICO DE SEGURIDAD",addPart:"Añadir pieza",scan:"Escanear",adjust:"Ajustar",
+      partsIssued:"Piezas emitidas",scanPart:"Escanear pieza",issueKit:"Emitir kit",newJobCard:"Nueva orden de trabajo",
+      openPOs:"OC abiertas",autoReorder:"Reposición automática pendiente",coreReturns:"Devoluciones de núcleo €",raisePO:"Crear OC",raiseAllPOs:"Crear todas las OC",
+      newPO:"Nueva OC",purchaseOrders:"Órdenes de compra",autoReorderSuggestions:"Sugerencias de reposición automática",
+      tyresToReplace:"Neumáticos a reemplazar",advisoryTyres:"Neumáticos en observación",tyresTracked:"Neumáticos rastreados",
+      tyreManagement:"Gestión de neumáticos",fitTyre:"Montar neumático",bulkFluidDispensing:"Dispensación de fluidos a granel",
+      dispense:"Dispensar",confirm:"Confirmar",issuePMIKit:"Emitir kit PMI",stockout:"Sin stock",reorder:"Reponer",
     },
   },
 
@@ -1377,6 +1437,18 @@ export const translations: Record<Lang, Translations> = {
       checkInboxDesc:"Se {email} è registrata, riceverai un link a breve.",
       errorDefault:  "Accesso non riuscito. Verifica le credenziali e riprova.",
     },
+    inventoryHub: {
+      tabDashboard:"Dashboard",tabParts:"Ricambi",tabJobCards:"Ordini di lavoro",tabPurchasing:"Acquisti",tabTyres:"Pneumatici & Fluidi",
+      totalStockValue:"Valore totale del magazzino",stockoutVOR:"Rischio VOR",lowStockParts:"Ricambi con stock basso",deadStock:"Stock morto (>12m)",
+      reorderAlerts:"Avvisi di riordino",stockValueByCategory:"Valore per categoria",recentMovements:"Movimenti di magazzino recenti",
+      safetyCritical:"CRITICO PER LA SICUREZZA",addPart:"Aggiungi ricambio",scan:"Scansiona",adjust:"Rettifica",
+      partsIssued:"Ricambi emessi",scanPart:"Scansiona ricambio",issueKit:"Emetti kit",newJobCard:"Nuovo ordine di lavoro",
+      openPOs:"OA aperti",autoReorder:"Riordino automatico dovuto",coreReturns:"Resi nucleo €",raisePO:"Crea OA",raiseAllPOs:"Crea tutti gli OA",
+      newPO:"Nuovo OA",purchaseOrders:"Ordini di acquisto",autoReorderSuggestions:"Suggerimenti riordino automatico",
+      tyresToReplace:"Pneumatici da sostituire",advisoryTyres:"Pneumatici in osservazione",tyresTracked:"Pneumatici tracciati",
+      tyreManagement:"Gestione pneumatici",fitTyre:"Monta pneumatico",bulkFluidDispensing:"Distribuzione fluidi",
+      dispense:"Distribuisci",confirm:"Conferma",issuePMIKit:"Emetti kit PMI",stockout:"Esaurito",reorder:"Riordina",
+    },
   },
 
   // ── Polish ──────────────────────────────────────────────────────────────────
@@ -1604,6 +1676,18 @@ export const translations: Record<Lang, Translations> = {
       checkInbox:    "Sprawdź skrzynkę odbiorczą",
       checkInboxDesc:"Jeśli {email} jest zarejestrowany, wkrótce otrzymasz link resetujący.",
       errorDefault:  "Logowanie nie powiodło się. Sprawdź dane i spróbuj ponownie.",
+    },
+    inventoryHub: {
+      tabDashboard:"Panel",tabParts:"Części",tabJobCards:"Zlecenia serwisowe",tabPurchasing:"Zakupy",tabTyres:"Opony i Ciecze",
+      totalStockValue:"Łączna wartość magazynu",stockoutVOR:"Ryzyko VOR",lowStockParts:"Części z niskim stanem",deadStock:"Martwy zapas (>12m)",
+      reorderAlerts:"Alerty uzupełnienia",stockValueByCategory:"Wartość magazynu wg kategorii",recentMovements:"Ostatnie ruchy magazynowe",
+      safetyCritical:"KRYTYCZNE DLA BEZPIECZEŃSTWA",addPart:"Dodaj część",scan:"Skanuj",adjust:"Koryguj",
+      partsIssued:"Wydane części",scanPart:"Skanuj część",issueKit:"Wydaj zestaw",newJobCard:"Nowe zlecenie",
+      openPOs:"Otwarte ZZ",autoReorder:"Automatyczne uzupełnienie",coreReturns:"Zwroty rdzeni €",raisePO:"Utwórz ZZ",raiseAllPOs:"Utwórz wszystkie ZZ",
+      newPO:"Nowe ZZ",purchaseOrders:"Zamówienia zakupu",autoReorderSuggestions:"Propozycje automatycznego uzupełnienia",
+      tyresToReplace:"Opony do wymiany",advisoryTyres:"Opony pod obserwacją",tyresTracked:"śledzone opony",
+      tyreManagement:"Zarządzanie oponami",fitTyre:"Załóż oponę",bulkFluidDispensing:"Dozowanie płynów masowych",
+      dispense:"Dozuj",confirm:"Potwierдź",issuePMIKit:"Wydaj zestaw PMI",stockout:"Brak w magazynie",reorder:"Uzupełnij",
     },
   },
 }

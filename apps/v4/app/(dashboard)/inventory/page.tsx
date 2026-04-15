@@ -1,6 +1,7 @@
 "use client"
 import { PageHeader } from "@/components/page-header"
 import * as React from "react"
+import { useLang } from "@/components/lang-context"
 import {
   Package, AlertTriangle, CheckCircle2, Clock, Plus, Download,
   Search, RefreshCw, BarChart3, Layers, ShoppingCart, Droplets,
@@ -87,6 +88,8 @@ function KPI({ label, value, sub, color, icon: Icon }: { label:string;value:stri
 // ─── TAB 1 · DASHBOARD ────────────────────────────────────────────────────────
 
 function DashboardTab() {
+  const { t } = useLang()
+  const ti = t.inventoryHub
   const totalValue     = parts.reduce((a,p) => a + p.qty * p.unitCost, 0)
   const deadStock      = parts.filter(p => { const d = new Date(p.lastUsed); return (Date.now()-d.getTime())>365*86400000 }).length
   const stockoutVOR    = parts.filter(p => p.qty===0 && p.critical).length
@@ -103,16 +106,16 @@ function DashboardTab() {
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KPI label="Total Stock Value"       value={`£${totalValue.toLocaleString("en-GB",{minimumFractionDigits:0,maximumFractionDigits:0})}`} icon={DollarSign}      color="bg-indigo-500" sub="current on-shelf valuation" />
-        <KPI label="Stockout VOR Risk"       value={stockoutVOR}   icon={AlertTriangle}  color="bg-red-500"    sub="critical parts at zero" />
-        <KPI label="Low Stock Parts"         value={lowStock}      icon={AlertCircle}    color="bg-amber-500"  sub="below minimum threshold" />
-        <KPI label="Dead Stock (>12m)"       value={deadStock}     icon={Package}        color="bg-gray-500"   sub="unused over 12 months"  />
+        <KPI label={ti.totalStockValue}       value={`£${totalValue.toLocaleString("en-GB",{minimumFractionDigits:0,maximumFractionDigits:0})}`} icon={DollarSign}      color="bg-indigo-500" sub="current on-shelf valuation" />
+        <KPI label={ti.stockoutVOR}           value={stockoutVOR}   icon={AlertTriangle}  color="bg-red-500"    sub="critical parts at zero" />
+        <KPI label={ti.lowStockParts}         value={lowStock}      icon={AlertCircle}    color="bg-amber-500"  sub="below minimum threshold" />
+        <KPI label={ti.deadStock}             value={deadStock}     icon={Package}        color="bg-gray-500"   sub="unused over 12 months"  />
       </div>
 
       {/* Stock alerts */}
       {parts.filter(p=>p.qty<=p.min).length > 0 && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20 p-4">
-          <p className="mb-2 text-sm font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /> Reorder Alerts</p>
+          <p className="mb-2 text-sm font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /> {ti.reorderAlerts}</p>
           {parts.filter(p=>p.qty<=p.min).map(p=>(
             <div key={p.id} className="flex items-center justify-between py-1 text-xs text-amber-700 dark:text-amber-400">
               <span>• {p.name} <span className="font-mono">({p.sku})</span> — {p.qty===0?"OUT OF STOCK":`${p.qty} left (min ${p.min})`}</span>
@@ -138,7 +141,7 @@ function DashboardTab() {
       {/* Category breakdown */}
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border bg-card p-5 shadow-sm">
-          <h3 className="mb-4 font-semibold flex items-center gap-2"><BarChart3 className="h-4 w-4 text-indigo-500" /> Stock Value by Category</h3>
+          <h3 className="mb-4 font-semibold flex items-center gap-2"><BarChart3 className="h-4 w-4 text-indigo-500" /> {ti.stockValueByCategory}</h3>
           <div className="flex flex-col gap-3">
             {topCategories.map(c => (
               <div key={c.cat}>
@@ -156,7 +159,7 @@ function DashboardTab() {
 
         {/* Shrinkage / recent activity */}
         <div className="rounded-xl border bg-card p-5 shadow-sm">
-          <h3 className="mb-4 font-semibold flex items-center gap-2"><Layers className="h-4 w-4 text-indigo-500" /> Recent Stock Movements</h3>
+          <h3 className="mb-4 font-semibold flex items-center gap-2"><Layers className="h-4 w-4 text-indigo-500" /> {ti.recentMovements}</h3>
           <div className="flex flex-col gap-2 text-xs">
             {[
               { type:"out", part:"Engine Oil Filter",     qty:1,  who:"Gareth Williams", date:"2026-03-12" },
@@ -184,6 +187,8 @@ function DashboardTab() {
 // ─── TAB 2 · PARTS ───────────────────────────────────────────────────────────
 
 function PartsTab() {
+  const { t } = useLang()
+  const ti = t.inventoryHub
   const [search, setSearch] = React.useState("")
   const [cat, setCat]       = React.useState("All")
   const cats = ["All", ...Array.from(new Set(parts.map(p=>p.category)))]
@@ -205,8 +210,8 @@ function PartsTab() {
           {cats.map(c=><button key={c} onClick={()=>setCat(c)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${cat===c?"bg-primary text-primary-foreground":"border bg-background hover:bg-muted"}`}>{c}</button>)}
         </div>
         <div className="ml-auto flex gap-2">
-          <button className="inline-flex h-9 items-center gap-1.5 rounded-lg border bg-background px-3 text-sm text-muted-foreground hover:bg-muted"><ScanLine className="h-3.5 w-3.5" /> Scan</button>
-          <button className="inline-flex h-9 items-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">Add Part</button>
+          <button className="inline-flex h-9 items-center gap-1.5 rounded-lg border bg-background px-3 text-sm text-muted-foreground hover:bg-muted"><ScanLine className="h-3.5 w-3.5" /> {ti.scan}</button>
+          <button className="inline-flex h-9 items-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">{ti.addPart}</button>
         </div>
       </div>
 
@@ -226,7 +231,7 @@ function PartsTab() {
                   <td className="px-3 py-2.5 font-mono font-bold">{p.sku}</td>
                   <td className="px-3 py-2.5 font-medium max-w-[180px]">
                     <p className="truncate">{p.name}</p>
-                    {p.critical && <span className="text-[10px] text-red-600 font-semibold">SAFETY CRITICAL</span>}
+                    {p.critical && <span className="text-[10px] text-red-600 font-semibold">{ti.safetyCritical}</span>}
                     {p.coreCharge && <span className="ml-1 text-[10px] text-indigo-600">Core £{p.coreCharge}</span>}
                   </td>
                   <td className="px-3 py-2.5 text-muted-foreground">
@@ -244,13 +249,13 @@ function PartsTab() {
                   <td className="px-3 py-2.5 text-muted-foreground max-w-[120px]"><p className="truncate">{p.supplier}</p><p className="text-[10px]">{p.leadDays}d lead</p></td>
                   <td className="px-3 py-2.5">
                     <span className={`rounded-full px-2 py-0.5 font-bold text-[10px] ${s==="stockout"?"bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400":s==="low"?"bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400":"bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"}`}>
-                      {s==="stockout"?"Stockout":s==="low"?"Reorder":"OK"}
+                      {s==="stockout" ? ti.stockout : s==="low" ? ti.reorder : "OK"}
                     </span>
                   </td>
                   <td className="px-3 py-2.5">
                     <div className="flex gap-2">
-                      <button className="text-indigo-500 hover:underline">Edit</button>
-                      <button className="text-muted-foreground hover:underline">Adjust</button>
+                      <button className="text-indigo-500 hover:underline">{t.common.edit}</button>
+                      <button className="text-muted-foreground hover:underline">{ti.adjust}</button>
                     </div>
                   </td>
                 </tr>
@@ -269,6 +274,8 @@ function PartsTab() {
 // ─── TAB 3 · JOB CARDS ───────────────────────────────────────────────────────
 
 function JobCardsTab() {
+  const { t } = useLang()
+  const ti = t.inventoryHub
   const [scanMode, setScanMode]   = React.useState(false)
   const [kitModal, setKitModal]   = React.useState(false)
   const [scanned, setScanned]     = React.useState<string[]>([])
@@ -282,9 +289,9 @@ function JobCardsTab() {
     <div className="flex flex-col gap-6">
       {/* Toolbar */}
       <div className="flex flex-wrap gap-2">
-        <button onClick={()=>setScanMode(s=>!s)} className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors ${scanMode?"bg-indigo-500 text-white":"bg-background hover:bg-muted"}`}><ScanLine className="h-3.5 w-3.5" /> {scanMode?"Scanning…":"Scan Part"}</button>
-        <button onClick={()=>setKitModal(true)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border bg-background px-3 text-sm hover:bg-muted"><Layers className="h-3.5 w-3.5" /> Issue Kit</button>
-        <button className="inline-flex h-9 items-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">New Job Card</button>
+        <button onClick={()=>setScanMode(s=>!s)} className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors ${scanMode?"bg-indigo-500 text-white":"bg-background hover:bg-muted"}`}><ScanLine className="h-3.5 w-3.5" /> {scanMode?ti.scan+"…":ti.scanPart}</button>
+        <button onClick={()=>setKitModal(true)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border bg-background px-3 text-sm hover:bg-muted"><Layers className="h-3.5 w-3.5" /> {ti.issueKit}</button>
+        <button className="inline-flex h-9 items-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">{ti.newJobCard}</button>
       </div>
 
       {scanMode && (
@@ -329,7 +336,7 @@ function JobCardsTab() {
               </div>
             </div>
             <div className="p-4">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Parts Issued</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{ti.partsIssued}</p>
               <div className="flex flex-col gap-1">
                 {jc.parts.map((pt,i)=>(
                   <div key={i} className="flex items-center gap-3 rounded-lg border bg-muted/20 px-3 py-2 text-xs">
@@ -351,7 +358,7 @@ function JobCardsTab() {
       {kitModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-md rounded-2xl border bg-card p-6 shadow-2xl">
-            <h3 className="mb-4 text-lg font-bold flex items-center gap-2"><Layers className="h-5 w-5 text-indigo-500" /> Issue PMI Kit</h3>
+            <h3 className="mb-4 text-lg font-bold flex items-center gap-2"><Layers className="h-5 w-5 text-indigo-500" /> {ti.issuePMIKit}</h3>
             <div className="flex flex-col gap-3">
               {kits.map(k=>(
                 <button key={k.name} className="flex flex-col items-start rounded-xl border p-3 text-left hover:bg-muted transition-colors" onClick={()=>setKitModal(false)}>
@@ -360,7 +367,7 @@ function JobCardsTab() {
                 </button>
               ))}
             </div>
-            <button onClick={()=>setKitModal(false)} className="mt-4 w-full h-9 rounded-lg border text-sm hover:bg-muted">Cancel</button>
+            <button onClick={()=>setKitModal(false)} className="mt-4 w-full h-9 rounded-lg border text-sm hover:bg-muted">{t.common.cancel}</button>
           </div>
         </div>
       )}
@@ -371,21 +378,23 @@ function JobCardsTab() {
 // ─── TAB 4 · PURCHASING ──────────────────────────────────────────────────────
 
 function PurchasingTab() {
+  const { t } = useLang()
+  const ti = t.inventoryHub
   const autoReorder = parts.filter(p=>qty2Status(p)!=="ok")
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-4 sm:grid-cols-3">
-        <KPI label="Open POs"          value={purchaseOrders.filter(p=>p.status!=="Delivered").length} icon={ShoppingCart} color="bg-indigo-500" />
-        <KPI label="Auto-Reorder Due"  value={autoReorder.length} icon={AlertTriangle} color="bg-amber-500" sub="below minimum level" />
-        <KPI label="Core Returns £"    value={`£${parts.filter(p=>p.coreCharge).reduce((a,p)=>a+(p.coreCharge??0),0)}`} icon={RefreshCw} color="bg-green-500" sub="pending reclaim" />
+        <KPI label={ti.openPOs}         value={purchaseOrders.filter(p=>p.status!=="Delivered").length} icon={ShoppingCart} color="bg-indigo-500" />
+        <KPI label={ti.autoReorder}      value={autoReorder.length} icon={AlertTriangle} color="bg-amber-500" sub="below minimum level" />
+        <KPI label={ti.coreReturns}      value={`£${parts.filter(p=>p.coreCharge).reduce((a,p)=>a+(p.coreCharge??0),0)}`} icon={RefreshCw} color="bg-green-500" sub="pending reclaim" />
       </div>
 
       {/* Auto-reorder suggestions */}
       {autoReorder.length > 0 && (
         <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
           <div className="border-b bg-muted/40 px-4 py-2.5 flex items-center justify-between">
-            <h3 className="font-semibold flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-amber-500" /> Auto-Reorder Suggestions</h3>
-            <button className="inline-flex h-7 items-center gap-1 rounded-lg bg-primary px-3 text-xs text-primary-foreground hover:bg-primary/90">Raise All POs</button>
+            <h3 className="font-semibold flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-amber-500" /> {ti.autoReorderSuggestions}</h3>
+            <button className="inline-flex h-7 items-center gap-1 rounded-lg bg-primary px-3 text-xs text-primary-foreground hover:bg-primary/90">{ti.raiseAllPOs}</button>
           </div>
           <div className="divide-y">
             {autoReorder.map(p=>(
@@ -397,7 +406,7 @@ function PurchasingTab() {
                 </div>
                 <div className="flex gap-2">
                   {p.onOrder && <span className="rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 px-2 py-0.5 text-[10px] font-medium">{p.onOrder} on order · {p.expectedDelivery}</span>}
-                  <button className="inline-flex h-7 items-center gap-1 rounded-lg border px-2 text-xs hover:bg-muted">Raise PO</button>
+                  <button className="inline-flex h-7 items-center gap-1 rounded-lg border px-2 text-xs hover:bg-muted">{ti.raisePO}</button>
                 </div>
               </div>
             ))}
@@ -408,8 +417,8 @@ function PurchasingTab() {
       {/* Purchase orders */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-2.5">
-          <h3 className="font-semibold flex items-center gap-2"><ShoppingCart className="h-4 w-4 text-indigo-500" /> Purchase Orders</h3>
-          <button className="inline-flex h-7 items-center rounded-lg bg-primary px-3 text-xs text-primary-foreground hover:bg-primary/90">New PO</button>
+          <h3 className="font-semibold flex items-center gap-2"><ShoppingCart className="h-4 w-4 text-indigo-500" /> {ti.purchaseOrders}</h3>
+          <button className="inline-flex h-7 items-center rounded-lg bg-primary px-3 text-xs text-primary-foreground hover:bg-primary/90">{ti.newPO}</button>
         </div>
         <table className="w-full text-xs">
           <thead><tr className="border-b bg-muted/20">
@@ -440,6 +449,8 @@ function PurchasingTab() {
 // ─── TAB 5 · TYRES & FLUIDS ──────────────────────────────────────────────────
 
 function TyresAndFluidsTab() {
+  const { t } = useLang()
+  const ti = t.inventoryHub
   const bulkFluids = parts.filter(p=>p.category==="Bulk Fluids")
   const [dispenseFluid, setDispenseFluid] = React.useState<string|null>(null)
   const [dispenseAmt, setDispenseAmt]     = React.useState("")
@@ -448,16 +459,16 @@ function TyresAndFluidsTab() {
     <div className="flex flex-col gap-6">
       {/* Tyre status KPIs */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <KPI label="Tyres to Replace"  value={tyres.filter(t=>t.status==="replace").length}  icon={CircleDot} color="bg-red-500"   sub="below DVSA limit" />
-        <KPI label="Advisory Tyres"    value={tyres.filter(t=>t.status==="advisory").length} icon={AlertTriangle} color="bg-amber-500" sub="monitor closely" />
-        <KPI label="Tyres Tracked"     value={tyres.length}                                  icon={Truck}     color="bg-indigo-500" sub="with serial numbers" />
+        <KPI label={ti.tyresToReplace}  value={tyres.filter(t=>t.status==="replace").length}  icon={CircleDot} color="bg-red-500"   sub="below DVSA limit" />
+        <KPI label={ti.advisoryTyres}    value={tyres.filter(t=>t.status==="advisory").length} icon={AlertTriangle} color="bg-amber-500" sub="monitor closely" />
+        <KPI label={ti.tyresTracked}     value={tyres.length}                                  icon={Truck}     color="bg-indigo-500" sub="with serial numbers" />
       </div>
 
       {/* Tyre table */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-2.5">
-          <h3 className="font-semibold flex items-center gap-2"><CircleDot className="h-4 w-4 text-indigo-500" /> Tyre Management</h3>
-          <button className="inline-flex h-7 items-center rounded-lg border px-2 text-xs hover:bg-muted">Fit Tyre</button>
+          <h3 className="font-semibold flex items-center gap-2"><CircleDot className="h-4 w-4 text-indigo-500" /> {ti.tyreManagement}</h3>
+          <button className="inline-flex h-7 items-center rounded-lg border px-2 text-xs hover:bg-muted">{ti.fitTyre}</button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs min-w-[700px]">
@@ -495,7 +506,7 @@ function TyresAndFluidsTab() {
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="border-b bg-muted/40 px-4 py-2.5 flex items-center gap-2">
           <Droplets className="h-4 w-4 text-indigo-500" />
-          <h3 className="font-semibold">Bulk Fluid Dispensing</h3>
+          <h3 className="font-semibold">{ti.bulkFluidDispensing}</h3>
           <span className="ml-auto text-xs text-muted-foreground">IBC Tank tracking — deduct by litre</span>
         </div>
         <div className="divide-y">
@@ -520,11 +531,11 @@ function TyresAndFluidsTab() {
                   {dispenseFluid===f.id
                     ? <>
                         <input type="number" min={1} max={f.qty} value={dispenseAmt} onChange={e=>setDispenseAmt(e.target.value)} placeholder="Litres to dispense" className="h-8 w-40 rounded-lg border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring" />
-                        <button className="h-8 rounded-lg bg-indigo-500 px-3 text-xs text-white hover:bg-indigo-600" onClick={()=>{setDispenseFluid(null);setDispenseAmt("")}}>Confirm</button>
-                        <button className="h-8 rounded-lg border px-3 text-xs hover:bg-muted" onClick={()=>setDispenseFluid(null)}>Cancel</button>
+                        <button className="h-8 rounded-lg bg-indigo-500 px-3 text-xs text-white hover:bg-indigo-600" onClick={()=>{setDispenseFluid(null);setDispenseAmt("")}}>{ti.confirm}</button>
+                        <button className="h-8 rounded-lg border px-3 text-xs hover:bg-muted" onClick={()=>setDispenseFluid(null)}>{t.common.cancel}</button>
                       </>
                     : <>
-                        <button onClick={()=>setDispenseFluid(f.id)} className="inline-flex h-8 items-center gap-1 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"><Droplets className="h-3 w-3" /> Dispense</button>
+                        <button onClick={()=>setDispenseFluid(f.id)} className="inline-flex h-8 items-center gap-1 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"><Droplets className="h-3 w-3" /> {ti.dispense}</button>
                         {pct < 20 && <span className="text-xs text-red-600 font-medium">⚠ Low – order soon</span>}
                       </>
                   }
@@ -540,17 +551,21 @@ function TyresAndFluidsTab() {
 
 // ─── PAGE SHELL ───────────────────────────────────────────────────────────────
 
-const TABS = [
-  { id:"dashboard", label:"Dashboard",  icon:BarChart3    },
-  { id:"parts",     label:"Parts",      icon:Package      },
-  { id:"jobcards",  label:"Job Cards",  icon:Wrench       },
-  { id:"purchasing",label:"Purchasing", icon:ShoppingCart },
-  { id:"tyres",     label:"Tyres & Fluids", icon:Droplets },
-] as const
+const TAB_IDS = ["dashboard", "parts", "jobcards", "purchasing", "tyres"] as const
+type TabId = typeof TAB_IDS[number]
 
 export default function InventoryPage() {
-  const [tab, setTab] = React.useState<typeof TABS[number]["id"]>("dashboard")
+  const { t } = useLang()
+  const ti = t.inventoryHub
+  const [tab, setTab] = React.useState<TabId>("dashboard")
   const alerts = parts.filter(p=>qty2Status(p)!=="ok").length
+  const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
+    { id:"dashboard", label:ti.tabDashboard, icon:BarChart3    },
+    { id:"parts",     label:ti.tabParts,     icon:Package      },
+    { id:"jobcards",  label:ti.tabJobCards,  icon:Wrench       },
+    { id:"purchasing",label:ti.tabPurchasing,icon:ShoppingCart },
+    { id:"tyres",     label:ti.tabTyres,     icon:Droplets     },
+  ]
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6 md:p-8 lg:p-10">
