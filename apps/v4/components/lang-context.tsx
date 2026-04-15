@@ -117,7 +117,17 @@ export type Translations = {
     allocationPeriod: string; assignDriver: string; assignTruck: string; noRoute: string
     history: string; stats: string; relay: string; add: string; autoAllocate: string
     user: string; exportRelay: string; unassignedTrips: string; dragToAssign: string
-    violations: string
+    violations: string; warnings: string; warningsLabel: string; violationsLabel: string
+    grid: string; analysis: string
+    allCompliant: string; checkingCompliance: string
+    noUnassignedTrips: string
+    complianceReport: string; allClear: string; noComplianceDesc: string
+    issuesTab: string; rulesRef: string
+    allocationBlocked: string; complianceViolationBlocked: string; understood: string
+    reassignTitle: string; currentlyAssigned: string; willBeReplacedWith: string
+    existingTripUnassigned: string; driver: string; hrs: string
+    complianceViolation: string; complianceWarning: string; complianceCompliant: string
+    driversWithIssues: string
   }
   maintenance: {
     upcoming: string; historical: string
@@ -296,7 +306,20 @@ export const translations: Record<Lang, Translations> = {
       noRoute: "No route", history: "History", stats: "Stats", relay: "Relay", add: "Add",
       autoAllocate: "Auto-Allocate", user: "User", exportRelay: "Export Relay",
       unassignedTrips: "UNASSIGNED TRIPS", dragToAssign: "drag to assign",
-      violations: "{n} violations · {w} warning",
+      violations: "{n} violations · {w} warning", warnings: "{w} warning", warningsLabel: "Warnings", violationsLabel: "Violations",
+      grid: "Grid", analysis: "Analysis",
+      allCompliant: "All compliant", checkingCompliance: "Checking compliance…",
+      noUnassignedTrips: "No unassigned trips",
+      complianceReport: "Compliance Report", allClear: "All Clear",
+      noComplianceDesc: "No compliance violations or warnings detected for this week. All drivers are within their permitted hours.",
+      issuesTab: "Issues", rulesRef: "Rules Reference",
+      allocationBlocked: "Allocation Blocked", complianceViolationBlocked: "Compliance violation prevents this assignment",
+      understood: "Understood",
+      reassignTitle: "Reassign", currentlyAssigned: "Currently assigned", willBeReplacedWith: "Will be replaced with",
+      existingTripUnassigned: "The existing trip will be unassigned and returned to the unassigned pool.",
+      driver: "Driver", hrs: "Hrs",
+      complianceViolation: "Compliance violation", complianceWarning: "Compliance warning",
+      complianceCompliant: "Compliant", driversWithIssues: "{n} driver with issues",
     },
     maintenance: {
       upcoming: "Upcoming", historical: "Historical",
@@ -485,7 +508,20 @@ export const translations: Record<Lang, Translations> = {
       noRoute: "Keine Route", history: "Verlauf", stats: "Statistiken", relay: "Übergabe", add: "Hinzufügen",
       autoAllocate: "Automatisch zuweisen", user: "Benutzer", exportRelay: "Übergabe exportieren",
       unassignedTrips: "NICHT ZUGEWIESENE FAHRTEN", dragToAssign: "Zum Zuweisen ziehen",
-      violations: "{n} Verstöße · {w} Warnung",
+      violations: "{n} Verstöße · {w} Warnung", warnings: "{w} Warnung", warningsLabel: "Warnungen", violationsLabel: "Verstöße",
+      grid: "Raster", analysis: "Analyse",
+      allCompliant: "Alle konform", checkingCompliance: "Konformität prüfen…",
+      noUnassignedTrips: "Keine nicht zugewiesenen Fahrten",
+      complianceReport: "Konformitätsbericht", allClear: "Alles in Ordnung",
+      noComplianceDesc: "Keine Verstöße oder Warnungen für diese Woche erkannt. Alle Fahrer liegen innerhalb der zulässigen Stunden.",
+      issuesTab: "Probleme", rulesRef: "Regelreferenz",
+      allocationBlocked: "Zuweisung blockiert", complianceViolationBlocked: "Compliance-Verstoß verhindert diese Zuweisung",
+      understood: "Verstanden",
+      reassignTitle: "Neu zuweisen", currentlyAssigned: "Aktuell zugewiesen", willBeReplacedWith: "Wird ersetzt durch",
+      existingTripUnassigned: "Die vorhandene Fahrt wird aufgehoben und in den nicht zugewiesenen Pool zurückgegeben.",
+      driver: "Fahrer", hrs: "Std.",
+      complianceViolation: "Compliance-Verstoß", complianceWarning: "Compliance-Warnung",
+      complianceCompliant: "Konform", driversWithIssues: "{n} Fahrer mit Problemen",
     },
     maintenance: {
       upcoming: "Bevorstehend", historical: "Vergangen",
@@ -674,7 +710,20 @@ export const translations: Record<Lang, Translations> = {
       noRoute: "Sans itinéraire", history: "Historique", stats: "Statistiques", relay: "Transfert", add: "Ajouter",
       autoAllocate: "Affectation automatique", user: "Utilisateur", exportRelay: "Exporter le transfert",
       unassignedTrips: "MISSIONS NON AFFECTÉES", dragToAssign: "Glisser pour affecter",
-      violations: "{n} infractions · {w} avertissement",
+      violations: "{n} infractions · {w} avertissement", warnings: "{w} avertissement", warningsLabel: "Avertissements", violationsLabel: "Violations",
+      grid: "Grille", analysis: "Analyse",
+      allCompliant: "Tous conformes", checkingCompliance: "Vérification de la conformité…",
+      noUnassignedTrips: "Aucune mission non affectée",
+      complianceReport: "Rapport de conformité", allClear: "Tout est en règle",
+      noComplianceDesc: "Aucune violation ou avertissement de conformité détecté cette semaine. Tous les conducteurs respectent leurs heures autorisées.",
+      issuesTab: "Problèmes", rulesRef: "Référence des règles",
+      allocationBlocked: "Affectation bloquée", complianceViolationBlocked: "Une violation de conformité empêche cette affectation",
+      understood: "Compris",
+      reassignTitle: "Réaffecter", currentlyAssigned: "Actuellement affecté", willBeReplacedWith: "Sera remplacé par",
+      existingTripUnassigned: "La mission existante sera désaffectée et renvoyée dans le pool non affecté.",
+      driver: "Conducteur", hrs: "Hrs",
+      complianceViolation: "Violation de conformité", complianceWarning: "Avertissement de conformité",
+      complianceCompliant: "Conforme", driversWithIssues: "{n} conducteur avec des problèmes",
     },
     maintenance: {
       upcoming: "À venir", historical: "Historique",
@@ -863,7 +912,20 @@ export const translations: Record<Lang, Translations> = {
       noRoute: "Sin ruta", history: "Historial", stats: "Estadísticas", relay: "Relevo", add: "Añadir",
       autoAllocate: "Asignación automática", user: "Usuario", exportRelay: "Exportar relevo",
       unassignedTrips: "SERVICIOS SIN ASIGNAR", dragToAssign: "Arrastrar para asignar",
-      violations: "{n} infracciones · {w} advertencia",
+      violations: "{n} infracciones · {w} advertencia", warnings: "{w} advertencia", warningsLabel: "Advertencias", violationsLabel: "Infracciones",
+      grid: "Cuadrícula", analysis: "Análisis",
+      allCompliant: "Todo conforme", checkingCompliance: "Verificando conformidad…",
+      noUnassignedTrips: "Sin servicios sin asignar",
+      complianceReport: "Informe de conformidad", allClear: "Todo despejado",
+      noComplianceDesc: "No se detectaron infracciones ni advertencias de conformidad esta semana. Todos los conductores están dentro de sus horas permitidas.",
+      issuesTab: "Problemas", rulesRef: "Referencia de normas",
+      allocationBlocked: "Asignación bloqueada", complianceViolationBlocked: "Una infracción de conformidad impide esta asignación",
+      understood: "Entendido",
+      reassignTitle: "Reasignar", currentlyAssigned: "Actualmente asignado", willBeReplacedWith: "Será reemplazado por",
+      existingTripUnassigned: "El servicio existente será desasignado y devuelto al grupo sin asignar.",
+      driver: "Conductor", hrs: "Hrs",
+      complianceViolation: "Infracción de conformidad", complianceWarning: "Advertencia de conformidad",
+      complianceCompliant: "Conforme", driversWithIssues: "{n} conductor con problemas",
     },
     maintenance: {
       upcoming: "Próximos", historical: "Histórico",
@@ -1052,7 +1114,20 @@ export const translations: Record<Lang, Translations> = {
       noRoute: "Nessun percorso", history: "Storico", stats: "Statistiche", relay: "Staffetta", add: "Aggiungi",
       autoAllocate: "Assegnazione automatica", user: "Utente", exportRelay: "Esporta staffetta",
       unassignedTrips: "VIAGGI NON ASSEGNATI", dragToAssign: "Trascina per assegnare",
-      violations: "{n} violazioni · {w} avviso",
+      violations: "{n} violazioni · {w} avviso", warnings: "{w} avviso", warningsLabel: "Avvisi", violationsLabel: "Violazioni",
+      grid: "Griglia", analysis: "Analisi",
+      allCompliant: "Tutti conformi", checkingCompliance: "Verifica conformità…",
+      noUnassignedTrips: "Nessun viaggio non assegnato",
+      complianceReport: "Rapporto di conformità", allClear: "Tutto a posto",
+      noComplianceDesc: "Nessuna violazione o avviso di conformità rilevato questa settimana. Tutti i conducenti sono entro le ore consentite.",
+      issuesTab: "Problemi", rulesRef: "Riferimento regole",
+      allocationBlocked: "Assegnazione bloccata", complianceViolationBlocked: "Una violazione di conformità impedisce questa assegnazione",
+      understood: "Capito",
+      reassignTitle: "Riassegna", currentlyAssigned: "Attualmente assegnato", willBeReplacedWith: "Sarà sostituito da",
+      existingTripUnassigned: "Il viaggio esistente sarà rimosso e restituito al pool non assegnato.",
+      driver: "Conducente", hrs: "Ore",
+      complianceViolation: "Violazione di conformità", complianceWarning: "Avviso di conformità",
+      complianceCompliant: "Conforme", driversWithIssues: "{n} conducente con problemi",
     },
     maintenance: {
       upcoming: "In arrivo", historical: "Storico",
@@ -1241,7 +1316,20 @@ export const translations: Record<Lang, Translations> = {
       noRoute: "Brak trasy", history: "Historia", stats: "Statystyki", relay: "Przekazanie", add: "Dodaj",
       autoAllocate: "Automatyczny przydział", user: "Użytkownik", exportRelay: "Eksportuj przekazanie",
       unassignedTrips: "NIEPRZYPISANE KURSY", dragToAssign: "Przeciągnij aby przypisać",
-      violations: "{n} naruszeń · {w} ostrzeżenie",
+      violations: "{n} naruszeń · {w} ostrzeżenie", warnings: "{w} ostrzeżenie", warningsLabel: "Ostrzeżenia", violationsLabel: "Naruszenia",
+      grid: "Siatka", analysis: "Analiza",
+      allCompliant: "Wszyscy zgodni", checkingCompliance: "Sprawdzanie zgodności…",
+      noUnassignedTrips: "Brak nieprzypisanych kursów",
+      complianceReport: "Raport zgodności", allClear: "Wszystko w porządku",
+      noComplianceDesc: "Nie wykryto naruszeń ani ostrzeżeń dotyczących zgodności w tym tygodniu. Wszyscy kierowcy mieszczą się w dozwolonych godzinach.",
+      issuesTab: "Problemy", rulesRef: "Odniesienie do zasad",
+      allocationBlocked: "Przydział zablokowany", complianceViolationBlocked: "Naruszenie zgodności uniemożliwia to przypisanie",
+      understood: "Rozumiem",
+      reassignTitle: "Przypisz ponownie", currentlyAssigned: "Aktualnie przypisany", willBeReplacedWith: "Zostanie zastąpiony przez",
+      existingTripUnassigned: "Istniejący kurs zostanie cofnięty i zwrócony do puli nieprzypisanych.",
+      driver: "Kierowca", hrs: "Godz.",
+      complianceViolation: "Naruszenie zgodności", complianceWarning: "Ostrzeżenie o zgodności",
+      complianceCompliant: "Zgodny", driversWithIssues: "{n} kierowca z problemami",
     },
     maintenance: {
       upcoming: "Nadchodzące", historical: "Historia",
