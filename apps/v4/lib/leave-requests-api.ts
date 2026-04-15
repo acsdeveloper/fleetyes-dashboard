@@ -5,11 +5,11 @@
  * Covers driver leave/holidays AND vehicle unavailability records.
  */
 
-import { getToken } from "./ontrack-api"
+import { getToken, ONTRACK_HOST } from "./ontrack-api"
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const LEAVE_BASE = "https://ontrack-api.agilecyber.com/api/v1"
+const LEAVE_BASE = `${ONTRACK_HOST}/api/v1`
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { X, Upload, Loader2, CheckCircle2, AlertCircle, FileSpreadsheet, Download } from "lucide-react"
-import { ontrackFetch, getToken } from "@/lib/ontrack-api"
+import { ontrackFetch, getToken, ONTRACK_HOST } from "@/lib/ontrack-api"
 import { useLang } from "@/components/lang-context"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ async function uploadFile(
   const fd = new FormData()
   fd.append("file", file)
   fd.append("type", type)
-  const res = await fetch("https://ontrack-api.agilecyber.com/int/v1/files/upload", {
+  const res = await fetch(`${ONTRACK_HOST}/int/v1/files/upload`, {
     method: "POST",
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: fd,

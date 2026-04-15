@@ -2,7 +2,7 @@
  * Drivers API — /int/v1/drivers
  */
 
-import { ontrackFetch, buildQueryString } from "./ontrack-api"
+import { ontrackFetch, buildQueryString, ONTRACK_HOST } from "./ontrack-api"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -221,7 +221,7 @@ export async function exportDrivers(selections: string[] = []): Promise<Blob> {
     ? "?" + selections.map(id => `selections[]=${encodeURIComponent(id)}`).join("&")
     : ""
   const res = await fetch(
-    `https://ontrack-api.agilecyber.com/int/v1/drivers/export${qs}`,
+    `${ONTRACK_HOST}/int/v1/drivers/export${qs}`,
     { headers: token ? { Authorization: `Bearer ${token}` } : {} }
   )
   if (!res.ok) throw new Error(`Export failed: ${res.status}`)

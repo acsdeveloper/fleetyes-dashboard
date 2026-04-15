@@ -12,11 +12,11 @@
  *   4. POST /api/v1/shift-assignments/apply-allocations ← save results
  */
 
-import { getToken } from "./ontrack-api"
+import { getToken, ONTRACK_HOST } from "./ontrack-api"
 
-// ─── Config ───────────────────────────────────────────────────────────────────
+// ─── Config ──────────────────────────────────────────────────────────────────
 
-const ONTRACK_API_BASE  = "https://ontrack-api.agilecyber.com/api/v1"
+const ONTRACK_API_BASE  = `${ONTRACK_HOST}/api/v1`
 const ALLOCATION_ENGINE = "https://dev-resource-allocation.agilecyber.com"
 
 // ─── Types ────────────────────────────────────────────────────────────────────

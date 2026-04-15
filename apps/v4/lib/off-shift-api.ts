@@ -7,11 +7,11 @@
  * for the driver's off-days. Deleting a plan cascades to all spawned leave records.
  */
 
-import { getToken } from "./ontrack-api"
+import { getToken, ONTRACK_HOST } from "./ontrack-api"
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const OFF_SHIFT_BASE = "https://ontrack-api.agilecyber.com/api/v1/driver-recurring-leave-plans"
+const OFF_SHIFT_BASE = `${ONTRACK_HOST}/api/v1/driver-recurring-leave-plans`
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

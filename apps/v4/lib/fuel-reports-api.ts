@@ -3,7 +3,7 @@
  * Shared endpoint for Toll Expenses and Parking Reports.
  * Differentiated by `report_type` field: "Toll" | "Parking"
  */
-import { ontrackFetch, buildQueryString, getToken } from "./ontrack-api"
+import { ontrackFetch, buildQueryString, getToken, ONTRACK_HOST } from "./ontrack-api"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -280,7 +280,7 @@ export async function uploadReportFile(file: File, type = "fuel_report_import"):
   fd.append("file", file)
   fd.append("type", type)
   const token = getToken()
-  const res = await fetch("https://ontrack-api.agilecyber.com/int/v1/files/upload", {
+  const res = await fetch(`${ONTRACK_HOST}/int/v1/files/upload`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: fd,
@@ -320,7 +320,7 @@ export async function exportFuelReports(params: {
   } as Record<string, string | number | boolean | undefined | null>)
   const token = getToken()
   const res = await fetch(
-    `https://ontrack-api.agilecyber.com/int/v1/fuel-reports/export${qs}`,
+    `${ONTRACK_HOST}/int/v1/fuel-reports/export${qs}`,
     { headers: { Authorization: `Bearer ${token}` } }
   )
   if (!res.ok) throw new Error(`Export failed: ${res.statusText}`)
@@ -341,7 +341,7 @@ export async function sendToAmazon(params: {
   filter_param?: "ready_to_sent" | "unseen" | "all"
 }): Promise<{ status: string; message: string; download_url?: string }> {
   const token = getToken()
-  const res = await fetch("https://ontrack-api.agilecyber.com/api/v1/report-email/send", {
+  const res = await fetch(`${ONTRACK_HOST}/api/v1/report-email/send`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,

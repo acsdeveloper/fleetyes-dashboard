@@ -1,7 +1,7 @@
 /**
  * OnTrack API — Base Client
  *
- * Base URL: https://ontrack-api.agilecyber.com/int/v1
+ * Base URL: process.env.NEXT_PUBLIC_ONTRACK_HOST + /int/v1
  * Auth: POST /auth/login → Bearer token
  * Token is stored on `window.__fleetyes_token` to reuse the
  * same pattern as the existing compliance-api.ts client.
@@ -9,7 +9,10 @@
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-const ONTRACK_BASE = "https://ontrack-api.agilecyber.com/int/v1"
+export const ONTRACK_HOST =
+  process.env.NEXT_PUBLIC_ONTRACK_HOST ?? "https://ontrack-api.agilecyber.com"
+
+const ONTRACK_BASE = `${ONTRACK_HOST}/int/v1`
 
 // ─── Token helper (persisted in localStorage) ───────────────────────────────
 

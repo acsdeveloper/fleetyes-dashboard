@@ -1,7 +1,7 @@
 /**
  * Fuel Receipt Images API — /int/v1/fuel-expense-receipt-images
  */
-import { ontrackFetch, buildQueryString, getToken } from "./ontrack-api"
+import { ontrackFetch, buildQueryString, getToken, ONTRACK_HOST } from "./ontrack-api"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -114,7 +114,7 @@ export async function uploadFuelReceiptZip(file: File): Promise<{ uuid: string; 
   fd.append("file", file)
   fd.append("type", "fuel_report_import")
   const token = getToken()
-  const res = await fetch("https://ontrack-api.agilecyber.com/int/v1/files/upload", {
+  const res = await fetch(`${ONTRACK_HOST}/int/v1/files/upload`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: fd,
@@ -152,7 +152,7 @@ export async function processFuelReceipts(params: {
 } = {}): Promise<ProcessReceiptsResult> {
   const token = getToken()
   const res = await fetch(
-    "https://ontrack-api.agilecyber.com/api/v1/expense-reports/process-fuel-receipt-images",
+    `${ONTRACK_HOST}/api/v1/expense-reports/process-fuel-receipt-images`,
     {
       method: "POST",
       headers: {

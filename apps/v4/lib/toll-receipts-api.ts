@@ -1,7 +1,7 @@
 /**
  * Toll Receipt Images API — /int/v1/expense-receipt-images
  */
-import { ontrackFetch, buildQueryString, getToken } from "./ontrack-api"
+import { ontrackFetch, buildQueryString, getToken, ONTRACK_HOST } from "./ontrack-api"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -107,7 +107,7 @@ export async function uploadTollFile(file: File): Promise<{ uuid: string; origin
   fd.append("file", file)
   fd.append("type", "toll_import")
   const token = getToken()
-  const res = await fetch("https://ontrack-api.agilecyber.com/int/v1/files/upload", {
+  const res = await fetch(`${ONTRACK_HOST}/int/v1/files/upload`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: fd,
@@ -171,7 +171,7 @@ export async function processTollReceipts(params: {
   // Method: POST with optional JSON body (driver_uuid, date_from, date_to, limit).
   const token = getToken()
   const res = await fetch(
-    "https://ontrack-api.agilecyber.com/api/v1/expense-reports/process-receipt-images",
+    `${ONTRACK_HOST}/api/v1/expense-reports/process-receipt-images`,
     {
       method: "POST",
       headers: {

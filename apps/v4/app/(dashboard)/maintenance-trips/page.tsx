@@ -95,9 +95,9 @@ function useRowFiles(uuid: string) {
     let dead = false
     void (async () => {
       try {
-        const { getToken } = await import("@/lib/ontrack-api")
+        const { getToken, ONTRACK_HOST } = await import("@/lib/ontrack-api")
         const res = await fetch(
-          `https://ontrack-api.agilecyber.com/int/v1/files?subject_uuid=${uuid}&limit=10`,
+          `${ONTRACK_HOST}/int/v1/files?subject_uuid=${uuid}&limit=10`,
           { headers: { Authorization: `Bearer ${getToken()}` } }
         )
         if (!res.ok || dead) return
@@ -245,9 +245,9 @@ function MaintenanceDrawer({
   async function fetchFiles(subjectUuid: string) {
     setFilesLoading(true)
     try {
-      const { getToken } = await import("@/lib/ontrack-api")
+      const { getToken, ONTRACK_HOST } = await import("@/lib/ontrack-api")
       const res = await fetch(
-        `https://ontrack-api.agilecyber.com/int/v1/files?sort=-created_at&subject_uuid=${subjectUuid}`,
+        `${ONTRACK_HOST}/int/v1/files?sort=-created_at&subject_uuid=${subjectUuid}`,
         { headers: { Authorization: `Bearer ${getToken()}` } }
       )
       if (!res.ok) return
@@ -268,13 +268,13 @@ function MaintenanceDrawer({
     e.target.value = "" // allow re-selecting same file
     setUploading(true); setFileError(null)
     try {
-      const { getToken } = await import("@/lib/ontrack-api")
+      const { getToken, ONTRACK_HOST } = await import("@/lib/ontrack-api")
       const fd = new FormData()
       fd.append("file", file)
       fd.append("subject_uuid", record.uuid)
       fd.append("subject_type", "leave_request")
       fd.append("type", "maintenance_document")
-      const res = await fetch("https://ontrack-api.agilecyber.com/int/v1/files/upload", {
+      const res = await fetch(`${ONTRACK_HOST}/int/v1/files/upload`, {
         method: "POST",
         headers: { Authorization: `Bearer ${getToken()}` },
         body: fd,
@@ -293,8 +293,8 @@ function MaintenanceDrawer({
   async function handleFileDelete(fileUuid: string) {
     if (!record) return
     try {
-      const { getToken } = await import("@/lib/ontrack-api")
-      await fetch(`https://ontrack-api.agilecyber.com/int/v1/files/${fileUuid}`, {
+      const { getToken, ONTRACK_HOST } = await import("@/lib/ontrack-api")
+      await fetch(`${ONTRACK_HOST}/int/v1/files/${fileUuid}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${getToken()}` },
       })

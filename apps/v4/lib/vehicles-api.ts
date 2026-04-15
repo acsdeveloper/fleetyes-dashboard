@@ -1,7 +1,7 @@
 /**
  * Vehicles API — /int/v1/vehicles
  */
-import { ontrackFetch, buildQueryString, getToken } from "./ontrack-api"
+import { ontrackFetch, buildQueryString, getToken, ONTRACK_HOST } from "./ontrack-api"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -124,7 +124,7 @@ export async function importVehicles(fileUuids: string[]): Promise<VehicleImport
 export async function exportVehicles(): Promise<Blob> {
   const token = getToken()
   const res = await fetch(
-    "https://ontrack-api.agilecyber.com/int/v1/vehicles/export",
+    `${ONTRACK_HOST}/int/v1/vehicles/export`,
     { headers: token ? { Authorization: `Bearer ${token}` } : {} }
   )
   if (!res.ok) throw new Error(`Export failed: ${res.status}`)

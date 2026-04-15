@@ -27,9 +27,9 @@ function useLeaveFiles(uuid: string, enabled: boolean) {
     let dead = false
     void (async () => {
       try {
-        const { getToken } = await import("@/lib/ontrack-api")
+        const { getToken, ONTRACK_HOST } = await import("@/lib/ontrack-api")
         const res = await fetch(
-          `https://ontrack-api.agilecyber.com/int/v1/files?subject_uuid=${uuid}&limit=10`,
+          `${ONTRACK_HOST}/int/v1/files?subject_uuid=${uuid}&limit=10`,
           { headers: { Authorization: `Bearer ${getToken()}` } }
         )
         if (!res.ok || dead) return

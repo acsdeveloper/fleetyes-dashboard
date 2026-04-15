@@ -1,7 +1,7 @@
 /**
  * Places API — /int/v1/places
  */
-import { ontrackFetch, buildQueryString, getToken } from "./ontrack-api"
+import { ontrackFetch, buildQueryString, getToken, ONTRACK_HOST } from "./ontrack-api"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -181,7 +181,7 @@ export async function exportPlaces(selections: string[] = []): Promise<Blob> {
     ? "?" + selections.map(id => `selections[]=${encodeURIComponent(id)}`).join("&")
     : ""
   const res = await fetch(
-    `https://ontrack-api.agilecyber.com/int/v1/places/export${qs}`,
+    `${ONTRACK_HOST}/int/v1/places/export${qs}`,
     { headers: token ? { Authorization: `Bearer ${token}` } : {} }
   )
   if (!res.ok) throw new Error(`Export failed: ${res.status}`)
