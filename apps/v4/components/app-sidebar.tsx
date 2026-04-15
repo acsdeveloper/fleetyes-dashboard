@@ -351,17 +351,54 @@ export function AppSidebar() {
   const [collapsed, setCollapsed]     = React.useState(false)
   const [mobileOpen, setMobileOpen]   = React.useState(false)
 
-  // Which groups are expanded — use stable numeric index keys (language-agnostic)
-  // Transport=1, Expenses=5, People=6, Settings=7 (matching buildNav indices)
-  const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({
-    "1": true,   // Transport
-    "5": false,  // Expenses
-    "6": true,   // People
-    "7": false,  // Settings
-  })
+  // ── Group open state ──────────────────────────────────────────────────────
+  // Strategy:
+  //   • On mount, restore from localStorage (if present), falling back to defaults.
+  //   • When the active pathname is inside a group, force that group open.
+  //   • User explicit clicks are persisted immediately to localStorage.
 
-  const toggleGroup = (label: string) =>
-    setOpenGroups(prev => ({ ...prev, [label]: !prev[label] }))
+  const STORAGE_KEY = "sidebar-open-groups"
+
+  // Defaults: Transport open, rest closed
+  const defaultOpen: Record<string, boolean> = { "1": true, "5": false, "6": false, "7": false }
+
+  const readStored = (): Record<string, boolean> => {
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null
+      return raw ? { ...defaultOpen, ...JSON.parse(raw) } : defaultOpen
+    } catch { return defaultOpen }
+  }
+
+  const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>(readStored)
+
+  // Whenever pathname changes: ensure the group containing the active route is open.
+  // We never force-close other groups — only the user can do that.
+  React.useEffect(() => {
+    NAV.forEach((entry, idx) => {
+      if (isStandalone(entry)) return
+      const group = entry as NavGroup
+      const groupKey = String(idx)
+      const anyActive = group.items.some(i =>
+        i.href === "/" ? pathname === "/" : pathname === i.href || pathname.startsWith(i.href + "/")
+      )
+      if (anyActive) {
+        setOpenGroups(prev => {
+          if (prev[groupKey]) return prev   // already open, no-op
+          const next = { ...prev, [groupKey]: true }
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch {}
+          return next
+        })
+      }
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname])
+
+  const toggleGroup = (key: string) =>
+    setOpenGroups(prev => {
+      const next = { ...prev, [key]: !prev[key] }
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch {}
+      return next
+    })
 
   // Close mobile on route change
   React.useEffect(() => { setMobileOpen(false) }, [pathname])
