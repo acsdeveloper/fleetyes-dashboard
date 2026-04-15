@@ -1274,6 +1274,11 @@ export const translations: Record<Lang, Translations> = {
       assignee: "Odpowiedzialny", backlogged: "Zaległe", requiresUpdate: "Wymaga aktualizacji",
       inReview: "W przeglądzie", saveChanges: "Zapisz", createIssue: "Utwórz zgłoszenie",
       unassigned: "Nieprzypisany",
+      type: "Typ", category: "Kategoria", assignedTo: "Przypisano do", reportedBy: "Zgłoszone przez",
+      incidentLocation: "Miejsce zdarzenia", pinLocation: "Oznacz lokalizację", hideMap: "Ukryj mapę",
+      noLocationPinned: "Brak oznaczonej lokalizacji \u2014 kliknij \u201eOznacz lokalizacj\u0119\u201c aby doda\u0107 marker",
+      scheduledMaintenance: "Zaplanowany serwis", pending: "Oczekujące", closed: "Zamknięte",
+      pickTypFirst: "Najpierw wybierz typ", selectCategory: "Wybierz\u2026",
     },
     fuelTracking: {
       expense: "Wydatek", addExpense: "Dodaj wydatek", inclVat: "z VAT",
