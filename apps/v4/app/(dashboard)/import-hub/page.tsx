@@ -1,6 +1,7 @@
 "use client"
 import { PageHeader } from "@/components/page-header"
 import * as React from "react"
+import { useLang } from "@/components/lang-context"
 import {
   CloudDownload, Wifi, WifiOff, RefreshCw, AlertTriangle, CheckCircle2,
   XCircle, Globe, Puzzle, FileSpreadsheet, UploadCloud, Download,
@@ -281,6 +282,7 @@ const methodLabel: Record<Method, string> = {
 // ─── MODALS ───────────────────────────────────────────────────────────────────
 
 function APIModal({ vendor, onClose }: { vendor: Vendor; onClose: () => void }) {
+  const { t } = useLang()
   const [tested, setTested] = React.useState<null|"ok"|"fail">(null)
   const [autoSync, setAutoSync] = React.useState(true)
   return (
@@ -314,8 +316,8 @@ function APIModal({ vendor, onClose }: { vendor: Vendor; onClose: () => void }) 
           {/* Auto-sync toggle */}
           <div className="flex items-center justify-between py-1">
             <div>
-              <p className="text-sm font-medium">Auto-import enabled</p>
-              <p className="text-xs text-muted-foreground">Pull data every 15 minutes</p>
+              <p className="text-sm font-medium">{t.importHub.autoImportEnabled}</p>
+              <p className="text-xs text-muted-foreground">{t.importHub.autoImportEnabled}</p>
             </div>
             <button onClick={() => setAutoSync(v => !v)}
               className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${autoSync ? "bg-indigo-500" : "bg-muted border"}`}>
@@ -339,7 +341,7 @@ function APIModal({ vendor, onClose }: { vendor: Vendor; onClose: () => void }) 
           </button>
           <button onClick={onClose}
             className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary text-sm font-semibold text-primary-foreground hover:bg-primary/90">
-            Save & Connect
+            {t.common.save} &amp; Connect
           </button>
         </div>
       </div>
@@ -348,6 +350,7 @@ function APIModal({ vendor, onClose }: { vendor: Vendor; onClose: () => void }) 
 }
 
 function ExtensionModal({ vendor, onClose }: { vendor: Vendor; onClose: () => void }) {
+  const { t } = useLang()
   const [installed] = React.useState(false) // simulate not installed
   const [mins, setMins] = React.useState(vendor.autoSyncMins ?? 5)
   return (
@@ -366,7 +369,7 @@ function ExtensionModal({ vendor, onClose }: { vendor: Vendor; onClose: () => vo
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-100 dark:bg-indigo-900/30">
               <Puzzle className="h-8 w-8 text-indigo-500" />
             </div>
-            <p className="font-semibold">Extension Not Detected</p>
+            <p className="font-semibold">{t.importHub.extensionNotDetected}</p>
             <p className="text-sm text-muted-foreground max-w-sm">
               Install the FleetYes Sync extension to automatically pull {vendor.name} load boards and route updates into your dashboard.
             </p>
@@ -389,7 +392,7 @@ function ExtensionModal({ vendor, onClose }: { vendor: Vendor; onClose: () => vo
             <div className="flex items-center gap-3 rounded-xl border border-green-300 bg-green-50 dark:border-green-900 dark:bg-green-950/20 p-4">
               <CheckCircle2 className="h-6 w-6 text-green-500 shrink-0" />
               <div>
-                <p className="font-semibold text-green-800 dark:text-green-300">Extension Active</p>
+                <p className="font-semibold text-green-800 dark:text-green-300">{t.importHub.extensionActive}</p>
                 <p className="text-xs text-green-700 dark:text-green-400">Scraping {vendor.name} load board · Responding to FleetYes</p>
               </div>
             </div>
@@ -402,7 +405,7 @@ function ExtensionModal({ vendor, onClose }: { vendor: Vendor; onClose: () => vo
         )}
 
         <div className="mt-5 flex gap-2">
-          <button onClick={onClose} className="inline-flex h-9 flex-1 items-center justify-center rounded-lg border text-sm hover:bg-muted">Close</button>
+          <button onClick={onClose} className="inline-flex h-9 flex-1 items-center justify-center rounded-lg border text-sm hover:bg-muted">{t.common.close}</button>
           {installed && (
             <button onClick={onClose} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary text-sm font-semibold text-primary-foreground hover:bg-primary/90">
               Save Settings
@@ -415,6 +418,7 @@ function ExtensionModal({ vendor, onClose }: { vendor: Vendor; onClose: () => vo
 }
 
 function ManualModal({ vendor, onClose }: { vendor: Vendor; onClose: () => void }) {
+  const { t } = useLang()
   const [dragging, setDragging] = React.useState(false)
   const [file, setFile] = React.useState<string|null>(null)
   const isTesco = vendor.id === "tesco" || vendor.id === "asda" || vendor.id === "nfw" || vendor.id === "custom"
@@ -473,7 +477,7 @@ function ManualModal({ vendor, onClose }: { vendor: Vendor; onClose: () => void 
             <p className="mb-3 text-xs text-muted-foreground">Map your spreadsheet columns to FleetYes fields. Drag or select below.</p>
             <div className="rounded-xl border overflow-hidden">
               <div className="grid grid-cols-2 border-b bg-muted/40 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                <span>Your Column</span><span>FleetYes Field</span>
+                <span>{t.importHub.yourColumn}</span><span>{t.importHub.fleeyesField}</span>
               </div>
               <div className="divide-y">
                 {tescoCols.map(col => (
@@ -492,7 +496,7 @@ function ManualModal({ vendor, onClose }: { vendor: Vendor; onClose: () => void 
         )}
 
         <div className="mt-5 flex gap-2">
-          <button onClick={onClose} className="inline-flex h-9 flex-1 items-center justify-center rounded-lg border text-sm hover:bg-muted">Cancel</button>
+          <button onClick={onClose} className="inline-flex h-9 flex-1 items-center justify-center rounded-lg border text-sm hover:bg-muted">{t.common.cancel}</button>
           <button disabled={!file} onClick={onClose}
             className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40">
             <CloudDownload className="h-4 w-4" /> Import {file ? "File" : "—"}
@@ -506,6 +510,7 @@ function ManualModal({ vendor, onClose }: { vendor: Vendor; onClose: () => void 
 // ─── FIX MODAL ────────────────────────────────────────────────────────────────
 
 function FixModal({ entry, onClose }: { entry: LogEntry; onClose: () => void }) {
+  const { t } = useLang()
   const [rows, setRows] = React.useState(entry.rows ?? [])
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -537,7 +542,7 @@ function FixModal({ entry, onClose }: { entry: LogEntry; onClose: () => void }) 
           ))}
         </div>
         <div className="mt-5 flex gap-2">
-          <button onClick={onClose} className="inline-flex h-9 flex-1 items-center justify-center rounded-lg border text-sm hover:bg-muted">Cancel</button>
+          <button onClick={onClose} className="inline-flex h-9 flex-1 items-center justify-center rounded-lg border text-sm hover:bg-muted">{t.common.cancel}</button>
           <button onClick={onClose}
             className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary text-sm font-semibold text-primary-foreground hover:bg-primary/90">
             <RotateCcw className="h-4 w-4" /> Fix & Retry Import
@@ -554,6 +559,7 @@ function VendorCard({ vendor, onAPI, onExt, onManual }: {
   vendor: Vendor
   onAPI: () => void; onExt: () => void; onManual: () => void
 }) {
+  const { t } = useLang()
   const s = statusCfg[vendor.status]
   return (
     <div className="flex flex-col rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -576,11 +582,11 @@ function VendorCard({ vendor, onAPI, onExt, onManual }: {
       <div className="grid grid-cols-2 divide-x border-b text-center">
         <div className="py-2">
           <p className="text-sm font-bold">{vendor.tripsToday ?? "—"}</p>
-          <p className="text-[9px] text-muted-foreground uppercase tracking-wide">Trips today</p>
+          <p className="text-[9px] text-muted-foreground uppercase tracking-wide">{t.importHub.tripsToday}</p>
         </div>
         <div className="py-2">
           <p className="text-xs font-medium truncate px-1">{vendor.lastSync ? vendor.lastSync.slice(11) : "Never"}</p>
-          <p className="text-[9px] text-muted-foreground uppercase tracking-wide">Last sync</p>
+          <p className="text-[9px] text-muted-foreground uppercase tracking-wide">{t.importHub.lastSync}</p>
         </div>
       </div>
 
@@ -595,7 +601,7 @@ function VendorCard({ vendor, onAPI, onExt, onManual }: {
           >
             {methodIcon[m]}
             <span className="flex-1">{methodLabel[m]}</span>
-            {vendor.primaryMethod === m && <span className="text-[9px] uppercase tracking-wide opacity-60">Primary</span>}
+            {vendor.primaryMethod === m && <span className="text-[9px] uppercase tracking-wide opacity-60">{t.importHub.primary}</span>}
             <ChevronRight className="h-3 w-3 opacity-50" />
           </button>
         ))}
@@ -611,6 +617,7 @@ function VendorCard({ vendor, onAPI, onExt, onManual }: {
 // ─── ACTIVITY LOG ─────────────────────────────────────────────────────────────
 
 function ActivityLog() {
+  const { t } = useLang()
   const [fixEntry, setFixEntry] = React.useState<LogEntry|null>(null)
   const [filter, setFilter] = React.useState<"all"|Method|"failed">("all")
 
@@ -631,7 +638,7 @@ function ActivityLog() {
       <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-3">
         <div className="flex items-center gap-2">
           <Clock className="h-4 w-4 text-muted-foreground" />
-          <h3 className="font-semibold text-sm">Universal Activity Log</h3>
+          <h3 className="font-semibold text-sm">{t.importHub.universalActivityLog}</h3>
         </div>
         <div className="flex gap-1.5">
           {(["all","api","extension","manual","failed"] as const).map(f => (
@@ -694,6 +701,7 @@ function ActivityLog() {
 // ─── PAGE ─────────────────────────────────────────────────────────────────────
 
 export default function ImportHubPage() {
+  const { t } = useLang()
   const [apiVendor,  setApiVendor]  = React.useState<Vendor|null>(null)
   const [extVendor,  setExtVendor]  = React.useState<Vendor|null>(null)
   const [manVendor,  setManVendor]  = React.useState<Vendor|null>(null)
@@ -722,7 +730,7 @@ export default function ImportHubPage() {
           <PageHeader pageKey="importHub" />
         </div>
         <button className="inline-flex h-9 items-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 self-start sm:self-auto">
-          Add Provider
+          {t.common.addNew} Provider
         </button>
       </div>
 
@@ -734,8 +742,8 @@ export default function ImportHubPage() {
           </div>
           <div>
             <p className="text-2xl font-bold">{tripsToday}</p>
-            <p className="text-xs font-medium text-muted-foreground">Trips imported today</p>
-            <p className="text-[10px] text-muted-foreground">across all providers</p>
+            <p className="text-xs font-medium text-muted-foreground">{t.importHub.tripsImportedToday}</p>
+            <p className="text-[10px] text-muted-foreground">{t.importHub.acrossAllProviders}</p>
           </div>
         </div>
         <div className="flex items-start gap-3 rounded-xl border bg-card p-4 shadow-sm">
@@ -744,7 +752,7 @@ export default function ImportHubPage() {
           </div>
           <div>
             <p className="text-2xl font-bold">{connected}</p>
-            <p className="text-xs font-medium text-muted-foreground">Active connections</p>
+            <p className="text-xs font-medium text-muted-foreground">{t.importHub.activeConnections}</p>
             <p className="text-[10px] text-muted-foreground">{syncingNow} syncing right now</p>
           </div>
         </div>
@@ -754,7 +762,7 @@ export default function ImportHubPage() {
           </div>
           <div>
             <p className="text-2xl font-bold">{errors}</p>
-            <p className="text-xs font-medium text-muted-foreground">Sync failures</p>
+            <p className="text-xs font-medium text-muted-foreground">{t.importHub.syncFailures}</p>
             <p className="text-[10px] text-muted-foreground">{errors > 0 ? "Needs attention" : "All systems go"}</p>
           </div>
         </div>
@@ -764,7 +772,7 @@ export default function ImportHubPage() {
           </div>
           <div>
             <p className="text-2xl font-bold">{vendors.length}</p>
-            <p className="text-xs font-medium text-muted-foreground">Providers configured</p>
+            <p className="text-xs font-medium text-muted-foreground">{t.importHub.providersConfigured}</p>
             <p className="text-[10px] text-muted-foreground">{vendors.filter(v=>v.status==="disconnected").length} not yet connected</p>
           </div>
         </div>
@@ -792,7 +800,7 @@ export default function ImportHubPage() {
       {/* Vendor Gallery */}
       <div>
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="font-semibold text-base">Vendor Integration Gallery</h2>
+          <h2 className="font-semibold text-base">{t.importHub.vendorGallery}</h2>
           <div className="flex flex-wrap items-center gap-2">
             {cats.map(c => (
               <button key={c} onClick={() => setCatFilter(c)}

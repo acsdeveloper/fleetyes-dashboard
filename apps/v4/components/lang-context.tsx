@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 import * as React from "react"
 
 export type Lang = "en" | "de" | "fr" | "es" | "it" | "pl"
@@ -50,7 +50,7 @@ export type Translations = {
     ref: string; route: string; type: string; amount: string; method: string
     litres: string; costPerLitre: string; totalCost: string; odometer: string
     mpg: string; depot: string; duration: string; location: string; cost: string
-    fleet: string; name: string; phone: string; licence: string; notes: string; address: string
+    fleet: string; name: string; phone: string; email: string; country: string; licence: string; notes: string; address: string
     // Buttons / actions
     view: string; reconcile: string; addNew: string; assign: string; approve: string
     reject: string; newCharge: string; details: string; close: string
@@ -195,6 +195,21 @@ export type Translations = {
   fuelReceipts: {
     captured: string; supplier: string; product: string; duplicate: string; receipt: string; uploadZip: string
     searchPlaceholder: string
+    // AddReceiptsModal
+    addModalTitle: string; addModalSubtitle: string
+    dropTitle: string; dropActive: string; dropHint: string
+    filesSelected: string
+    stepZipping: string; stepUploading: string; stepImporting: string; stepProcessing: string
+    progressZipping: string; progressUploading: string; progressImporting: string; progressProcessing: string
+    processingNote: string
+    successTitle: string; successCount: string
+    errorTitle: string
+    btnAdd: string; btnUpload: string; btnDone: string; btnTryAgain: string; btnClose: string
+    // ReceiptFilterDrawer
+    filterTitle: string; anyDriver: string; anyStatus: string; capturedFrom: string; capturedTo: string
+    // Receipt detail
+    detailTitle: string; ocrData: string; rawText: string
+    colOcrStatus: string; colCapturedAt: string
   }
   parking: {
     pageOf: string; searchPlaceholder: string
@@ -202,6 +217,24 @@ export type Translations = {
   tollReceipts: {
     upload: string; entryPoint: string; exitPoint: string; vehicleClass: string
     searchPlaceholder: string
+    // AddReceiptsModal
+    addModalTitle: string; addModalSubtitle: string
+    dropTitle: string; dropActive: string; dropHint: string
+    filesSelected: string
+    stepZipping: string; stepUploading: string; stepImporting: string; stepProcessing: string
+    progressZipping: string; progressUploading: string; progressImporting: string; progressProcessing: string
+    processingNote: string
+    successTitle: string; successCount: string
+    errorTitle: string
+    btnAdd: string; btnUpload: string; btnDone: string; btnTryAgain: string; btnClose: string
+    // ReceiptFilterDrawer
+    filterTitle: string; anyDriver: string; anyStatus: string; capturedFrom: string; capturedTo: string
+    // SendToAmazonModal
+    sendTitle: string; sendSubtitle: string; sendFromDate: string; sendToDate: string
+    sendPreviewBtn: string; sendDownloading: string; sendBtn: string; sendSending: string
+    sendWarning: string; sendSuccess: string; sendSuccessMsg: string
+    // Expense tab columns
+    colChargeEx: string; colVat: string; colChargeInc: string; colProcessingStatus: string
   }
   holidays: {
     reason: string; start: string; end: string; days: string
@@ -333,6 +366,41 @@ export type Translations = {
     status: string; template: string
     signedLabel: string; reviewNote: string
   }
+  drivers: {
+    // Add/edit drawer
+    addTitle: string; editTitle: string
+    shiftPreference: string; shiftNone: string; shiftAllDays: string; shiftCustom: string
+    shiftStart: string; shiftEnd: string; maxConsecDays: string; maxTripsWeek: string
+    licenceNo: string; noneSelected: string
+    // Status labels (display layer)
+    statusActive: string; statusInactive: string; statusPending: string; statusArchived: string
+    // Inline messages
+    noDriversFound: string; nameRequired: string; saveFailed: string; statusUpdateFailed: string
+    retryLabel: string
+  }
+  fleetManagement: {
+    exceptionEvents: string; engineDiagnostics: string; tripHistory: string
+    allFleets: string; vehicles: string; drivers: string; onShift: string
+    monthlyDistance: string; fuelThisMonth: string; newFleet: string
+    vehicleLabel: string; fleetLabel: string; yearLabel: string
+    mph: string; rpm: string; driverSafetyScore: string
+    critical: string; warnings: string; info: string
+    exceptionByType: string; noTripsToday: string; liveDiagnostic: string
+    avgSpd: string; endLabel: string
+  }
+  importHub: {
+    autoImportEnabled: string; extensionNotDetected: string; extensionActive: string
+    yourColumn: string; fleeyesField: string
+    tripsToday: string; lastSync: string; primary: string
+    universalActivityLog: string; viewLabel: string
+    tripsImportedToday: string; acrossAllProviders: string
+    activeConnections: string; syncFailures: string; providersConfigured: string
+    vendorGallery: string
+  }
+  orgSettings: {
+    failedToLoad: string; orgSettings: string; recordInfo: string
+    drivingHours: string; workingHours: string; myGeotab: string
+  }
 }
 
 // ─── TRANSLATIONS ─────────────────────────────────────────────────────────────
@@ -381,7 +449,7 @@ export const translations: Record<Lang, Translations> = {
     },
     common: {
       save:"Save",cancel:"Cancel",upload:"Upload",download:"Download",search:"Search",new:"New",edit:"Edit",delete:"Delete",submit:"Submit",back:"Back",loading:"Loading…",addVehicle:"Add Vehicle",export:"Export",filter:"Filter",refresh:"Refresh",active:"Active",inactive:"Inactive",pending:"Pending",resolved:"Resolved",allVehicles:"All Vehicles",today:"Today",thisMonth:"This Month",selectAll:"Select All",tryAgain:"Try again",records:"records",noData:"No data",
-      date:"Date",vehicle:"Vehicle",driver:"Driver",status:"Status",action:"Action",ref:"Ref",route:"Route",type:"Type",amount:"Amount",method:"Method",litres:"Litres",costPerLitre:"Cost/L",totalCost:"Total Cost",odometer:"Odometer (mi)",mpg:"MPG",depot:"Depot",duration:"Duration",location:"Location",cost:"Cost",fleet:"Fleet",name:"Name",phone:"Phone",licence:"Licence",notes:"Notes",
+      date:"Date",vehicle:"Vehicle",driver:"Driver",status:"Status",action:"Action",ref:"Ref",route:"Route",type:"Type",amount:"Amount",method:"Method",litres:"Litres",costPerLitre:"Cost/L",totalCost:"Total Cost",odometer:"Odometer (mi)",mpg:"MPG",depot:"Depot",duration:"Duration",location:"Location",cost:"Cost",fleet:"Fleet",name:"Name",phone:"Phone",email:"Email",country:"Country",licence:"Licence",notes:"Notes",
       view:"View",reconcile:"Reconcile",addNew:"Add New",assign:"Assign",approve:"Approve",reject:"Reject",newCharge:"New Charge",details:"Details",close:"Close",
       createRecord:"Create Record",saving:"Saving…",creating:"Creating…",
       clearAll:"Clear all",apply:"Apply",stats:"Stats",noRecordsFound:"No records found",
@@ -517,16 +585,59 @@ export const translations: Record<Lang, Translations> = {
       filters: "Filters", searchPlaceholder: "Search vehicle, driver…",
     },
     fuelReceipts: {
-      captured: "Captured", supplier: "Supplier", product: "Product",
-      duplicate: "Duplicate", receipt: "Receipt", uploadZip: "Upload ZIP",
-      searchPlaceholder: "Search by vehicle, supplier…",
+      captured:"Captured", supplier:"Supplier", product:"Product",
+      duplicate:"Duplicate", receipt:"Receipt", uploadZip:"Upload ZIP",
+      searchPlaceholder:"Search by vehicle, supplier…",
+      addModalTitle:"Add Fuel Receipts",
+      addModalSubtitle:"Drop images or PDFs — they’ll be zipped and sent for OCR automatically",
+      dropTitle:"Drag & drop receipts here", dropActive:"Drop to add",
+      dropHint:"or click to browse · JPEG, PNG, WebP, PDF",
+      filesSelected:"{n} file{s} selected",
+      stepZipping:"Zipping", stepUploading:"Uploading",
+      stepImporting:"Importing", stepProcessing:"Processing OCR",
+      progressZipping:"Zipping {n} file{s}…", progressUploading:"Uploading to server…",
+      progressImporting:"Importing receipt records…", progressProcessing:"Running OCR processing…",
+      processingNote:"This may take a moment for large batches",
+      successTitle:"Upload & processing complete", successCount:"{n} receipt{s} imported",
+      errorTitle:"Upload failed",
+      btnAdd:"Add", btnUpload:"Upload {n} file{s}", btnDone:"Done — Refresh List",
+      btnTryAgain:"Try Again", btnClose:"Close",
+      filterTitle:"Filter Receipts", anyDriver:"Any driver", anyStatus:"Any status",
+      capturedFrom:"Captured from", capturedTo:"Captured to",
+      detailTitle:"Fuel Receipt Detail", ocrData:"OCR Extracted Data", rawText:"Raw text",
+      colOcrStatus:"OCR Status", colCapturedAt:"Captured At",
     },
     parking: {
       pageOf: "Page", searchPlaceholder: "Search vehicle, location…",
     },
     tollReceipts: {
-      upload: "Upload", entryPoint: "Entry Point", exitPoint: "Exit Point",
-      vehicleClass: "Vehicle Class", searchPlaceholder: "Search vehicle, route…",
+      upload:"Upload", entryPoint:"Entry Point", exitPoint:"Exit Point",
+      vehicleClass:"Vehicle Class", searchPlaceholder:"Search vehicle, route…",
+      addModalTitle:"Add Toll Receipts",
+      addModalSubtitle:"Drop images or PDFs — they’ll be zipped and sent for OCR automatically",
+      dropTitle:"Drag & drop receipts here", dropActive:"Drop to add",
+      dropHint:"or click to browse · JPEG, PNG, WebP, PDF",
+      filesSelected:"{n} file{s} selected",
+      stepZipping:"Zipping", stepUploading:"Uploading",
+      stepImporting:"Importing", stepProcessing:"Processing OCR",
+      progressZipping:"Zipping {n} file{s}…", progressUploading:"Uploading to server…",
+      progressImporting:"Importing receipt records…", progressProcessing:"Running OCR processing…",
+      processingNote:"This may take a moment for large batches",
+      successTitle:"Upload & processing complete", successCount:"{n} receipt{s} imported",
+      errorTitle:"Upload failed",
+      btnAdd:"Add", btnUpload:"Upload {n} file{s}", btnDone:"Done — Refresh List",
+      btnTryAgain:"Try Again", btnClose:"Close",
+      filterTitle:"Filter Receipts", anyDriver:"Any driver", anyStatus:"Any status",
+      capturedFrom:"Captured from", capturedTo:"Captured to",
+      sendTitle:"Send to Amazon", sendSubtitle:"Submit toll charges to Amazon Relay for the selected period",
+      sendFromDate:"From Date", sendToDate:"To Date",
+      sendPreviewBtn:"Preview data before sending", sendDownloading:"Downloading…",
+      sendBtn:"Send to Amazon Relay", sendSending:"Sending…",
+      sendWarning:"This will submit all processed toll charges in the selected date range to Amazon Relay.",
+      sendSuccess:"Submitted successfully",
+      sendSuccessMsg:"Toll charges have been sent to Amazon Relay.",
+      colChargeEx:"Charge (ex. VAT)", colVat:"VAT",
+      colChargeInc:"Charge (inc. VAT)", colProcessingStatus:"Processing Status",
     },
     holidays: {
       reason: "Reason", start: "Start", end: "End", days: "Days",
@@ -668,6 +779,42 @@ export const translations: Record<Lang, Translations> = {
       action:"Action",apiErrorLocal:"Error (using local data)",at:"at",certificate:"Certificate",details:"Details",edit:"Edit",rePublish:"Re-publish",review:"Review",sign:"Sign",status:"Status",template:"Template",
       reviewNote:"Review the answers above, grade any free-text questions, then approve or reject.",
     },
+    drivers: {
+      addTitle:"Add Driver", editTitle:"Edit Driver",
+      shiftPreference:"Shift Preference", shiftNone:"None", shiftAllDays:"All Days", shiftCustom:"Custom",
+      shiftStart:"Shift Start", shiftEnd:"Shift End",
+      maxConsecDays:"Max Consec. Days", maxTripsWeek:"Max Trips / Week",
+      licenceNo:"Licence No.", noneSelected:"None selected",
+      statusActive:"Active", statusInactive:"Inactive", statusPending:"Pending", statusArchived:"Archived",
+      noDriversFound:"No drivers found.", nameRequired:"Driver name is required.",
+      saveFailed:"Save failed", statusUpdateFailed:"Status update failed",
+      retryLabel:"retry",
+    },
+    fleetManagement: {
+      exceptionEvents:"Exception Events", engineDiagnostics:"Engine Diagnostics", tripHistory:"Trip History",
+      allFleets:"All Fleets", vehicles:"Vehicles", drivers:"Drivers", onShift:"On Shift",
+      monthlyDistance:"Monthly distance", fuelThisMonth:"Fuel this month", newFleet:"New Fleet",
+      vehicleLabel:"Vehicle", fleetLabel:"Fleet", yearLabel:"Year",
+      mph:"mph", rpm:"rpm", driverSafetyScore:"Driver Safety Score",
+      critical:"Critical", warnings:"Warnings", info:"Info",
+      exceptionByType:"Exception Events by Type", noTripsToday:"No trips recorded today.",
+      liveDiagnostic:"Live Diagnostic Snapshot", avgSpd:"Avg Spd", endLabel:"End",
+    },
+    importHub: {
+      autoImportEnabled:"Auto-import enabled", extensionNotDetected:"Extension Not Detected",
+      extensionActive:"Extension Active",
+      yourColumn:"Your Column", fleeyesField:"FleetYes Field",
+      tripsToday:"Trips today", lastSync:"Last sync", primary:"Primary",
+      universalActivityLog:"Universal Activity Log", viewLabel:"View",
+      tripsImportedToday:"Trips imported today", acrossAllProviders:"across all providers",
+      activeConnections:"Active connections", syncFailures:"Sync failures",
+      providersConfigured:"Providers configured", vendorGallery:"Vendor Integration Gallery",
+    },
+    orgSettings: {
+      failedToLoad:"Failed to load settings", orgSettings:"Organisation Settings",
+      recordInfo:"Record Info", drivingHours:"Driving Hours",
+      workingHours:"Working Hours", myGeotab:"MyGeotab",
+    },
   },
 
   // ── German ──────────────────────────────────────────────────────────────────
@@ -712,7 +859,7 @@ export const translations: Record<Lang, Translations> = {
     },
     common: {
       save:"Speichern",cancel:"Abbrechen",upload:"Hochladen",download:"Herunterladen",search:"Suchen",new:"Neu",edit:"Bearbeiten",delete:"Löschen",submit:"Einreichen",back:"Zurück",loading:"Laden…",addVehicle:"Fahrzeug hinzufügen",export:"Exportieren",filter:"Filtern",refresh:"Aktualisieren",active:"Aktiv",inactive:"Inaktiv",pending:"Ausstehend",resolved:"Erledigt",allVehicles:"Alle Fahrzeuge",today:"Heute",thisMonth:"Diesen Monat",selectAll:"Alle auswählen",tryAgain:"Erneut versuchen",records:"Einträge",noData:"Keine Daten",
-      date:"Datum",vehicle:"Fahrzeug",driver:"Fahrer",status:"Status",action:"Aktion",ref:"Ref",route:"Strecke",type:"Typ",amount:"Betrag",method:"Methode",litres:"Liter",costPerLitre:"Kosten/L",totalCost:"Gesamtkosten",odometer:"Kilometerstand",mpg:"L/100km",depot:"Depot",duration:"Dauer",location:"Standort",cost:"Kosten",fleet:"Flotte",name:"Name",phone:"Telefon",licence:"Lizenz",notes:"Notizen",
+      date:"Datum",vehicle:"Fahrzeug",driver:"Fahrer",status:"Status",action:"Aktion",ref:"Ref",route:"Strecke",type:"Typ",amount:"Betrag",method:"Methode",litres:"Liter",costPerLitre:"Kosten/L",totalCost:"Gesamtkosten",odometer:"Kilometerstand",mpg:"L/100km",depot:"Depot",duration:"Dauer",location:"Standort",cost:"Kosten",fleet:"Flotte",name:"Name",phone:"Telefon",email:"E-Mail",country:"Land",licence:"Lizenz",notes:"Notizen",
       view:"Ansehen",reconcile:"Abgleichen",addNew:"Hinzufügen",assign:"Zuweisen",approve:"Genehmigen",reject:"Ablehnen",newCharge:"Neue Gebühr",details:"Details",close:"Schließen",
       createRecord:"Datensatz erstellen",saving:"Speichern…",creating:"Erstellen…",
       clearAll:"Alle löschen",apply:"Anwenden",stats:"Statistiken",noRecordsFound:"Keine Einträge gefunden",
@@ -848,16 +995,59 @@ export const translations: Record<Lang, Translations> = {
       filters: "Filter", searchPlaceholder: "Fahrzeug, Fahrer suchen…",
     },
     fuelReceipts: {
-      captured: "Erfasst", supplier: "Lieferant", product: "Produkt",
-      duplicate: "Duplikat", receipt: "Beleg", uploadZip: "ZIP hochladen",
-      searchPlaceholder: "Nach Fahrzeug, Lieferant suchen…",
+      captured:"Erfasst", supplier:"Lieferant", product:"Produkt",
+      duplicate:"Duplikat", receipt:"Beleg", uploadZip:"ZIP hochladen",
+      searchPlaceholder:"Nach Fahrzeug, Lieferant suchen…",
+      addModalTitle:"Kraftstoffbelege hinzufügen",
+      addModalSubtitle:"Bilder oder PDFs ablegen — sie werden gezippt und automatisch per OCR verarbeitet",
+      dropTitle:"Belege hierher ziehen & ablegen", dropActive:"Ablegen zum Hinzufügen",
+      dropHint:"oder klicken zum Durchsuchen · JPEG, PNG, WebP, PDF",
+      filesSelected:"{n} Datei{s} ausgewählt",
+      stepZipping:"Komprimieren", stepUploading:"Hochladen",
+      stepImporting:"Importieren", stepProcessing:"OCR-Verarbeitung",
+      progressZipping:"Komprimiere {n} Datei{s}…", progressUploading:"Wird auf Server hochgeladen…",
+      progressImporting:"Belege werden importiert…", progressProcessing:"OCR-Verarbeitung läuft…",
+      processingNote:"Dies kann bei großen Stapeln einen Moment dauern",
+      successTitle:"Upload & Verarbeitung abgeschlossen", successCount:"{n} Beleg{s} importiert",
+      errorTitle:"Upload fehlgeschlagen",
+      btnAdd:"Hinzufügen", btnUpload:"{n} Datei{s} hochladen", btnDone:"Fertig — Liste aktualisieren",
+      btnTryAgain:"Erneut versuchen", btnClose:"Schließen",
+      filterTitle:"Belege filtern", anyDriver:"Beliebiger Fahrer", anyStatus:"Beliebiger Status",
+      capturedFrom:"Erfasst ab", capturedTo:"Erfasst bis",
+      detailTitle:"Kraftstoffbeleg-Detail", ocrData:"OCR-extrahierte Daten", rawText:"Rohtext",
+      colOcrStatus:"OCR-Status", colCapturedAt:"Erfasst am",
     },
     parking: {
       pageOf: "Seite", searchPlaceholder: "Fahrzeug, Standort suchen…",
     },
     tollReceipts: {
-      upload: "Hochladen", entryPoint: "Einfahrtstelle", exitPoint: "Ausfahrtstelle",
-      vehicleClass: "Fahrzeugklasse", searchPlaceholder: "Fahrzeug, Strecke suchen…",
+      upload:"Hochladen", entryPoint:"Einfahrtstelle", exitPoint:"Ausfahrtstelle",
+      vehicleClass:"Fahrzeugklasse", searchPlaceholder:"Fahrzeug, Strecke suchen…",
+      addModalTitle:"Mautbelege hinzufügen",
+      addModalSubtitle:"Bilder oder PDFs ablegen — sie werden gezippt und automatisch per OCR verarbeitet",
+      dropTitle:"Belege hierher ziehen & ablegen", dropActive:"Ablegen zum Hinzufügen",
+      dropHint:"oder klicken zum Durchsuchen · JPEG, PNG, WebP, PDF",
+      filesSelected:"{n} Datei{s} ausgewählt",
+      stepZipping:"Komprimieren", stepUploading:"Hochladen",
+      stepImporting:"Importieren", stepProcessing:"OCR-Verarbeitung",
+      progressZipping:"Komprimiere {n} Datei{s}…", progressUploading:"Wird auf Server hochgeladen…",
+      progressImporting:"Belege werden importiert…", progressProcessing:"OCR-Verarbeitung läuft…",
+      processingNote:"Dies kann bei großen Stapeln einen Moment dauern",
+      successTitle:"Upload & Verarbeitung abgeschlossen", successCount:"{n} Beleg{s} importiert",
+      errorTitle:"Upload fehlgeschlagen",
+      btnAdd:"Hinzufügen", btnUpload:"{n} Datei{s} hochladen", btnDone:"Fertig — Liste aktualisieren",
+      btnTryAgain:"Erneut versuchen", btnClose:"Schließen",
+      filterTitle:"Belege filtern", anyDriver:"Beliebiger Fahrer", anyStatus:"Beliebiger Status",
+      capturedFrom:"Erfasst ab", capturedTo:"Erfasst bis",
+      sendTitle:"An Amazon senden", sendSubtitle:"Mautgebühren für den ausgewählten Zeitraum an Amazon Relay übermitteln",
+      sendFromDate:"Von Datum", sendToDate:"Bis Datum",
+      sendPreviewBtn:"Daten vor dem Senden anzeigen", sendDownloading:"Wird heruntergeladen…",
+      sendBtn:"An Amazon Relay senden", sendSending:"Wird gesendet.",
+      sendWarning:"Alle verarbeiteten Mautgebühren im ausgewählten Zeitraum werden an Amazon Relay übermittelt.",
+      sendSuccess:"Erfolgreich übermittelt",
+      sendSuccessMsg:"Mautgebühren wurden an Amazon Relay gesendet.",
+      colChargeEx:"Gebühr (ohne MwSt.)", colVat:"MwSt.",
+      colChargeInc:"Gebühr (inkl. MwSt.)", colProcessingStatus:"Verarbeitungsstatus",
     },
     holidays: {
       reason: "Grund", start: "Beginn", end: "Ende", days: "Tage",
@@ -999,6 +1189,42 @@ export const translations: Record<Lang, Translations> = {
       action:"Aktion",apiErrorLocal:"Fehler (lokale Daten)",at:"um",certificate:"Zertifikat",details:"Details",edit:"Bearbeiten",rePublish:"Erneut veröffentlichen",review:"Überprüfen",sign:"Unterzeichnen",status:"Status",template:"Vorlage",
       reviewNote:"Antworten überprüfen, Freitextfragen bewerten, dann genehmigen oder ablehnen.",
     },
+    drivers: {
+      addTitle:"Fahrer hinzufügen", editTitle:"Fahrer bearbeiten",
+      shiftPreference:"Schichtpräferenz", shiftNone:"Keine", shiftAllDays:"Alle Tage", shiftCustom:"Benutzerdefiniert",
+      shiftStart:"Schichtbeginn", shiftEnd:"Schichtende",
+      maxConsecDays:"Max. aufeinanderfolgend. Tage", maxTripsWeek:"Max. Fahrten / Woche",
+      licenceNo:"Führerscheinnr.", noneSelected:"Keine Auswahl",
+      statusActive:"Aktiv", statusInactive:"Inaktiv", statusPending:"Ausstehend", statusArchived:"Archiviert",
+      noDriversFound:"Keine Fahrer gefunden.", nameRequired:"Fahrername ist erforderlich.",
+      saveFailed:"Speichern fehlgeschlagen", statusUpdateFailed:"Statusaktualisierung fehlgeschlagen",
+      retryLabel:"Erneut versuchen",
+    },
+    fleetManagement: {
+      exceptionEvents:"Ausnahmeereignisse", engineDiagnostics:"Motordiagnostik", tripHistory:"Fahrtenverlauf",
+      allFleets:"Alle Flotten", vehicles:"Fahrzeuge", drivers:"Fahrer", onShift:"Im Dienst",
+      monthlyDistance:"Monatliche Distanz", fuelThisMonth:"Kraftstoff diesen Monat", newFleet:"Neue Flotte",
+      vehicleLabel:"Fahrzeug", fleetLabel:"Flotte", yearLabel:"Jahr",
+      mph:"mph", rpm:"rpm", driverSafetyScore:"Fahrer-Sicherheitsbewertung",
+      critical:"Kritisch", warnings:"Warnungen", info:"Info",
+      exceptionByType:"Ausnahmeereignisse nach Typ", noTripsToday:"Heute keine Fahrten aufgezeichnet.",
+      liveDiagnostic:"Live-Diagnoseschnappschuss", avgSpd:"Durchschn. Tempo", endLabel:"Ende",
+    },
+    importHub: {
+      autoImportEnabled:"Automatischer Import aktiviert", extensionNotDetected:"Erweiterung nicht erkannt",
+      extensionActive:"Erweiterung aktiv",
+      yourColumn:"Ihre Spalte", fleeyesField:"FleetYes-Feld",
+      tripsToday:"Fahrten heute", lastSync:"Letzte Synchronisierung", primary:"Primär",
+      universalActivityLog:"Universelles Aktivitätsprotokoll", viewLabel:"Ansehen",
+      tripsImportedToday:"Heute importierte Fahrten", acrossAllProviders:"bei allen Anbietern",
+      activeConnections:"Aktive Verbindungen", syncFailures:"Synchronisierungsfehler",
+      providersConfigured:"Konfigurierte Anbieter", vendorGallery:"Anbieter-Integrationsgalerie",
+    },
+    orgSettings: {
+      failedToLoad:"Einstellungen konnten nicht geladen werden", orgSettings:"Organisationseinstellungen",
+      recordInfo:"Eintragsinformationen", drivingHours:"Fahrtstunden",
+      workingHours:"Arbeitsstunden", myGeotab:"MyGeotab",
+    },
   },
 
   // ── French ──────────────────────────────────────────────────────────────────
@@ -1043,7 +1269,7 @@ export const translations: Record<Lang, Translations> = {
     },
     common: {
       save:"Enregistrer",cancel:"Annuler",upload:"Téléverser",download:"Télécharger",search:"Rechercher",new:"Nouveau",edit:"Modifier",delete:"Supprimer",submit:"Soumettre",back:"Retour",loading:"Chargement…",addVehicle:"Ajouter un véhicule",export:"Exporter",filter:"Filtrer",refresh:"Actualiser",active:"Actif",inactive:"Inactif",pending:"En attente",resolved:"Résolu",allVehicles:"Tous les véhicules",today:"Aujourd'hui",thisMonth:"Ce mois-ci",selectAll:"Tout sélectionner",tryAgain:"Réessayer",records:"entrées",noData:"Aucune donnée",
-      date:"Date",vehicle:"Véhicule",driver:"Conducteur",status:"Statut",action:"Action",ref:"Réf",route:"Itinéraire",type:"Type",amount:"Montant",method:"Méthode",litres:"Litres",costPerLitre:"Coût/L",totalCost:"Coût total",odometer:"Compteur (km)",mpg:"L/100km",depot:"Dépôt",duration:"Durée",location:"Emplacement",cost:"Coût",fleet:"Flotte",name:"Nom",phone:"Téléphone",licence:"Permis",notes:"Notes",
+      date:"Date",vehicle:"Véhicule",driver:"Conducteur",status:"Statut",action:"Action",ref:"Réf",route:"Itinéraire",type:"Type",amount:"Montant",method:"Méthode",litres:"Litres",costPerLitre:"Coût/L",totalCost:"Coût total",odometer:"Compteur (km)",mpg:"L/100km",depot:"Dépôt",duration:"Durée",location:"Emplacement",cost:"Coût",fleet:"Flotte",name:"Nom",phone:"Téléphone",email:"Email",country:"Pays",licence:"Permis",notes:"Notes",
       view:"Voir",reconcile:"Rapprocher",addNew:"Ajouter",assign:"Affecter",approve:"Approuver",reject:"Rejeter",newCharge:"Nouveau frais",details:"Détails",close:"Fermer",
       createRecord:"Créer un enregistrement",saving:"Enregistrement…",creating:"Création…",
       clearAll:"Tout effacer",apply:"Appliquer",stats:"Statistiques",noRecordsFound:"Aucun enregistrement trouvé",
@@ -1179,16 +1405,59 @@ export const translations: Record<Lang, Translations> = {
       filters: "Filtres", searchPlaceholder: "Rechercher véhicule, conducteur…",
     },
     fuelReceipts: {
-      captured: "Capturé", supplier: "Fournisseur", product: "Produit",
-      duplicate: "Doublon", receipt: "Reçu", uploadZip: "Importer ZIP",
-      searchPlaceholder: "Rechercher par véhicule, fournisseur…",
+      captured:"Capturé", supplier:"Fournisseur", product:"Produit",
+      duplicate:"Doublon", receipt:"Reçu", uploadZip:"Importer ZIP",
+      searchPlaceholder:"Rechercher par véhicule, fournisseur…",
+      addModalTitle:"Ajouter des reçus carburant",
+      addModalSubtitle:"Déposez des images ou PDFs — ils seront compressés et envoyés automatiquement en OCR",
+      dropTitle:"Glisser & déposer les reçus ici", dropActive:"Déposer pour ajouter",
+      dropHint:"ou cliquer pour parcourir · JPEG, PNG, WebP, PDF",
+      filesSelected:"{n} fichier{s} sélectionné{s}",
+      stepZipping:"Compression", stepUploading:"Téléversement",
+      stepImporting:"Importation", stepProcessing:"Traitement OCR",
+      progressZipping:"Compression de {n} fichier{s}…", progressUploading:"Téléversement vers le serveur…",
+      progressImporting:"Importation des reçus…", progressProcessing:"Traitement OCR en cours…",
+      processingNote:"Cela peut prendre un moment pour les grands lots",
+      successTitle:"Téléversement & traitement terminés", successCount:"{n} reçu{s} importé{s}",
+      errorTitle:"Téléversement échoué",
+      btnAdd:"Ajouter", btnUpload:"Téléverser {n} fichier{s}", btnDone:"Terminé — Actualiser la liste",
+      btnTryAgain:"Réessayer", btnClose:"Fermer",
+      filterTitle:"Filtrer les reçus", anyDriver:"Tout conducteur", anyStatus:"Tout statut",
+      capturedFrom:"Capturé depuis", capturedTo:"Capturé jusqu'au",
+      detailTitle:"Détail du reçu carburant", ocrData:"Données extraitées OCR", rawText:"Texte brut",
+      colOcrStatus:"Statut OCR", colCapturedAt:"Capturé le",
     },
     parking: {
       pageOf: "Page", searchPlaceholder: "Rechercher véhicule, emplacement…",
     },
     tollReceipts: {
-      upload: "Téléverser", entryPoint: "Point d'entrée", exitPoint: "Point de sortie",
-      vehicleClass: "Classe de véhicule", searchPlaceholder: "Rechercher véhicule, itinéraire…",
+      upload:"Téléverser", entryPoint:"Point d'entrée", exitPoint:"Point de sortie",
+      vehicleClass:"Classe de véhicule", searchPlaceholder:"Rechercher véhicule, itinéraire…",
+      addModalTitle:"Ajouter des reçus de péage",
+      addModalSubtitle:"Déposez des images ou PDFs — ils seront compressés et envoyés automatiquement en OCR",
+      dropTitle:"Glisser & déposer les reçus ici", dropActive:"Déposer pour ajouter",
+      dropHint:"ou cliquer pour parcourir · JPEG, PNG, WebP, PDF",
+      filesSelected:"{n} fichier{s} sélectionné{s}",
+      stepZipping:"Compression", stepUploading:"Téléversement",
+      stepImporting:"Importation", stepProcessing:"Traitement OCR",
+      progressZipping:"Compression de {n} fichier{s}…", progressUploading:"Téléversement vers le serveur…",
+      progressImporting:"Importation des reçus…", progressProcessing:"Traitement OCR en cours…",
+      processingNote:"Cela peut prendre un moment pour les grands lots",
+      successTitle:"Téléversement & traitement terminés", successCount:"{n} reçu{s} importé{s}",
+      errorTitle:"Téléversement échoué",
+      btnAdd:"Ajouter", btnUpload:"Téléverser {n} fichier{s}", btnDone:"Terminé — Actualiser la liste",
+      btnTryAgain:"Réessayer", btnClose:"Fermer",
+      filterTitle:"Filtrer les reçus", anyDriver:"Tout conducteur", anyStatus:"Tout statut",
+      capturedFrom:"Capturé depuis", capturedTo:"Capturé jusqu'au",
+      sendTitle:"Envoyer à Amazon", sendSubtitle:"Soumettre les péages à Amazon Relay pour la période sélectionnée",
+      sendFromDate:"Date de début", sendToDate:"Date de fin",
+      sendPreviewBtn:"Aperçu avant envoi", sendDownloading:"Téléchargement…",
+      sendBtn:"Envoyer à Amazon Relay", sendSending:"Envoi en cours.",
+      sendWarning:"Tous les péages traités dans la plage de dates sélectionnée seront soumis à Amazon Relay.",
+      sendSuccess:"Soumis avec succès",
+      sendSuccessMsg:"Les péages ont été envoyés à Amazon Relay.",
+      colChargeEx:"Frais (HT)", colVat:"TVA",
+      colChargeInc:"Frais (TTC)", colProcessingStatus:"Statut de traitement",
     },
     holidays: {
       reason: "Motif", start: "Début", end: "Fin", days: "Jours",
@@ -1330,6 +1599,10 @@ export const translations: Record<Lang, Translations> = {
       action:"Action",apiErrorLocal:"Erreur (données locales)",at:"à",certificate:"Certificat",details:"Détails",edit:"Modifier",rePublish:"Republier",review:"Réviser",sign:"Signer",status:"Statut",template:"Modèle",
       reviewNote:"Révisez les réponses, notez les questions de texte libre, puis approuvez ou rejetez.",
     },
+    drivers: { addTitle:"Ajouter un conducteur", editTitle:"Modifier le conducteur", shiftPreference:"Preference de decalage", shiftNone:"Aucun", shiftAllDays:"Tous les jours", shiftCustom:"Personnalise", shiftStart:"Debut du decalage", shiftEnd:"Fin du decalage", maxConsecDays:"Max jours consecutifs", maxTripsWeek:"Max trajets / semaine", licenceNo:"No de permis", noneSelected:"Aucune selection", statusActive:"Actif", statusInactive:"Inactif", statusPending:"En attente", statusArchived:"Archive", noDriversFound:"Aucun conducteur trouve.", nameRequired:"Le nom du conducteur est requis.", saveFailed:"Enregistrement echoue", statusUpdateFailed:"Mise a jour du statut echouee", retryLabel:"Reessayer" },
+    fleetManagement: { exceptionEvents:"Evenements exceptionnels", engineDiagnostics:"Diagnostics moteur", tripHistory:"Historique des trajets", allFleets:"Toutes les flottes", vehicles:"Vehicules", drivers:"Conducteurs", onShift:"En service", monthlyDistance:"Distance mensuelle", fuelThisMonth:"Carburant ce mois", newFleet:"Nouvelle flotte", vehicleLabel:"Vehicule", fleetLabel:"Flotte", yearLabel:"Annee", mph:"mph", rpm:"rpm", driverSafetyScore:"Score de securite conducteur", critical:"Critique", warnings:"Avertissements", info:"Info", exceptionByType:"Evenements par type", noTripsToday:"Aucun trajet enregistre aujourd hui.", liveDiagnostic:"Instantane de diagnostic en direct", avgSpd:"Vit. moy.", endLabel:"Fin" },
+    importHub: { autoImportEnabled:"Import automatique active", extensionNotDetected:"Extension non detectee", extensionActive:"Extension active", yourColumn:"Votre colonne", fleeyesField:"Champ FleetYes", tripsToday:"Trajets aujourd hui", lastSync:"Derniere sync.", primary:"Principal", universalActivityLog:"Journal d activite universel", viewLabel:"Afficher", tripsImportedToday:"Trajets importes aujourd hui", acrossAllProviders:"chez tous les fournisseurs", activeConnections:"Connexions actives", syncFailures:"Echecs de synchronisation", providersConfigured:"Fournisseurs configures", vendorGallery:"Galerie d integrations fournisseurs" },
+    orgSettings: { failedToLoad:"Impossible de charger les parametres", orgSettings:"Parametres de l organisation", recordInfo:"Informations de l enregistrement", drivingHours:"Heures de conduite", workingHours:"Heures de travail", myGeotab:"MyGeotab" },
   },
 
   // ── Spanish ─────────────────────────────────────────────────────────────────
@@ -1374,7 +1647,7 @@ export const translations: Record<Lang, Translations> = {
     },
     common: {
       save:"Guardar",cancel:"Cancelar",upload:"Subir",download:"Descargar",search:"Buscar",new:"Nuevo",edit:"Editar",delete:"Eliminar",submit:"Enviar",back:"Volver",loading:"Cargando…",addVehicle:"Añadir vehículo",export:"Exportar",filter:"Filtrar",refresh:"Actualizar",active:"Activo",inactive:"Inactivo",pending:"Pendiente",resolved:"Resuelto",allVehicles:"Todos los vehículos",today:"Hoy",thisMonth:"Este mes",selectAll:"Seleccionar todo",tryAgain:"Reintentar",records:"registros",noData:"Sin datos",
-      date:"Fecha",vehicle:"Vehículo",driver:"Conductor",status:"Estado",action:"Acción",ref:"Ref",route:"Ruta",type:"Tipo",amount:"Importe",method:"Método",litres:"Litros",costPerLitre:"Coste/L",totalCost:"Coste total",odometer:"Cuentakilómetros",mpg:"L/100km",depot:"Base",duration:"Duración",location:"Ubicación",cost:"Coste",fleet:"Flota",name:"Nombre",phone:"Teléfono",licence:"Permiso",notes:"Notas",
+      date:"Fecha",vehicle:"Vehículo",driver:"Conductor",status:"Estado",action:"Acción",ref:"Ref",route:"Ruta",type:"Tipo",amount:"Importe",method:"Método",litres:"Litros",costPerLitre:"Coste/L",totalCost:"Coste total",odometer:"Cuentakilómetros",mpg:"L/100km",depot:"Base",duration:"Duración",location:"Ubicación",cost:"Coste",fleet:"Flota",name:"Nombre",phone:"Teléfono",email:"Correo",country:"Pais",licence:"Permiso",notes:"Notas",
       view:"Ver",reconcile:"Conciliar",addNew:"Añadir",assign:"Asignar",approve:"Aprobar",reject:"Rechazar",newCharge:"Nuevo cargo",details:"Detalles",close:"Cerrar",
       createRecord:"Crear registro",saving:"Guardando…",creating:"Creando…",
       clearAll:"Limpiar todo",apply:"Aplicar",stats:"Estadísticas",noRecordsFound:"No se encontraron registros",
@@ -1510,16 +1783,59 @@ export const translations: Record<Lang, Translations> = {
       filters: "Filtros", searchPlaceholder: "Buscar vehículo, conductor…",
     },
     fuelReceipts: {
-      captured: "Capturado", supplier: "Proveedor", product: "Producto",
-      duplicate: "Duplicado", receipt: "Recibo", uploadZip: "Subir ZIP",
-      searchPlaceholder: "Buscar por vehículo, proveedor…",
+      captured:"Capturado", supplier:"Proveedor", product:"Producto",
+      duplicate:"Duplicado", receipt:"Recibo", uploadZip:"Subir ZIP",
+      searchPlaceholder:"Buscar por vehículo, proveedor…",
+      addModalTitle:"Añadir recibos de combustible",
+      addModalSubtitle:"Suelta imágenes o PDFs — se comprimirán y enviarán automáticamente por OCR",
+      dropTitle:"Arrastra & suelta los recibos aquí", dropActive:"Suelta para añadir",
+      dropHint:"o haz clic para explorar · JPEG, PNG, WebP, PDF",
+      filesSelected:"{n} archivo{s} seleccionado{s}",
+      stepZipping:"Comprimiendo", stepUploading:"Subiendo",
+      stepImporting:"Importando", stepProcessing:"Procesando OCR",
+      progressZipping:"Comprimiendo {n} archivo{s}…", progressUploading:"Subiendo al servidor…",
+      progressImporting:"Importando recibos…", progressProcessing:"Procesando OCR…",
+      processingNote:"Esto puede tardar un momento para lotes grandes",
+      successTitle:"Subida & procesamiento completados", successCount:"{n} recibo{s} importado{s}",
+      errorTitle:"Error de subida",
+      btnAdd:"Añadir", btnUpload:"Subir {n} archivo{s}", btnDone:"Listo — Actualizar lista",
+      btnTryAgain:"Reintentar", btnClose:"Cerrar",
+      filterTitle:"Filtrar recibos", anyDriver:"Cualquier conductor", anyStatus:"Cualquier estado",
+      capturedFrom:"Capturado desde", capturedTo:"Capturado hasta",
+      detailTitle:"Detalle del recibo de combustible", ocrData:"Datos extraídos OCR", rawText:"Texto sin formato",
+      colOcrStatus:"Estado OCR", colCapturedAt:"Capturado el",
     },
     parking: {
       pageOf: "Página", searchPlaceholder: "Buscar vehículo, ubicación…",
     },
     tollReceipts: {
-      upload: "Subir", entryPoint: "Punto de entrada", exitPoint: "Punto de salida",
-      vehicleClass: "Clase de vehículo", searchPlaceholder: "Buscar vehículo, ruta…",
+      upload:"Subir", entryPoint:"Punto de entrada", exitPoint:"Punto de salida",
+      vehicleClass:"Clase de vehículo", searchPlaceholder:"Buscar vehículo, ruta…",
+      addModalTitle:"Añadir recibos de peaje",
+      addModalSubtitle:"Suelta imágenes o PDFs — se comprimirán y enviarán automáticamente por OCR",
+      dropTitle:"Arrastra & suelta los recibos aquí", dropActive:"Suelta para añadir",
+      dropHint:"o haz clic para explorar · JPEG, PNG, WebP, PDF",
+      filesSelected:"{n} archivo{s} seleccionado{s}",
+      stepZipping:"Comprimiendo", stepUploading:"Subiendo",
+      stepImporting:"Importando", stepProcessing:"Procesando OCR",
+      progressZipping:"Comprimiendo {n} archivo{s}…", progressUploading:"Subiendo al servidor…",
+      progressImporting:"Importando recibos…", progressProcessing:"Procesando OCR…",
+      processingNote:"Esto puede tardar un momento para lotes grandes",
+      successTitle:"Subida & procesamiento completados", successCount:"{n} recibo{s} importado{s}",
+      errorTitle:"Error de subida",
+      btnAdd:"Añadir", btnUpload:"Subir {n} archivo{s}", btnDone:"Listo — Actualizar lista",
+      btnTryAgain:"Reintentar", btnClose:"Cerrar",
+      filterTitle:"Filtrar recibos", anyDriver:"Cualquier conductor", anyStatus:"Cualquier estado",
+      capturedFrom:"Capturado desde", capturedTo:"Capturado hasta",
+      sendTitle:"Enviar a Amazon", sendSubtitle:"Enviar cargos de peaje a Amazon Relay para el período seleccionado",
+      sendFromDate:"Fecha de inicio", sendToDate:"Fecha de fin",
+      sendPreviewBtn:"Previsualizar antes de enviar", sendDownloading:"Descargando…",
+      sendBtn:"Enviar a Amazon Relay", sendSending:"Enviando.",
+      sendWarning:"Esto enviará todos los cargos de peaje procesados en el rango de fechas seleccionado a Amazon Relay.",
+      sendSuccess:"Enviado correctamente",
+      sendSuccessMsg:"Los cargos de peaje han sido enviados a Amazon Relay.",
+      colChargeEx:"Cargo (sin IVA)", colVat:"IVA",
+      colChargeInc:"Cargo (con IVA)", colProcessingStatus:"Estado de procesamiento",
     },
     holidays: {
       reason: "Motivo", start: "Inicio", end: "Fin", days: "Días",
@@ -1624,11 +1940,11 @@ export const translations: Record<Lang, Translations> = {
       documentTitle:"Título del documento",category:"Categoría",newCategory:"Nombre de nueva categoría",
       description:"Descripción",notes:"Notas",
       walkaroundTemplates:"Plantillas de inspección de vehículos",
-      walkaroundTemplatesDesc:"Cree plantillas configurables con tipos de preguntas, fotos obligatorias y lógica condicional. Asigne por vehículo.",
+      walkaroundTemplatesDesc:"Cree plantillas configurables mit tipos de preguntas, fotos obligatorias y lógica condicional. Asigne por vehículo.",
       helpText:"Texto de ayuda",questionType:"Tipo de pregunta",dropdownOptions:"Opciones de lista desplegable",
       unitLabel:"Etiqueta de unidad",requiredToSubmit:"¿Requerido para enviar?",
       defectSeverity:"Gravedad del defecto",conditionalDisplay:"Visualización condicional",
-      noConditional:"No hay otras preguntas en esta sección con respuestas seleccionables.",
+      noConditional:"No hay otras preguntas en esta sección mit respuestas seleccionables.",
       templateName:"Nombre de plantilla",vehicleAssignment:"Asignación de vehículo",
       vehicleAssignmentDesc:"Una plantilla por vehículo. Asignar aquí la elimina de la plantilla actual.",
       unassigned:"Sin asignar",sections:"Secciones",checks:"Inspecciones",vehicles:"Vehículos",
@@ -1661,6 +1977,10 @@ export const translations: Record<Lang, Translations> = {
       action:"Acción",apiErrorLocal:"Error (datos locales)",at:"a las",certificate:"Certificado",details:"Detalles",edit:"Editar",rePublish:"Volver a publicar",review:"Revisar",sign:"Firmar",status:"Estado",template:"Plantilla",
       reviewNote:"Revise las respuestas, califique las preguntas de texto libre y luego apruebe o rechace.",
     },
+    drivers: { addTitle:"Anadir conductor", editTitle:"Editar conductor", shiftPreference:"Preferencia de turno", shiftNone:"Ninguno", shiftAllDays:"Todos los dias", shiftCustom:"Personalizado", shiftStart:"Inicio del turno", shiftEnd:"Fin del turno", maxConsecDays:"Max. dias consecutivos", maxTripsWeek:"Max. viajes / semana", licenceNo:"No de carnet", noneSelected:"Sin seleccion", statusActive:"Activo", statusInactive:"Inactivo", statusPending:"Pendiente", statusArchived:"Archivado", noDriversFound:"No se encontraron conductores.", nameRequired:"El nombre del conductor es obligatorio.", saveFailed:"Error al guardar", statusUpdateFailed:"Error al actualizar el estado", retryLabel:"Reintentar" },
+    fleetManagement: { exceptionEvents:"Eventos excepcionales", engineDiagnostics:"Diagnosticos del motor", tripHistory:"Historial de viajes", allFleets:"Todas las flotas", vehicles:"Vehiculos", drivers:"Conductores", onShift:"De turno", monthlyDistance:"Distancia mensual", fuelThisMonth:"Combustible este mes", newFleet:"Nueva flota", vehicleLabel:"Vehiculo", fleetLabel:"Flota", yearLabel:"Ano", mph:"mph", rpm:"rpm", driverSafetyScore:"Puntuacion de seguridad del conductor", critical:"Critico", warnings:"Advertencias", info:"Info", exceptionByType:"Eventos por tipo", noTripsToday:"No hay viajes registrados hoy.", liveDiagnostic:"Instantanea de diagnostico en vivo", avgSpd:"Vel. media", endLabel:"Fin" },
+    importHub: { autoImportEnabled:"Importacion automatica activada", extensionNotDetected:"Extension no detectada", extensionActive:"Extension activa", yourColumn:"Tu columna", fleeyesField:"Campo FleetYes", tripsToday:"Viajes hoy", lastSync:"Ultima sincronizacion", primary:"Principal", universalActivityLog:"Registro de actividad universal", viewLabel:"Ver", tripsImportedToday:"Viajes importados hoy", acrossAllProviders:"en todos los proveedores", activeConnections:"Conexiones activas", syncFailures:"Fallos de sincronizacion", providersConfigured:"Proveedores configurados", vendorGallery:"Galeria de integraciones de proveedores" },
+    orgSettings: { failedToLoad:"Error al cargar la configuracion", orgSettings:"Configuracion de la organizacion", recordInfo:"Informacion del registro", drivingHours:"Horas de conduccion", workingHours:"Horas de trabajo", myGeotab:"MyGeotab" },
   },
 
   // ── Italian ─────────────────────────────────────────────────────────────────
@@ -1705,7 +2025,7 @@ export const translations: Record<Lang, Translations> = {
     },
     common: {
       save:"Salva",cancel:"Annulla",upload:"Carica",download:"Scarica",search:"Cerca",new:"Nuovo",edit:"Modifica",delete:"Elimina",submit:"Invia",back:"Indietro",loading:"Caricamento…",addVehicle:"Aggiungi veicolo",export:"Esporta",filter:"Filtra",refresh:"Aggiorna",active:"Attivo",inactive:"Inattivo",pending:"In attesa",resolved:"Risolto",allVehicles:"Tutti i veicoli",today:"Oggi",thisMonth:"Questo mese",selectAll:"Seleziona tutto",tryAgain:"Riprova",records:"voci",noData:"Nessun dato",
-      date:"Data",vehicle:"Veicolo",driver:"Autista",status:"Stato",action:"Azione",ref:"Rif",route:"Percorso",type:"Tipo",amount:"Importo",method:"Metodo",litres:"Litri",costPerLitre:"Costo/L",totalCost:"Costo totale",odometer:"Contachilometri",mpg:"L/100km",depot:"Deposito",duration:"Durata",location:"Posizione",cost:"Costo",fleet:"Flotta",name:"Nome",phone:"Telefono",licence:"Patente",notes:"Note",
+      date:"Data",vehicle:"Veicolo",driver:"Autista",status:"Stato",action:"Azione",ref:"Rif",route:"Percorso",type:"Tipo",amount:"Importo",method:"Metodo",litres:"Litri",costPerLitre:"Costo/L",totalCost:"Costo totale",odometer:"Contachilometri",mpg:"L/100km",depot:"Deposito",duration:"Durata",location:"Posizione",cost:"Costo",fleet:"Flotta",name:"Nome",phone:"Telefono",email:"Email",country:"Paese",licence:"Patente",notes:"Note",
       view:"Vedi",reconcile:"Riconcilia",addNew:"Aggiungi",assign:"Assegna",approve:"Approva",reject:"Rifiuta",newCharge:"Nuovo addebito",details:"Dettagli",close:"Chiudi",
       createRecord:"Crea record",saving:"Salvataggio…",creating:"Creazione…",
       clearAll:"Cancella tutto",apply:"Applica",stats:"Statistiche",noRecordsFound:"Nessun record trovato",
@@ -1804,9 +2124,64 @@ export const translations: Record<Lang, Translations> = {
       rectificationRecord: "Registro di rettifica", partsUsed: "Parti usate:", labour: "Manodopera:", signedOffBy: "Validato da:",
       logRectification: "Registra rettifica", markRoadworthy: "Segna idoneo alla guida & Valida", signedOffRoadworthy: "✓ Validato come idoneo alla guida",
       vehicleProfiles: "Profili veicolo", addVehicle: "Aggiungi veicolo", userRolesPerms: "Ruoli & permessi utente", inviteUser: "Invita utente",
-      notificationEngine: "Motore notifiche", customChecklist: "Elementi lista personalizzata", addItem: "Aggiungi elemento", remove: "Rimuovi",
-      dataExport: "Esportazione dati & integrazioni", vorAlert: "{n} veicolo/i fuori strada", schedule: "← Programma",
-      pass: "P", advisory: "A", fail: "F",
+      notificationEngine:"Motore notifiche", customChecklist:"Elementi lista personalizzata", addItem:"Aggiungi elemento", remove:"Rimuovi",
+      dataExport:"Esportazione dati & integrazioni", vorAlert:"{n} veicolo/i fuori strada", schedule:"← Programma",
+      pass:"P", advisory:"A", fail:"F",
+    },
+    fuelReceipts: {
+      captured:"Acquisita", supplier:"Fornitore", product:"Prodotto",
+      duplicate:"Duplicato", receipt:"Ricevuta", uploadZip:"Carica ZIP",
+      searchPlaceholder:"Cerca per veicolo, fornitore…",
+      addModalTitle:"Aggiungi ricevute carburante",
+      addModalSubtitle:"Trascina immagini o PDF — verranno compressi e inviati automaticamente per OCR",
+      dropTitle:"Trascina & rilascia le ricevute qui", dropActive:"Rilascia per aggiungere",
+      dropHint:"o clicca per sfogliare · JPEG, PNG, WebP, PDF",
+      filesSelected:"{n} file{s} selezionati",
+      stepZipping:"Compressione", stepUploading:"Caricamento",
+      stepImporting:"Importazione", stepProcessing:"Elaborazione OCR",
+      progressZipping:"Compressione di {n} file{s}…", progressUploading:"Caricamento sul server…",
+      progressImporting:"Importazione ricevute…", progressProcessing:"Elaborazione OCR in corso…",
+      processingNote:"Questo potrebbe richiedere un momento per grandi batch",
+      successTitle:"Caricamento & elaborazione completati", successCount:"{n} ricevuta{s} importata{s}",
+      errorTitle:"Caricamento fallito",
+      btnAdd:"Aggiungi", btnUpload:"Carica {n} file{s}", btnDone:"Fatto — Aggiorna lista",
+      btnTryAgain:"Riprova", btnClose:"Chiudi",
+      filterTitle:"Filtra ricevute", anyDriver:"Qualsiasi autista", anyStatus:"Qualsiasi stato",
+      capturedFrom:"Acquisito dal", capturedTo:"Acquisito al",
+      detailTitle:"Dettaglio ricevuta carburante", ocrData:"Dati estratti OCR", rawText:"Testo grezzo",
+      colOcrStatus:"Stato OCR", colCapturedAt:"Acquisito il",
+    },
+    parking: {
+      pageOf: "Pagina", searchPlaceholder: "Cerca veicolo, posizione…",
+    },
+    tollReceipts: {
+      upload:"Carica", entryPoint:"Punto di ingresso", exitPoint:"Punto di uscita",
+      vehicleClass:"Classe veicolo", searchPlaceholder:"Cerca veicolo, percorso…",
+      addModalTitle:"Aggiungi ricevute pedaggi",
+      addModalSubtitle:"Trascina immagini o PDF — verranno compressi e inviati automaticamente per OCR",
+      dropTitle:"Trascina & rilascia le ricevute qui", dropActive:"Rilascia per aggiungere",
+      dropHint:"o clicca per sfogliare · JPEG, PNG, WebP, PDF",
+      filesSelected:"{n} file{s} selezionati",
+      stepZipping:"Compressione", stepUploading:"Caricamento",
+      stepImporting:"Importazione", stepProcessing:"Elaborazione OCR",
+      progressZipping:"Compressione di {n} file{s}…", progressUploading:"Caricamento sul server…",
+      progressImporting:"Importazione ricevute…", progressProcessing:"Elaborazione OCR in corso…",
+      processingNote:"Questo potrebbe richiedere un momento per grandi batch",
+      successTitle:"Caricamento & elaborazione completati", successCount:"{n} ricevuta{s} importata{s}",
+      errorTitle:"Caricamento fallito",
+      btnAdd:"Aggiungi", btnUpload:"Carica {n} file{s}", btnDone:"Fatto — Aggiorna lista",
+      btnTryAgain:"Riprova", btnClose:"Chiudi",
+      filterTitle:"Filtra ricevute", anyDriver:"Qualsiasi autista", anyStatus:"Qualsiasi stato",
+      capturedFrom:"Acquisito dal", capturedTo:"Acquisito al",
+      sendTitle:"Invia ad Amazon", sendSubtitle:"Invia i pedaggi ad Amazon Relay per il periodo selezionato",
+      sendFromDate:"Data inizio", sendToDate:"Data fine",
+      sendPreviewBtn:"Anteprima prima di inviare", sendDownloading:"Download…",
+      sendBtn:"Invia ad Amazon Relay", sendSending:"Invio.",
+      sendWarning:"Tutti i pedaggi elaborati nell'intervallo di date selezionato verranno inviati ad Amazon Relay.",
+      sendSuccess:"Inviato con successo",
+      sendSuccessMsg:"I pedaggi sono stati inviati ad Amazon Relay.",
+      colChargeEx:"Tariffa (IVA esclusa)", colVat:"IVA",
+      colChargeInc:"Tariffa (IVA inclusa)", colProcessingStatus:"Stato elaborazione",
     },
     issues: {
       newIssue: "Nuova segnalazione", critical: "Critico", high: "Alto", medium: "Medio", low: "Basso",
@@ -1839,18 +2214,6 @@ export const translations: Record<Lang, Translations> = {
       noExpenses: "Nessuna spesa carburante trovata", stats: "Statistiche",
       totalRecords: "Totale voci", pendingApproval: "In attesa di approvazione", approved: "Approvato",
       filters: "Filtri", searchPlaceholder: "Cerca veicolo, autista…",
-    },
-    fuelReceipts: {
-      captured: "Acquisita", supplier: "Fornitore", product: "Prodotto",
-      duplicate: "Duplicato", receipt: "Ricevuta", uploadZip: "Carica ZIP",
-      searchPlaceholder: "Cerca per veicolo, fornitore…",
-    },
-    parking: {
-      pageOf: "Pagina", searchPlaceholder: "Cerca veicolo, posizione…",
-    },
-    tollReceipts: {
-      upload: "Carica", entryPoint: "Punto di ingresso", exitPoint: "Punto di uscita",
-      vehicleClass: "Classe veicolo", searchPlaceholder: "Cerca veicolo, percorso…",
     },
     holidays: {
       reason: "Motivo", start: "Inizio", end: "Fine", days: "Giorni",
@@ -1992,6 +2355,10 @@ export const translations: Record<Lang, Translations> = {
       action:"Azione",apiErrorLocal:"Errore (dati locali)",at:"alle",certificate:"Certificato",details:"Dettagli",edit:"Modifica",rePublish:"Ripubblica",review:"Rivedi",sign:"Firma",status:"Stato",template:"Modello",
       reviewNote:"Rivedi le risposte, valuta le domande a testo libero, poi approva o rifiuta.",
     },
+    drivers: { addTitle:"Aggiungi autista", editTitle:"Modifica autista", shiftPreference:"Preferenza turno", shiftNone:"Nessuno", shiftAllDays:"Tutti i giorni", shiftCustom:"Personalizzato", shiftStart:"Inizio turno", shiftEnd:"Fine turno", maxConsecDays:"Giorni cons. max", maxTripsWeek:"Viaggi max / sett.", licenceNo:"N. patente", noneSelected:"Nessuna selezione", statusActive:"Attivo", statusInactive:"Inattivo", statusPending:"In attesa", statusArchived:"Archiviato", noDriversFound:"Nessun autista trovato.", nameRequired:"Obbligatorio.", saveFailed:"Salvataggio fallito", statusUpdateFailed:"Aggiornamento stato fallito", retryLabel:"riprova" },
+    fleetManagement: { exceptionEvents:"Eventi eccezionali", engineDiagnostics:"Diagnostica motore", tripHistory:"Storico viaggi", allFleets:"Tutte le flotte", vehicles:"Veicoli", drivers:"Autisti", onShift:"In servizio", monthlyDistance:"Distanza mensile", fuelThisMonth:"Carburante questo mese", newFleet:"Nuova flotta", vehicleLabel:"Veicolo", fleetLabel:"Flotta", yearLabel:"Anno", mph:"mph", rpm:"rpm", driverSafetyScore:"Punteggio sicurezza autista", critical:"Critico", warnings:"Avvisi", info:"Info", exceptionByType:"Eventi per tipo", noTripsToday:"Nessun viaggio oggi.", liveDiagnostic:"Snapshot diagnostica live", avgSpd:"Vel. media", endLabel:"Fine" },
+    importHub: { autoImportEnabled:"Importazione automatica attiva", extensionNotDetected:"Estensione non rilevata", extensionActive:"Estensione attiva", yourColumn:"La tua colonna", fleeyesField:"Campo FleetYes", tripsToday:"Viaggi oggi", lastSync:"Ultima sync.", primary:"Principale", universalActivityLog:"Registro attivita universale", viewLabel:"Visualizza", tripsImportedToday:"Viaggi importati oggi", acrossAllProviders:"su tutti i provider", activeConnections:"Connessioni attive", syncFailures:"Errori sync.", providersConfigured:"Provider configurati", vendorGallery:"Galleria integrazioni" },
+    orgSettings: { failedToLoad:"Impossibile caricare le impostazioni", orgSettings:"Impostazioni organizzazione", recordInfo:"Info record", drivingHours:"Ore di guida", workingHours:"Ore lavorative", myGeotab:"MyGeotab" },
   },
 
   // ── Polish ──────────────────────────────────────────────────────────────────
@@ -2036,7 +2403,7 @@ export const translations: Record<Lang, Translations> = {
     },
     common: {
       save:"Zapisz",cancel:"Anuluj",upload:"Prześlij",download:"Pobierz",search:"Szukaj",new:"Nowy",edit:"Edytuj",delete:"Usuń",submit:"Wyślij",back:"Wstecz",loading:"Ładowanie…",addVehicle:"Dodaj pojazd",export:"Eksportuj",filter:"Filtruj",refresh:"Odśwież",active:"Aktywny",inactive:"Nieaktywny",pending:"Oczekujący",resolved:"Rozwiązany",allVehicles:"Wszystkie pojazdy",today:"Dziś",thisMonth:"W tym miesiącu",selectAll:"Zaznacz wszystkie",tryAgain:"Spróbuj ponownie",records:"wpisów",noData:"Brak danych",
-      date:"Data",vehicle:"Pojazd",driver:"Kierowca",status:"Status",action:"Akcja",ref:"Ref",route:"Trasa",type:"Typ",amount:"Kwota",method:"Metoda",litres:"Litry",costPerLitre:"Koszt/L",totalCost:"Koszt całkowity",odometer:"Przebieg (km)",mpg:"L/100km",depot:"Baza",duration:"Czas trwania",location:"Lokalizacja",cost:"Koszt",fleet:"Flota",name:"Nazwa",phone:"Telefon",licence:"Prawo jazdy",notes:"Notatki",
+      date:"Data",vehicle:"Pojazd",driver:"Kierowca",status:"Status",action:"Akcja",ref:"Ref",route:"Trasa",type:"Typ",amount:"Kwota",method:"Metoda",litres:"Litry",costPerLitre:"Koszt/L",totalCost:"Koszt całkowity",odometer:"Przebieg (km)",mpg:"L/100km",depot:"Baza",duration:"Czas trwania",location:"Lokalizacja",cost:"Koszt",fleet:"Flota",name:"Nazwa",phone:"Telefon",email:"Email",country:"Kraj",licence:"Prawo jazdy",notes:"Notatki",
       view:"Pokaż",reconcile:"Uzgodnij",addNew:"Dodaj",assign:"Przypisz",approve:"Zatwierdź",reject:"Odrzuć",newCharge:"Nowa opłata",details:"Szczegóły",close:"Zamknij",
       createRecord:"Utwórz rekord",saving:"Zapisywanie…",creating:"Tworzenie…",
       clearAll:"Wyczyść wszystko",apply:"Zastosuj",stats:"Statystyki",noRecordsFound:"Nie znaleziono rekordów",
@@ -2172,16 +2539,58 @@ export const translations: Record<Lang, Translations> = {
       filters: "Filtry", searchPlaceholder: "Szukaj pojazdu, kierowcy…",
     },
     fuelReceipts: {
-      captured: "Przechwycony", supplier: "Dostawca", product: "Produkt",
-      duplicate: "Duplikat", receipt: "Paragon", uploadZip: "Prześlij ZIP",
-      searchPlaceholder: "Szukaj wg pojazdu, dostawcy…",
+      captured:"Przechwycony", supplier:"Dostawca", product:"Produkt",
+      duplicate:"Duplikat", receipt:"Paragon", uploadZip:"Przeslij ZIP",
+      searchPlaceholder:"Szukaj wg pojazdu, dostawcy...",
+      addModalTitle:"Dodaj rachunki za paliwo",
+      addModalSubtitle:"Upusc obrazy lub PDF - zostana spakowane i wyslane automatycznie do OCR",
+      dropTitle:"Przeciagnij & upusc rachunki tutaj", dropActive:"Upusc, aby dodac",
+      dropHint:"lub kliknij, aby przegladac - JPEG, PNG, WebP, PDF",
+      filesSelected:"{n} plik{s} wybranych",
+      stepZipping:"Pakowanie", stepUploading:"Przesylanie",
+      stepImporting:"Import", stepProcessing:"Przetwarzanie OCR",
+      progressZipping:"Pakowanie {n} pliku{s}...", progressUploading:"Przesylanie na serwer...",
+      progressImporting:"Importowanie rachunkow...", progressProcessing:"Uruchamianie OCR...",
+      processingNote:"Moze to chwile potrwac w przypadku duzych partii",
+      successTitle:"Przesylanie & przetwarzanie zakonczone", successCount:"Zaimportowano {n} rachunek/rachunki",
+      errorTitle:"Przesylanie nie powiodlo sie",
+      btnAdd:"Dodaj", btnUpload:"Przeslij {n} plik{s}", btnDone:"Gotowe - Odswiez liste",
+      btnTryAgain:"Sprobuj ponownie", btnClose:"Zamknij",
+      filterTitle:"Filtruj rachunki", anyDriver:"Dowolny kierowca", anyStatus:"Dowolny status",
+      capturedFrom:"Przechwycone od", capturedTo:"Przechwycone do",
+      detailTitle:"Szczegoly rachunku za paliwo", ocrData:"Dane wyodrebnione OCR", rawText:"Tekst surowy",
+      colOcrStatus:"Status OCR", colCapturedAt:"Przechwycone",
     },
     parking: {
       pageOf: "Strona", searchPlaceholder: "Szukaj pojazdu, lokalizacji…",
     },
     tollReceipts: {
-      upload: "Prześlij", entryPoint: "Punkt wjazdu", exitPoint: "Punkt wyjazdu",
-      vehicleClass: "Klasa pojazdu", searchPlaceholder: "Szukaj pojazdu, trasy…",
+      upload:"Przeslij", entryPoint:"Punkt wjazdu", exitPoint:"Punkt wyjazdu",
+      vehicleClass:"Klasa pojazdu", searchPlaceholder:"Szukaj pojazdu, trasy...",
+      addModalTitle:"Dodaj rachunki za przejazd",
+      addModalSubtitle:"Upusc obrazy lub PDF - zostana spakowane i wyslane automatycznie do OCR",
+      dropTitle:"Przeciagnij & upusc rachunki tutaj", dropActive:"Upusc, aby dodac",
+      dropHint:"lub kliknij, aby przegladac - JPEG, PNG, WebP, PDF",
+      filesSelected:"{n} plik{s} wybranych",
+      stepZipping:"Pakowanie", stepUploading:"Przesylanie",
+      stepImporting:"Import", stepProcessing:"Przetwarzanie OCR",
+      progressZipping:"Pakowanie {n} pliku{s}...", progressUploading:"Przesylanie na serwer...",
+      progressImporting:"Importowanie rachunkow...", progressProcessing:"Uruchamianie OCR...",
+      processingNote:"Moze to chwile potrwac w przypadku duzych partii",
+      successTitle:"Przesylanie & przetwarzanie zakonczone", successCount:"Zaimportowano {n} rachunek/rachunki",
+      errorTitle:"Przesylanie nie powiodlo sie",
+      btnAdd:"Dodaj", btnUpload:"Przeslij {n} plik{s}", btnDone:"Gotowe - Odswiez liste",
+      btnTryAgain:"Sprobuj ponownie", btnClose:"Zamknij",
+      filterTitle:"Filtruj rachunki", anyDriver:"Dowolny kierowca", anyStatus:"Dowolny status",
+      capturedFrom:"Przechwycone od", capturedTo:"Przechwycone do",
+      sendTitle:"Wyslij do Amazon", sendSubtitle:"Przeslij oplaty za przejazd do Amazon Relay za wybrany okres",
+      sendFromDate:"Data od", sendToDate:"Data do", sendPreviewBtn:"Podglad danych przed wyslaniem", sendDownloading:"Pobieranie...",
+      sendBtn:"Wyslij do Amazon Relay", sendSending:"Wysylanie...",
+      sendWarning:"Spowoduje to przeslanie wszystkich przetworzonych oplat za przejazd w wybranym zakresie dat do Amazon Relay.",
+      sendSuccess:"Przeslano pomyslnie",
+      sendSuccessMsg:"Oplaty za przejazd zostaly wyslane do Amazon Relay.",
+      colChargeEx:"Oplata (bez VAT)", colVat:"VAT",
+      colChargeInc:"Oplata (z VAT)", colProcessingStatus:"Status przetwarzania",
     },
     holidays: {
       reason: "Powód", start: "Początek", end: "Koniec", days: "Dni",
@@ -2323,6 +2732,42 @@ export const translations: Record<Lang, Translations> = {
       action:"Akcja",apiErrorLocal:"Blad (dane lokalne)",at:"o",certificate:"Certyfikat",details:"Szczegoly",edit:"Edytuj",rePublish:"Ponownie opublikuj",review:"Przejrzyj",sign:"Podpisz",status:"Status",template:"Szablon",
       reviewNote:"Przejrzyj odpowiedzi, oceń pytania tekstowe, a następnie zatwierdź lub odrzuć.",
     },
+    drivers: {
+      addTitle:"Dodaj kierowcę", editTitle:"Edytuj kierowcę",
+      shiftPreference:"Preferencja zmiany", shiftNone:"Brak", shiftAllDays:"Wszystkie dni", shiftCustom:"Niestandardowy",
+      shiftStart:"Początek zmiany", shiftEnd:"Koniec zmiany",
+      maxConsecDays:"Maks. dni z rzędu", maxTripsWeek:"Maks. tras / tydzień",
+      licenceNo:"Nr prawa jazdy", noneSelected:"Brak wyboru",
+      statusActive:"Aktywny", statusInactive:"Nieaktywny", statusPending:"Oczekujący", statusArchived:"Zarchiwizowany",
+      noDriversFound:"Nie znaleziono kierowców.", nameRequired:"Imię i nazwisko kierowcy jest wymagane.",
+      saveFailed:"Zapis nie powiódł się", statusUpdateFailed:"Aktualizacja statusu nie powiodła się",
+      retryLabel:"spróbuj ponownie",
+    },
+    fleetManagement: {
+      exceptionEvents:"Zdarzenia wyjątkowe", engineDiagnostics:"Diagnostyka silnika", tripHistory:"Historia tras",
+      allFleets:"Wszystkie floty", vehicles:"Pojazdy", drivers:"Kierowcy", onShift:"Na zmianie",
+      monthlyDistance:"Dystans miesięczny", fuelThisMonth:"Paliwo w tym miesiącu", newFleet:"Nowa flota",
+      vehicleLabel:"Pojazd", fleetLabel:"Flota", yearLabel:"Rok",
+      mph:"mph", rpm:"rpm", driverSafetyScore:"Wynik bezpieczeństwa kierowcy",
+      critical:"Krytyczny", warnings:"Ostrzeżenia", info:"Info",
+      exceptionByType:"Zdarzenia wyjątkowe wg typu", noTripsToday:"Brak zarejestrowanych tras dzisiaj.",
+      liveDiagnostic:"Bieżący zrzut diagnostyczny", avgSpd:"Śr. prędkość", endLabel:"Koniec",
+    },
+    importHub: {
+      autoImportEnabled:"Automatyczny import włączony", extensionNotDetected:"Rozszerzenie nie wykryte",
+      extensionActive:"Rozszerzenie aktywne",
+      yourColumn:"Twoja kolumna", fleeyesField:"Pole FleetYes",
+      tripsToday:"Trasy dzisiaj", lastSync:"Ostatnia sync.", primary:"Główny",
+      universalActivityLog:"Uniwersalny dziennik aktywności", viewLabel:"Zobacz",
+      tripsImportedToday:"Trasy zaimportowane dzisiaj", acrossAllProviders:"we wszystkich dostawcach",
+      activeConnections:"Aktywne połączenia", syncFailures:"Błędy synchronizacji",
+      providersConfigured:"Skonfigurowanych dostawców", vendorGallery:"Galeria integracji dostawców",
+    },
+    orgSettings: {
+      failedToLoad:"Nie udało się załadować ustawień", orgSettings:"Ustawienia organizacji",
+      recordInfo:"Informacje o rekordzie", drivingHours:"Godziny jazdy",
+      workingHours:"Godziny pracy", myGeotab:"MyGeotab",
+    },
   },
 }
 
@@ -2372,3 +2817,5 @@ export function LangProvider({ children }: { children: React.ReactNode }) {
 export function useLang() {
   return React.useContext(LangContext)
 }
+
+

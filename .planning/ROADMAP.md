@@ -186,3 +186,31 @@ Plans:
 
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.9: Full i18n — Remove All Hardcoded Strings from Codebase (BACKLOG)
+
+**Goal:** Eliminate every hardcoded user-facing string across the entire UI codebase and route all text through the existing `useLang()` / `lang-context` translation system, making every page and component fully localisable.
+
+**Context:** The app has a working `lang-context.tsx` with multi-language support (EN/AR/FR etc.) and a `useLang()` hook, but the majority of pages — including all the recently built Fuel, Toll, Compliance, Rota, Trips, Drivers, Vehicles, Fleets, Places, Settings, and modal components — contain large volumes of hardcoded English strings in JSX (`"Upload ZIP"`, `"No records found"`, `"Cancel"`, column headers, error messages, status labels, toast copy, confirmation dialog text, etc.). These bypass the translation layer entirely.
+
+**Scope:**
+- Audit all files under `apps/v4/app/(dashboard)/` for hardcoded strings
+- Audit all shared components under `apps/v4/components/` (drawers, modals, filters, toolbars)
+- Extend `lang-context.tsx` translation keys to cover every discovered string
+- Replace hardcoded strings with `t.xxx` references throughout
+- Ensure all supported languages (EN, AR, FR, and any others) have translations populated — not just keys added
+- Status labels, error messages, column headers, button labels, placeholder text, empty-state messages, and toast notifications must all be covered
+- Maintain type safety — the translation object must remain fully typed with no `any` or string-index bypasses
+
+**Acceptance Criteria:**
+- Zero hardcoded user-facing English strings remain outside `lang-context.tsx`
+- Switching language in the app updates all visible text with no fallbacks to English
+- TypeScript compilation passes with no new errors
+- Existing translation keys are not renamed (backward-compatible extension only)
+
+**Requirements:** TBD
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)

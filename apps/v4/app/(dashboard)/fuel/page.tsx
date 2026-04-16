@@ -7,6 +7,7 @@ import {
   Filter, Pencil, Eye, ImageIcon, Receipt, CreditCard,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
+import { createOcrWorker, type OcrResult, ocrBadgeClass, ocrBadgeLabel, fileKey } from "@/lib/ocr-quality"
 import { useConfirm } from "@/components/confirm-dialog"
 import JSZip from "jszip"
 
@@ -173,82 +174,110 @@ const ACCEPTED_EXTS = [".jpg", ".jpeg", ".png", ".webp", ".pdf"]
 const ACCEPTED_MIME = ["image/jpeg", "image/png", "image/webp", "application/pdf"]
 
 function AddReceiptsModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const { t } = useLang()
   const [step, setStep] = React.useState<AddStep>("select")
   const [files, setFiles] = React.useState<File[]>([])
   const [dragging, setDragging] = React.useState(false)
   const [importedCount, setImportedCount] = React.useState(0)
-  const [processedMsg, setProcessedMsg] = React.useState("")
   const [errMsg, setErrMsg] = React.useState("")
+  const [qualities, setQualities] = React.useState<Map<string, OcrResult>>(new Map())
+  const [previews, setPreviews] = React.useState<Map<string, string>>(new Map())
+  const workerRef = React.useRef<Awaited<ReturnType<typeof createOcrWorker>> | null>(null)
+  const previewsRef = React.useRef(previews)
+  previewsRef.current = previews
   const fileRef = React.useRef<HTMLInputElement>(null)
 
+  React.useEffect(() => {
+    createOcrWorker().then(w => { workerRef.current = w })
+    return () => { workerRef.current?.terminate(); previewsRef.current.forEach(url => URL.revokeObjectURL(url)) }
+  }, [])
+
+  const scanFiles = React.useCallback((incoming: File[]) => {
+    const images = incoming.filter(f => f.type !== "application/pdf" && !f.name.toLowerCase().endsWith(".pdf"))
+    setQualities(prev => {
+      const next = new Map(prev)
+      incoming.forEach(f => {
+        const k = fileKey(f)
+        if (!next.has(k)) next.set(k, { status: f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf") ? "pdf" : "checking", confidence: 0 })
+      })
+      return next
+    })
+    images.forEach(async f => {
+      if (!workerRef.current) return
+      const result = await workerRef.current.checkFile(f)
+      setQualities(prev => new Map(prev).set(fileKey(f), result))
+    })
+  }, [])
+
   const addFiles = (incoming: FileList | File[]) => {
-    const valid = Array.from(incoming).filter(
-      f => ACCEPTED_MIME.includes(f.type) || ACCEPTED_EXTS.some(ext => f.name.toLowerCase().endsWith(ext))
-    )
+    const valid = Array.from(incoming).filter(f => ACCEPTED_MIME.includes(f.type) || ACCEPTED_EXTS.some(ext => f.name.toLowerCase().endsWith(ext)))
     setFiles(prev => {
       const existing = new Set(prev.map(f => f.name + f.size))
-      return [...prev, ...valid.filter(f => !existing.has(f.name + f.size))]
+      const added = valid.filter(f => !existing.has(f.name + f.size))
+      if (added.length) scanFiles(added)
+      return [...prev, ...added]
+    })
+    setPreviews(prev => {
+      const next = new Map(prev)
+      valid.forEach(f => {
+        const k = fileKey(f)
+        if (!next.has(k) && f.type !== "application/pdf" && !f.name.toLowerCase().endsWith(".pdf"))
+          next.set(k, URL.createObjectURL(f))
+      })
+      return next
     })
   }
 
-  const removeFile = (idx: number) => setFiles(prev => prev.filter((_, i) => i !== idx))
-
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault(); setDragging(false)
-    addFiles(e.dataTransfer.files)
+  const removeFile = (idx: number) => {
+    setFiles(prev => {
+      const f = prev[idx]; const k = fileKey(f)
+      setPreviews(p => { const n = new Map(p); const u = n.get(k); if (u) URL.revokeObjectURL(u); n.delete(k); return n })
+      setQualities(q => { const n = new Map(q); n.delete(k); return n })
+      return prev.filter((_, i) => i !== idx)
+    })
   }
 
+  const onDrop = (e: React.DragEvent) => { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files) }
+
   const STEPS: { key: AddStep; label: string }[] = [
-    { key: "zipping",    label: "Zipping" },
-    { key: "uploading",  label: "Uploading" },
-    { key: "importing",  label: "Importing" },
-    { key: "processing", label: "Processing OCR" },
+    { key: "zipping",    label: t.fuelReceipts.progressZipping },
+    { key: "uploading",  label: t.fuelReceipts.progressUploading },
+    { key: "importing",  label: t.fuelReceipts.progressImporting },
+    { key: "processing", label: t.fuelReceipts.progressProcessing },
   ]
   const stepIdx = STEPS.findIndex(s => s.key === step)
 
   const run = async () => {
     if (!files.length) return
     try {
-      // 1. Client-side zip
       setStep("zipping")
       const zip = new JSZip()
       files.forEach(f => zip.file(f.name, f))
       const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } })
       const zipFile = new File([blob], `fuel-receipts-${Date.now()}.zip`, { type: "application/zip" })
-
-      // 2. Upload zip
-      setStep("uploading")
-      const uploaded = await uploadFuelReceiptZip(zipFile)
-
-      // 3. Import
-      setStep("importing")
-      const res = await importFuelReceiptZip([uploaded.uuid])
-      setImportedCount(res.inserted_count ?? 0)
-
-      // 4. OCR
-      setStep("processing")
-      const processed = await processFuelReceipts()
-      setProcessedMsg(processed.message ?? "OCR processing complete")
-
+      setStep("uploading"); const uploaded = await uploadFuelReceiptZip(zipFile)
+      setStep("importing"); const res = await importFuelReceiptZip([uploaded.uuid]); setImportedCount(res.inserted_count ?? 0)
+      setStep("processing"); await processFuelReceipts()
       setStep("done")
-    } catch (e: unknown) {
-      setErrMsg(e instanceof Error ? e.message : "Upload failed")
-      setStep("error")
-    }
+    } catch (e: unknown) { setErrMsg(e instanceof Error ? e.message : "Upload failed"); setStep("error") }
   }
 
   const isProcessing = ["zipping", "uploading", "importing", "processing"].includes(step)
+  const unreadableCount = files.filter(f => qualities.get(fileKey(f))?.status === "unreadable").length
+  const lowCount        = files.filter(f => qualities.get(fileKey(f))?.status === "low").length
+  const isBlocked       = files.length === 0 || unreadableCount > 0
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/40" onClick={isProcessing ? undefined : onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="flex w-full max-w-lg flex-col rounded-2xl border bg-card shadow-2xl" style={{ maxHeight: "90vh" }}>
+      <div className="fixed inset-0 z-40 bg-black/50" onClick={isProcessing ? undefined : onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
+        <div className="flex w-full max-w-6xl flex-col overflow-hidden rounded-2xl border bg-card shadow-2xl" style={{ height: "92vh" }}>
+
           {/* Header */}
-          <div className="flex items-center justify-between border-b px-5 py-4">
+          <div className="flex shrink-0 items-center justify-between border-b px-6 py-4">
             <div>
-              <h2 className="text-base font-bold">Add Fuel Receipts</h2>
-              <p className="mt-0.5 text-xs text-muted-foreground">Drop images or PDFs — they&apos;ll be zipped and sent for OCR automatically</p>
+              <h2 className="text-base font-bold">{t.fuelReceipts.addModalTitle}</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">{t.fuelReceipts.addModalSubtitle}</p>
             </div>
             <button onClick={onClose} disabled={isProcessing} className="rounded-lg border p-1.5 text-muted-foreground hover:bg-muted disabled:opacity-40">
               <X className="h-4 w-4" />
@@ -256,144 +285,196 @@ function AddReceiptsModal({ onClose, onDone }: { onClose: () => void; onDone: ()
           </div>
 
           {/* Body */}
-          <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-5">
+          <div className="flex flex-1 overflow-hidden">
+
+            {/* SELECT: two-panel */}
             {step === "select" && (
               <>
-                {/* Drop zone */}
-                <div
-                  onDragOver={e => { e.preventDefault(); setDragging(true) }}
-                  onDragLeave={() => setDragging(false)}
-                  onDrop={onDrop}
-                  onClick={() => fileRef.current?.click()}
-                  className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed py-10 transition-all ${
-                    dragging
-                      ? "border-primary bg-primary/5 scale-[1.01]"
-                      : "border-muted-foreground/30 hover:border-primary/40 hover:bg-muted/20"
-                  }`}
-                >
-                  <div className={`flex h-12 w-12 items-center justify-center rounded-full transition-colors ${
-                    dragging ? "bg-primary/10" : "bg-muted"
-                  }`}>
-                    <Upload className={`h-5 w-5 transition-colors ${dragging ? "text-primary" : "text-muted-foreground"}`} />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-medium">{dragging ? "Drop to add" : "Drag & drop receipts here"}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">or click to browse · JPEG, PNG, WebP, PDF</p>
-                  </div>
-                </div>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  multiple
-                  accept={ACCEPTED_EXTS.join(",")}
-                  className="hidden"
-                  onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = "" }}
-                />
-
-                {/* File list */}
-                {files.length > 0 && (
-                  <div className="flex flex-col gap-1.5">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{files.length} file{files.length !== 1 ? "s" : ""} selected</p>
-                    <div className="max-h-52 overflow-y-auto rounded-xl border divide-y">
-                      {files.map((f, i) => (
-                        <div key={i} className="flex items-center gap-3 px-3 py-2">
-                          <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          <span className="flex-1 truncate text-xs">{f.name}</span>
-                          <span className="text-[10px] text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
-                          <button onClick={() => removeFile(i)} className="rounded p-0.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20">
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ))}
+                {/* Left: drop zone */}
+                <div className="flex w-72 shrink-0 flex-col gap-4 border-r p-5">
+                  <div
+                    onDragOver={e => { e.preventDefault(); setDragging(true) }}
+                    onDragLeave={() => setDragging(false)}
+                    onDrop={onDrop}
+                    onClick={() => fileRef.current?.click()}
+                    className={`flex flex-1 cursor-pointer flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed transition-all ${
+                      dragging ? "border-primary bg-primary/5 scale-[1.01]" : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/20"
+                    }`}
+                  >
+                    <div className={`flex h-16 w-16 items-center justify-center rounded-full transition-colors ${dragging ? "bg-primary/10" : "bg-muted"}`}>
+                      <Upload className={`h-7 w-7 transition-colors ${dragging ? "text-primary" : "text-muted-foreground"}`} />
+                    </div>
+                    <div className="px-4 text-center">
+                      <p className="text-sm font-semibold">{dragging ? t.fuelReceipts.dropActive : t.fuelReceipts.dropTitle}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{t.fuelReceipts.dropHint}</p>
                     </div>
                   </div>
-                )}
+                  <input ref={fileRef} type="file" multiple accept={ACCEPTED_EXTS.join(",")} className="hidden"
+                    onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = "" }} />
+                  {files.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">{files.length} file{files.length !== 1 ? "s" : ""}</span>
+                      {unreadableCount > 0 && <span className="rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-semibold text-red-600 dark:bg-red-900/30 dark:text-red-400">{unreadableCount} unreadable</span>}
+                      {lowCount > 0 && <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{lowCount} low quality</span>}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: receipt card grid */}
+                <div className="flex flex-1 flex-col overflow-hidden">
+                  {files.length === 0 ? (
+                    <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
+                      <FileText className="h-14 w-14 opacity-15" />
+                      <p className="text-sm font-medium">Drop receipts on the left to review them here</p>
+                      <p className="text-xs opacity-60">Card previews with quality scores and amounts will appear here</p>
+                    </div>
+                  ) : (
+                    <div className="flex-1 overflow-y-auto p-4">
+                      <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
+                        {files.map((f, i) => {
+                          const q = qualities.get(fileKey(f))
+                          const previewUrl = previews.get(fileKey(f))
+                          return (
+                            <div key={i} className="group relative flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition-shadow hover:shadow-md">
+                              {/* Image hero */}
+                              <div className="relative aspect-[3/4] w-full overflow-hidden bg-muted">
+                                {previewUrl
+                                  ? <img src={previewUrl} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                                  : <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground/40">
+                                      <FileText className="h-10 w-10" />
+                                      <span className="text-[10px]">PDF</span>
+                                    </div>
+                                }
+                                {/* Quality badge overlaid bottom-left */}
+                                {q && (
+                                  <div className="absolute bottom-2 left-2">
+                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold shadow-sm backdrop-blur-sm ${ocrBadgeClass(q.status)}`}>
+                                      {q.status === "checking"
+                                        ? <><svg className="h-2.5 w-2.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Scanning…</>
+                                        : ocrBadgeLabel(q.status, q.confidence)
+                                      }
+                                    </span>
+                                  </div>
+                                )}
+                                {/* Remove button overlaid top-right */}
+                                <button
+                                  onClick={() => removeFile(i)}
+                                  className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-500"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                              {/* Card footer */}
+                              <div className="flex flex-col gap-1 p-2.5">
+                                {q?.amount
+                                  ? <span className={`text-sm font-bold tabular-nums ${ocrBadgeClass(q.status)} rounded-lg px-2 py-1 text-center`}>{q.amount}</span>
+                                  : <span className="rounded-lg bg-muted px-2 py-1 text-center text-sm font-medium text-muted-foreground">
+                                      {q?.status === "checking" ? "Reading…" : "No amount"}
+                                    </span>
+                                }
+                                <span className="text-center text-[10px] tabular-nums text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </>
             )}
 
-            {/* Progress */}
+            {/* PROGRESS */}
             {isProcessing && (
-              <div className="flex flex-col gap-5 py-4">
-                <div className="flex items-center gap-1">
+              <div className="flex flex-1 flex-col items-center justify-center gap-10 p-8">
+                <div className="flex w-full max-w-md items-center gap-1">
                   {STEPS.map((s, i) => (
                     <React.Fragment key={s.key}>
-                      <div className={`flex items-center gap-1 ${i <= stepIdx ? "text-primary" : "text-muted-foreground/40"}`}>
-                        <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                          i < stepIdx ? "bg-green-500 text-white" : i === stepIdx ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                        }`}>
+                      <div className={`flex items-center gap-1.5 ${i <= stepIdx ? "text-primary" : "text-muted-foreground/40"}`}>
+                        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${i < stepIdx ? "bg-green-500 text-white" : i === stepIdx ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
                           {i < stepIdx ? "✓" : i + 1}
                         </span>
-                        <span className="text-[11px] font-medium hidden sm:inline">{s.label}</span>
+                        <span className="hidden text-xs font-medium sm:inline">{s.label}</span>
                       </div>
-                      {i < STEPS.length - 1 && <div className={`h-px flex-1 mx-1 ${i < stepIdx ? "bg-green-400" : "bg-border"}`} />}
+                      {i < STEPS.length - 1 && <div className={`mx-1 h-px flex-1 ${i < stepIdx ? "bg-green-400" : "bg-border"}`} />}
                     </React.Fragment>
                   ))}
                 </div>
-                <div className="flex flex-col items-center gap-3 py-6">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="font-medium text-sm">
-                    {step === "zipping" ? `Zipping ${files.length} file${files.length !== 1 ? "s" : ""}…`
-                      : step === "uploading" ? "Uploading to server…"
-                      : step === "importing" ? "Importing receipt records…"
-                      : "Running OCR processing…"}
+                <div className="flex flex-col items-center gap-4">
+                  <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                  <p className="text-base font-semibold">
+                    {step === "zipping" ? t.fuelReceipts.stepZipping.replace("{n}", String(files.length)).replace("{s}", files.length !== 1 ? "s" : "")
+                      : step === "uploading" ? t.fuelReceipts.stepUploading
+                      : step === "importing" ? t.fuelReceipts.stepImporting
+                      : t.fuelReceipts.stepProcessing}
                   </p>
-                  {step === "processing" && (
-                    <p className="text-xs text-muted-foreground">This may take a moment for large batches</p>
-                  )}
+                  {step === "processing" && <p className="text-sm text-muted-foreground">{t.fuelReceipts.processingNote}</p>}
                 </div>
               </div>
             )}
 
-            {/* Done */}
+            {/* DONE */}
             {step === "done" && (
-              <div className="flex items-start gap-3 rounded-xl bg-green-50 dark:bg-green-950/20 p-4">
-                <CheckCircle2 className="h-6 w-6 text-green-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium text-green-800 dark:text-green-300">Upload & processing complete</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{importedCount} receipt{importedCount !== 1 ? "s" : ""} imported</p>
-                  {processedMsg && <p className="mt-0.5 text-xs text-muted-foreground">{processedMsg}</p>}
+              <div className="flex flex-1 items-center justify-center p-8">
+                <div className="flex w-full max-w-md items-start gap-4 rounded-2xl bg-green-50 p-6 dark:bg-green-950/20">
+                  <CheckCircle2 className="mt-0.5 h-8 w-8 shrink-0 text-green-600" />
+                  <div>
+                    <p className="font-semibold text-green-800 dark:text-green-300">{t.fuelReceipts.successTitle}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{t.fuelReceipts.successCount.replace("{n}", String(importedCount)).replace("{s}", importedCount !== 1 ? "s" : "")}</p>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Error */}
+            {/* ERROR */}
             {step === "error" && (
-              <div className="flex items-center gap-3 rounded-xl bg-red-50 dark:bg-red-950/20 p-4">
-                <XCircle className="h-6 w-6 text-red-500 shrink-0" />
-                <div>
-                  <p className="font-medium text-red-700 dark:text-red-400">Upload failed</p>
-                  <p className="mt-0.5 text-xs text-red-600 dark:text-red-400">{errMsg}</p>
+              <div className="flex flex-1 items-center justify-center p-8">
+                <div className="flex w-full max-w-md items-center gap-4 rounded-2xl bg-red-50 p-6 dark:bg-red-950/20">
+                  <XCircle className="h-8 w-8 shrink-0 text-red-500" />
+                  <div>
+                    <p className="font-semibold text-red-700 dark:text-red-400">{t.fuelReceipts.errorTitle}</p>
+                    <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errMsg}</p>
+                  </div>
                 </div>
               </div>
             )}
           </div>
 
           {/* Footer */}
-          <div className="flex gap-2 border-t p-4">
+          <div className="flex shrink-0 gap-3 border-t px-6 py-4">
             {step === "select" && (
               <>
-                <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">Cancel</button>
-                <button
-                  onClick={run}
-                  disabled={files.length === 0}
-                  className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                >
-                  Upload {files.length > 0 ? `${files.length} file${files.length !== 1 ? "s" : ""}` : ""}
-                </button>
+                <button onClick={onClose} className="rounded-lg border px-4 py-2 text-sm text-muted-foreground hover:bg-muted">{t.common.cancel}</button>
+                <div className="flex flex-1 flex-col gap-1.5">
+                  <button onClick={run} disabled={isBlocked} className="w-full rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                    {unreadableCount > 0
+                      ? `Remove ${unreadableCount} unreadable image${unreadableCount !== 1 ? "s" : ""} to continue`
+                      : files.length > 0
+                        ? t.fuelReceipts.btnUpload.replace("{n}", String(files.length)).replace("{s}", files.length !== 1 ? "s" : "")
+                        : t.fuelReceipts.btnAdd
+                    }
+                  </button>
+                  {lowCount > 0 && unreadableCount === 0 && (
+                    <p className="text-center text-[11px] text-amber-600 dark:text-amber-400">
+                      ⚠ {lowCount} image{lowCount !== 1 ? "s have" : " has"} low readability — may not scan correctly
+                    </p>
+                  )}
+                </div>
               </>
             )}
             {step === "done" && (
-              <button onClick={() => { onDone(); onClose() }} className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-                Done — Refresh List
+              <button onClick={() => { onDone(); onClose() }} className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+                {t.fuelReceipts.btnDone}
               </button>
             )}
             {step === "error" && (
               <>
-                <button onClick={() => { setStep("select"); setErrMsg("") }} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">Try Again</button>
-                <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted">Close</button>
+                <button onClick={() => { setStep("select"); setErrMsg("") }} className="flex-1 rounded-lg border px-4 py-2 text-sm text-muted-foreground hover:bg-muted">{t.fuelReceipts.btnTryAgain}</button>
+                <button onClick={onClose} className="flex-1 rounded-lg border px-4 py-2 text-sm hover:bg-muted">{t.common.close}</button>
               </>
             )}
           </div>
+
         </div>
       </div>
     </>
@@ -410,6 +491,7 @@ function ReceiptFilterDrawer({ open, onClose, filters, setFilters, drivers }: {
   filters: RecFilters; setFilters: (f: RecFilters) => void
   drivers: Driver[]
 }) {
+  const { t } = useLang()
   const [local, setLocal] = React.useState<RecFilters>(filters)
   const set = <K extends keyof RecFilters>(k: K, v: string) => setLocal(f => ({ ...f, [k]: v }))
   React.useEffect(() => { setLocal(filters) }, [filters])
@@ -421,37 +503,37 @@ function ReceiptFilterDrawer({ open, onClose, filters, setFilters, drivers }: {
       <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
       <div className="fixed inset-y-0 right-0 z-50 flex w-72 flex-col border-l bg-card shadow-2xl">
         <div className="flex items-center justify-between border-b px-5 py-4">
-          <h2 className="font-bold">Filter Receipts</h2>
+          <h2 className="font-bold">{t.fuelReceipts.filterTitle}</h2>
           <button onClick={onClose} className="rounded-lg border p-1.5 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
         </div>
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-5">
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Driver</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">{t.common.driver}</label>
             <select value={local.driver_uuid} onChange={e => set("driver_uuid", e.target.value)} className={sel}>
-              <option value="">Any driver</option>
+              <option value="">{t.fuelReceipts.anyDriver}</option>
               {drivers.map(d => <option key={d.uuid} value={d.uuid}>{d.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Status</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">{t.common.status}</label>
             <select value={local.status} onChange={e => set("status", e.target.value)} className={sel}>
-              <option value="">Any status</option>
+              <option value="">{t.fuelReceipts.anyStatus}</option>
               {RECEIPT_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Captured from</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">{t.fuelReceipts.capturedFrom}</label>
             <input type="date" value={local.start_date} onChange={e => set("start_date", e.target.value)} className={sel} />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Captured to</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">{t.fuelReceipts.capturedTo}</label>
             <input type="date" value={local.end_date} onChange={e => set("end_date", e.target.value)} className={sel} />
           </div>
         </div>
         <div className="flex gap-2 border-t p-4">
-          <button onClick={() => { setLocal(EMPTY_REC_FILTERS); setFilters(EMPTY_REC_FILTERS) }} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">Clear all</button>
+          <button onClick={() => { setLocal(EMPTY_REC_FILTERS); setFilters(EMPTY_REC_FILTERS) }} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">{t.common.clearAll}</button>
           <button onClick={() => { setFilters(local); onClose() }} className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-            Apply{active > 0 ? ` (${active})` : ""}
+            {t.common.apply}{active > 0 ? ` (${active})` : ""}
           </button>
         </div>
       </div>
@@ -1254,21 +1336,11 @@ function ExpensesTab({ isDark, vehicles, drivers }: { isDark: boolean; vehicles:
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40">
           <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
         </button>
-        <button onClick={() => setShowImport(true)} title="Import"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-          <Upload className="h-3.5 w-3.5" />
-        </button>
         <button onClick={handleExport} disabled={exporting} title="Export"
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40">
           {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
         </button>
 
-        <span className="h-6 w-px bg-border" />
-
-        <button onClick={() => setSlideOver("new")}
-          className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
-          <Plus className="mr-1.5 h-3.5 w-3.5" />{f.addExpense}
-        </button>
       </div>
 
       {error && (
