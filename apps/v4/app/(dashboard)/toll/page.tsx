@@ -982,6 +982,7 @@ function ReceiptsTab({ isDark, drivers }: { isDark: boolean; drivers: Driver[] }
   const [filters, setFilters] = React.useState<RecFilters>(EMPTY_REC_FILTERS)
   const [page, setPage] = React.useState(1)
   const [search, setSearch] = React.useState("")
+  const [searchFocused, setSearchFocused] = React.useState(false)
   const [refreshing, setRefreshing] = React.useState(false)
   const [showUpload, setShowUpload] = React.useState(false)
   const [showFilter, setShowFilter] = React.useState(false)
@@ -1041,27 +1042,36 @@ function ReceiptsTab({ isDark, drivers }: { isDark: boolean; drivers: Driver[] }
   ], [])
 
   return (
-    <div className="flex flex-1 flex-col gap-4 overflow-hidden">
+    <div className="flex flex-1 flex-col gap-3 overflow-hidden">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-40">
+      <div className="flex items-center gap-2">
+        <div className="flex-1" />
+
+        <div className={`relative transition-all duration-200 ${searchFocused ? "w-72" : "w-40"}`}>
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
-            className="h-9 w-full rounded-lg border bg-background pl-8 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+            className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
             placeholder="Search receipts…"
             value={search}
             onChange={e => setSearch(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
           />
         </div>
-        <button onClick={handleRefresh} disabled={refreshing} className="flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm text-muted-foreground hover:bg-muted disabled:opacity-50">
+
+        <button onClick={handleRefresh} disabled={refreshing} title="Refresh"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40">
           <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-          <span className="hidden sm:inline">Refresh</span>
         </button>
-        <button onClick={() => setShowFilter(true)} className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm hover:bg-muted ${activeFilters > 0 ? "border-primary text-primary bg-primary/5" : "text-muted-foreground"}`}>
+        <button onClick={() => setShowFilter(true)}
+          className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-sm transition-colors hover:bg-accent ${
+            activeFilters > 0 ? "border-primary bg-primary/5 text-primary" : "bg-background text-muted-foreground hover:text-foreground"
+          }`}>
           <Filter className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Filter{activeFilters > 0 ? ` (${activeFilters})` : ""}</span>
         </button>
-        <button onClick={() => setShowUpload(true)} className="flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+        <button onClick={() => setShowUpload(true)}
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
           <Plus className="h-3.5 w-3.5" /> Add
         </button>
       </div>
@@ -1073,23 +1083,24 @@ function ReceiptsTab({ isDark, drivers }: { isDark: boolean; drivers: Driver[] }
       )}
 
       {/* Grid */}
-      <div className="flex-1 overflow-hidden rounded-xl border min-h-0">
-        {loading ? (
-          <div className="flex h-full items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-        ) : (
-          <div className="h-full w-full">
-            <AgGridReact
-              ref={gridRef}
-              rowData={records}
-              columnDefs={columns}
-              theme={isDark ? darkTheme : lightTheme}
-              defaultColDef={{ sortable: true, resizable: true, filter: true }}
-              animateRows
-              suppressCellFocus
-              domLayout="autoHeight"
-            />
+      <div className="relative flex-1 overflow-hidden rounded-xl border bg-card shadow-sm">
+        {loading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         )}
+        <div className="h-full w-full">
+          <AgGridReact
+            ref={gridRef}
+            rowData={records}
+            columnDefs={columns}
+            theme={isDark ? darkTheme : lightTheme}
+            defaultColDef={{ sortable: true, resizable: true, filter: true }}
+            animateRows
+            suppressCellFocus
+            domLayout="autoHeight"
+          />
+        </div>
       </div>
 
       {/* Pagination */}
@@ -1130,6 +1141,7 @@ function ExpensesTab({ isDark, vehicles, drivers }: { isDark: boolean; vehicles:
   const [filters, setFilters] = React.useState<ExpFilters>(EMPTY_EXP_FILTERS)
   const [page, setPage] = React.useState(1)
   const [search, setSearch] = React.useState("")
+  const [searchFocused, setSearchFocused] = React.useState(false)
   const [selected, setSelected] = React.useState<string[]>([])
   const [refreshing, setRefreshing] = React.useState(false)
   const [showSlideOver, setShowSlideOver] = React.useState(false)
@@ -1242,51 +1254,60 @@ function ExpensesTab({ isDark, vehicles, drivers }: { isDark: boolean; vehicles:
   ], []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="flex flex-1 flex-col gap-4 overflow-hidden">
+    <div className="flex flex-1 flex-col gap-3 overflow-hidden">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-40">
-          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            className="h-9 w-full rounded-lg border bg-background pl-8 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-            placeholder="Search expenses…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-        </div>
+      <div className="flex items-center gap-2">
+        <div className="flex-1" />
+
         {selected.length > 0 && (
-          <button onClick={handleBulkDelete} className="flex h-9 items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 dark:bg-red-950/20 px-3 text-sm text-red-700 dark:text-red-400 hover:bg-red-100">
+          <button onClick={handleBulkDelete} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 dark:bg-red-950/20 px-2.5 text-sm text-red-700 dark:text-red-400 hover:bg-red-100">
             <Trash2 className="h-3.5 w-3.5" /> Delete ({selected.length})
           </button>
         )}
-        <button onClick={handleRefresh} disabled={refreshing} className="flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm text-muted-foreground hover:bg-muted disabled:opacity-50">
+
+        <div className={`relative transition-all duration-200 ${searchFocused ? "w-72" : "w-40"}`}>
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <input
+            className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
+            placeholder="Search expenses…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+          />
+        </div>
+
+        <button onClick={handleRefresh} disabled={refreshing} title="Refresh"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40">
           <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-          <span className="hidden sm:inline">Refresh</span>
         </button>
-        <button onClick={() => setShowFilter(true)} className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm hover:bg-muted ${activeFilters > 0 ? "border-primary text-primary bg-primary/5" : "text-muted-foreground"}`}>
+        <button onClick={() => setShowFilter(true)}
+          className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-sm transition-colors hover:bg-accent ${
+            activeFilters > 0 ? "border-primary bg-primary/5 text-primary" : "bg-background text-muted-foreground hover:text-foreground"
+          }`}>
           <Filter className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Filter{activeFilters > 0 ? ` (${activeFilters})` : ""}</span>
         </button>
-        <button onClick={handleExport} className="flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm text-muted-foreground hover:bg-muted">
+        <button onClick={handleExport}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <Download className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Export</span>
         </button>
-        <button onClick={() => setShowHistory(true)} className="flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm text-muted-foreground hover:bg-muted">
+        <button onClick={() => setShowHistory(true)}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <History className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">History</span>
         </button>
-        <button onClick={() => setShowImport(true)} className="flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm text-muted-foreground hover:bg-muted">
+        <button onClick={() => setShowImport(true)}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <Upload className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Import</span>
         </button>
-        <button onClick={() => { setEditRecord(null); setShowSlideOver(true) }} className="flex h-9 items-center gap-2 rounded-lg border px-3 text-sm text-muted-foreground hover:bg-muted">
+        <button onClick={() => { setEditRecord(null); setShowSlideOver(true) }}
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg border bg-background px-2.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <Plus className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Add</span>
         </button>
-        {/* Send to Amazon — Expenses tab only */}
         <button
           onClick={() => setShowSendToAmazon(true)}
-          className="flex h-9 items-center gap-2 rounded-lg bg-[#FF9900] px-4 text-sm font-semibold text-white hover:bg-[#e68a00] transition-colors"
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#FF9900] px-3 text-sm font-semibold text-white transition-colors hover:bg-[#e68a00]"
         >
           <Send className="h-3.5 w-3.5" /> Send to Amazon
         </button>
@@ -1299,25 +1320,26 @@ function ExpensesTab({ isDark, vehicles, drivers }: { isDark: boolean; vehicles:
       )}
 
       {/* Grid */}
-      <div className="flex-1 overflow-hidden rounded-xl border min-h-0">
-        {loading ? (
-          <div className="flex h-full items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-        ) : (
-          <div className="h-full w-full">
-            <AgGridReact
-              ref={gridRef}
-              rowData={records}
-              columnDefs={columns}
-              theme={isDark ? darkTheme : lightTheme}
-              defaultColDef={{ sortable: true, resizable: true, filter: true }}
-              rowSelection="multiple"
-              onSelectionChanged={e => setSelected(e.api.getSelectedRows().map((r: TollReport) => r.uuid))}
-              animateRows
-              suppressCellFocus
-              domLayout="autoHeight"
-            />
+      <div className="relative flex-1 overflow-hidden rounded-xl border bg-card shadow-sm">
+        {loading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         )}
+        <div className="h-full w-full">
+          <AgGridReact
+            ref={gridRef}
+            rowData={records}
+            columnDefs={columns}
+            theme={isDark ? darkTheme : lightTheme}
+            defaultColDef={{ sortable: true, resizable: true, filter: true }}
+            rowSelection="multiple"
+            onSelectionChanged={e => setSelected(e.api.getSelectedRows().map((r: TollReport) => r.uuid))}
+            animateRows
+            suppressCellFocus
+            domLayout="autoHeight"
+          />
+        </div>
       </div>
 
       {/* Pagination */}
@@ -1385,41 +1407,33 @@ export default function TollPage() {
   }, [])
 
   const tabs: { key: Tab; label: string; icon: React.FC<{ className?: string }> }[] = [
-    { key: "receipts", label: "Receipts",  icon: (props) => <Receipt {...props} /> },
+    { key: "receipts", label: "Receipts", icon: (props) => <Receipt {...props} /> },
     { key: "expenses", label: "Expenses", icon: (props) => <CreditCard {...props} /> },
   ]
 
   return (
-    <div className="flex h-full flex-col gap-4 p-4 sm:p-6">
-      {/* Page header */}
-      <div>
-        <h1 className="text-xl font-bold tracking-tight">{t.nav.toll}</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          {activeTab === "receipts"
-            ? "OCR-processed toll receipt images"
-            : "Processed toll charges and Amazon Relay submissions"}
-        </p>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 rounded-xl border bg-muted/40 p-1 w-fit">
-        {tabs.map(tab => {
-          const Icon = tab.icon
-          return (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
-                activeTab === tab.key
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              {tab.label}
-            </button>
-          )
-        })}
+    <div className="flex flex-1 flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
+      {/* Tab switcher */}
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1 rounded-lg border bg-muted/40 p-0.5">
+          {tabs.map(tab => {
+            const Icon = tab.icon
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-sm font-medium transition-all ${
+                  activeTab === tab.key
+                    ? "bg-card shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Tab content */}
