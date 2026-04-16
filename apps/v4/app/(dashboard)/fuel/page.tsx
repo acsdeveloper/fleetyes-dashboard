@@ -173,6 +173,7 @@ const ACCEPTED_EXTS = [".jpg", ".jpeg", ".png", ".webp", ".pdf"]
 const ACCEPTED_MIME = ["image/jpeg", "image/png", "image/webp", "application/pdf"]
 
 function AddReceiptsModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const { t } = useLang()
   const [step, setStep] = React.useState<AddStep>("select")
   const [files, setFiles] = React.useState<File[]>([])
   const [dragging, setDragging] = React.useState(false)
@@ -199,10 +200,10 @@ function AddReceiptsModal({ onClose, onDone }: { onClose: () => void; onDone: ()
   }
 
   const STEPS: { key: AddStep; label: string }[] = [
-    { key: "zipping",    label: "Zipping" },
-    { key: "uploading",  label: "Uploading" },
-    { key: "importing",  label: "Importing" },
-    { key: "processing", label: "Processing OCR" },
+    { key: "zipping",    label: t.fuelReceipts.progressZipping },
+    { key: "uploading",  label: t.fuelReceipts.progressUploading },
+    { key: "importing",  label: t.fuelReceipts.progressImporting },
+    { key: "processing", label: t.fuelReceipts.progressProcessing },
   ]
   const stepIdx = STEPS.findIndex(s => s.key === step)
 
@@ -247,8 +248,8 @@ function AddReceiptsModal({ onClose, onDone }: { onClose: () => void; onDone: ()
           {/* Header */}
           <div className="flex items-center justify-between border-b px-5 py-4">
             <div>
-              <h2 className="text-base font-bold">Add Fuel Receipts</h2>
-              <p className="mt-0.5 text-xs text-muted-foreground">Drop images or PDFs — they&apos;ll be zipped and sent for OCR automatically</p>
+              <h2 className="text-base font-bold">{t.fuelReceipts.addModalTitle}</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">{t.fuelReceipts.addModalSubtitle}</p>
             </div>
             <button onClick={onClose} disabled={isProcessing} className="rounded-lg border p-1.5 text-muted-foreground hover:bg-muted disabled:opacity-40">
               <X className="h-4 w-4" />
@@ -277,8 +278,8 @@ function AddReceiptsModal({ onClose, onDone }: { onClose: () => void; onDone: ()
                     <Upload className={`h-5 w-5 transition-colors ${dragging ? "text-primary" : "text-muted-foreground"}`} />
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-medium">{dragging ? "Drop to add" : "Drag & drop receipts here"}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">or click to browse · JPEG, PNG, WebP, PDF</p>
+                    <p className="text-sm font-medium">{dragging ? t.fuelReceipts.dropActive : t.fuelReceipts.dropTitle}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{t.fuelReceipts.dropHint}</p>
                   </div>
                 </div>
                 <input
@@ -293,7 +294,7 @@ function AddReceiptsModal({ onClose, onDone }: { onClose: () => void; onDone: ()
                 {/* File list */}
                 {files.length > 0 && (
                   <div className="flex flex-col gap-1.5">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{files.length} file{files.length !== 1 ? "s" : ""} selected</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{t.fuelReceipts.filesSelected.replace("{n}", String(files.length)).replace("{s}", files.length !== 1 ? "s" : "")}</p>
                     <div className="max-h-52 overflow-y-auto rounded-xl border divide-y">
                       {files.map((f, i) => (
                         <div key={i} className="flex items-center gap-3 px-3 py-2">
@@ -332,13 +333,13 @@ function AddReceiptsModal({ onClose, onDone }: { onClose: () => void; onDone: ()
                 <div className="flex flex-col items-center gap-3 py-6">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   <p className="font-medium text-sm">
-                    {step === "zipping" ? `Zipping ${files.length} file${files.length !== 1 ? "s" : ""}…`
-                      : step === "uploading" ? "Uploading to server…"
-                      : step === "importing" ? "Importing receipt records…"
-                      : "Running OCR processing…"}
+                    {step === "zipping" ? t.fuelReceipts.stepZipping.replace("{n}", String(files.length)).replace("{s}", files.length !== 1 ? "s" : "")
+                      : step === "uploading" ? t.fuelReceipts.stepUploading
+                      : step === "importing" ? t.fuelReceipts.stepImporting
+                      : t.fuelReceipts.stepProcessing}
                   </p>
                   {step === "processing" && (
-                    <p className="text-xs text-muted-foreground">This may take a moment for large batches</p>
+                    <p className="text-xs text-muted-foreground">{t.fuelReceipts.processingNote}</p>
                   )}
                 </div>
               </div>
@@ -349,8 +350,8 @@ function AddReceiptsModal({ onClose, onDone }: { onClose: () => void; onDone: ()
               <div className="flex items-start gap-3 rounded-xl bg-green-50 dark:bg-green-950/20 p-4">
                 <CheckCircle2 className="h-6 w-6 text-green-600 shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-medium text-green-800 dark:text-green-300">Upload & processing complete</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{importedCount} receipt{importedCount !== 1 ? "s" : ""} imported</p>
+                  <p className="font-medium text-green-800 dark:text-green-300">{t.fuelReceipts.successTitle}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{t.fuelReceipts.successCount.replace("{n}", String(importedCount)).replace("{s}", importedCount !== 1 ? "s" : "")}</p>
                   {processedMsg && <p className="mt-0.5 text-xs text-muted-foreground">{processedMsg}</p>}
                 </div>
               </div>
@@ -361,7 +362,7 @@ function AddReceiptsModal({ onClose, onDone }: { onClose: () => void; onDone: ()
               <div className="flex items-center gap-3 rounded-xl bg-red-50 dark:bg-red-950/20 p-4">
                 <XCircle className="h-6 w-6 text-red-500 shrink-0" />
                 <div>
-                  <p className="font-medium text-red-700 dark:text-red-400">Upload failed</p>
+                  <p className="font-medium text-red-700 dark:text-red-400">{t.fuelReceipts.errorTitle}</p>
                   <p className="mt-0.5 text-xs text-red-600 dark:text-red-400">{errMsg}</p>
                 </div>
               </div>
@@ -372,25 +373,22 @@ function AddReceiptsModal({ onClose, onDone }: { onClose: () => void; onDone: ()
           <div className="flex gap-2 border-t p-4">
             {step === "select" && (
               <>
-                <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">Cancel</button>
-                <button
-                  onClick={run}
-                  disabled={files.length === 0}
-                  className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                >
-                  Upload {files.length > 0 ? `${files.length} file${files.length !== 1 ? "s" : ""}` : ""}
+                <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">{t.common.cancel}</button>
+                <button onClick={run} disabled={files.length === 0}
+                  className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                  {files.length > 0 ? t.fuelReceipts.btnUpload.replace("{n}", String(files.length)).replace("{s}", files.length !== 1 ? "s" : "") : t.fuelReceipts.btnAdd}
                 </button>
               </>
             )}
             {step === "done" && (
               <button onClick={() => { onDone(); onClose() }} className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-                Done — Refresh List
+                {t.fuelReceipts.btnDone}
               </button>
             )}
             {step === "error" && (
               <>
-                <button onClick={() => { setStep("select"); setErrMsg("") }} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">Try Again</button>
-                <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted">Close</button>
+                <button onClick={() => { setStep("select"); setErrMsg("") }} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">{t.fuelReceipts.btnTryAgain}</button>
+                <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted">{t.common.close}</button>
               </>
             )}
           </div>
@@ -410,6 +408,7 @@ function ReceiptFilterDrawer({ open, onClose, filters, setFilters, drivers }: {
   filters: RecFilters; setFilters: (f: RecFilters) => void
   drivers: Driver[]
 }) {
+  const { t } = useLang()
   const [local, setLocal] = React.useState<RecFilters>(filters)
   const set = <K extends keyof RecFilters>(k: K, v: string) => setLocal(f => ({ ...f, [k]: v }))
   React.useEffect(() => { setLocal(filters) }, [filters])
@@ -421,37 +420,37 @@ function ReceiptFilterDrawer({ open, onClose, filters, setFilters, drivers }: {
       <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
       <div className="fixed inset-y-0 right-0 z-50 flex w-72 flex-col border-l bg-card shadow-2xl">
         <div className="flex items-center justify-between border-b px-5 py-4">
-          <h2 className="font-bold">Filter Receipts</h2>
+          <h2 className="font-bold">{t.fuelReceipts.filterTitle}</h2>
           <button onClick={onClose} className="rounded-lg border p-1.5 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
         </div>
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-5">
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Driver</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">{t.common.driver}</label>
             <select value={local.driver_uuid} onChange={e => set("driver_uuid", e.target.value)} className={sel}>
-              <option value="">Any driver</option>
+              <option value="">{t.fuelReceipts.anyDriver}</option>
               {drivers.map(d => <option key={d.uuid} value={d.uuid}>{d.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Status</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">{t.common.status}</label>
             <select value={local.status} onChange={e => set("status", e.target.value)} className={sel}>
-              <option value="">Any status</option>
+              <option value="">{t.fuelReceipts.anyStatus}</option>
               {RECEIPT_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Captured from</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">{t.fuelReceipts.capturedFrom}</label>
             <input type="date" value={local.start_date} onChange={e => set("start_date", e.target.value)} className={sel} />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Captured to</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">{t.fuelReceipts.capturedTo}</label>
             <input type="date" value={local.end_date} onChange={e => set("end_date", e.target.value)} className={sel} />
           </div>
         </div>
         <div className="flex gap-2 border-t p-4">
-          <button onClick={() => { setLocal(EMPTY_REC_FILTERS); setFilters(EMPTY_REC_FILTERS) }} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">Clear all</button>
+          <button onClick={() => { setLocal(EMPTY_REC_FILTERS); setFilters(EMPTY_REC_FILTERS) }} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">{t.common.clearAll}</button>
           <button onClick={() => { setFilters(local); onClose() }} className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-            Apply{active > 0 ? ` (${active})` : ""}
+            {t.common.apply}{active > 0 ? ` (${active})` : ""}
           </button>
         </div>
       </div>

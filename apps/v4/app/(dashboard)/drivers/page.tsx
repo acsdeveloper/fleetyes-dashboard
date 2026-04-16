@@ -388,7 +388,7 @@ function DriverDrawer({
 
         {/* Header */}
         <div className="flex items-center justify-between border-b px-5 py-3">
-          <h2 className="text-sm font-bold">{isEdit ? "Edit Driver" : "Add New Driver"}</h2>
+          <h2 className="text-sm font-bold">{isEdit ? t.drivers.editTitle : t.drivers.addTitle}</h2>
           <button onClick={onClose} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
         </div>
 
@@ -399,25 +399,25 @@ function DriverDrawer({
           {/* Name + Status + Country */}
           <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 7rem 5rem" }}>
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Name *</label>
-              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Full name"
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t.common.name} *</label>
+              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t.common.name}
                 className="h-8 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t.common.status}</label>
               <div className="relative">
                 <select value={statusVal} onChange={e => setStatusVal(e.target.value as DriverStatus)}
                   className="h-8 w-full appearance-none rounded-lg border bg-background px-2 pr-7 text-xs font-semibold outline-none focus:ring-2 focus:ring-ring">
-                  <option value="active">Active</option>
-                  <option value="pending">Pending</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="archived">Archived</option>
+                  <option value="active">{t.drivers.statusActive}</option>
+                  <option value="pending">{t.drivers.statusPending}</option>
+                  <option value="inactive">{t.drivers.statusInactive}</option>
+                  <option value="archived">{t.drivers.statusArchived}</option>
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
               </div>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Country</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t.common.country}</label>
               <input type="text" value={country} onChange={e => setCountry(e.target.value.toUpperCase())} placeholder="GB" maxLength={3}
                 className="h-8 w-full rounded-lg border bg-background px-3 text-sm font-mono outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
             </div>
@@ -426,12 +426,12 @@ function DriverDrawer({
           {/* Email + Phone */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Email</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t.common.email}</label>
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="driver@example.com"
                 className="h-8 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Phone</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t.common.phone}</label>
               <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+44..."
                 className="h-8 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
             </div>
@@ -440,12 +440,12 @@ function DriverDrawer({
           {/* Licence + Vehicle */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Licence No.</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t.drivers.licenceNo}</label>
               <input type="text" value={licence} onChange={e => setLicence(e.target.value)} placeholder="DL number"
                 className="h-8 w-full rounded-lg border bg-background px-3 text-xs font-mono outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Vehicle</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t.common.vehicle}</label>
               <div className="relative">
                 <select value={vehicleUuid} onChange={e => setVehicleUuid(e.target.value)}
                   className="h-8 w-full appearance-none rounded-lg border bg-background px-2 pr-7 text-xs outline-none focus:ring-2 focus:ring-ring">
@@ -465,12 +465,12 @@ function DriverDrawer({
           {/* Max Trips + Consec Days */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Max Trips / Week</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t.drivers.maxTripsWeek}</label>
               <input type="number" min={1} max={99} value={maxTrips} onChange={e => setMaxTrips(e.target.value)} placeholder="—"
                 className="h-8 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Max Consec. Days</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t.drivers.maxConsecDays}</label>
               <input type="number" min={1} max={7} value={consecDays} onChange={e => setConsecDays(e.target.value)} placeholder="—"
                 className="h-8 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
             </div>
@@ -479,7 +479,7 @@ function DriverDrawer({
           {/* Fleet — chip multi-select */}
           {activeFleets.length > 0 && (
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Fleet</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t.common.fleet}</label>
               <FleetMultiSelect
                 options={activeFleets}
                 selected={selectedFleets}
@@ -492,14 +492,14 @@ function DriverDrawer({
           {/* Shift Preferences */}
           <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Shift Preference</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t.drivers.shiftPreference}</label>
               <div className="flex gap-1">
                 {(["none", "all_days", "custom"] as const).map(m => (
                   <button key={m} onClick={() => setShiftMode(m)}
                     className={`h-6 rounded px-2 text-xs font-medium transition-all ${
                       shiftMode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
                     }`}>
-                    {m === "none" ? "None" : m === "all_days" ? "All Days" : "Custom"}
+                    {m === "none" ? t.drivers.shiftNone : m === "all_days" ? t.drivers.shiftAllDays : t.drivers.shiftCustom}
                   </button>
                 ))}
               </div>
@@ -508,11 +508,11 @@ function DriverDrawer({
             {shiftMode === "all_days" && (
               <div className="grid grid-cols-2 gap-4 pt-1">
                 <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Shift Start</label>
+                  <label className="text-xs text-muted-foreground">{t.drivers.shiftStart}</label>
                   <ClockTimePicker value={shiftStart} onChange={setShiftStart} />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Shift End</label>
+                  <label className="text-xs text-muted-foreground">{t.drivers.shiftEnd}</label>
                   <ClockTimePicker value={shiftEnd} onChange={setShiftEnd} />
                 </div>
               </div>

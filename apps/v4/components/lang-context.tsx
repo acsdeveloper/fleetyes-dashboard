@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 import * as React from "react"
 
 export type Lang = "en" | "de" | "fr" | "es" | "it" | "pl"
@@ -50,7 +50,7 @@ export type Translations = {
     ref: string; route: string; type: string; amount: string; method: string
     litres: string; costPerLitre: string; totalCost: string; odometer: string
     mpg: string; depot: string; duration: string; location: string; cost: string
-    fleet: string; name: string; phone: string; licence: string; notes: string; address: string
+    fleet: string; name: string; phone: string; email: string; country: string; licence: string; notes: string; address: string
     // Buttons / actions
     view: string; reconcile: string; addNew: string; assign: string; approve: string
     reject: string; newCharge: string; details: string; close: string
@@ -449,7 +449,7 @@ export const translations: Record<Lang, Translations> = {
     },
     common: {
       save:"Save",cancel:"Cancel",upload:"Upload",download:"Download",search:"Search",new:"New",edit:"Edit",delete:"Delete",submit:"Submit",back:"Back",loading:"Loading…",addVehicle:"Add Vehicle",export:"Export",filter:"Filter",refresh:"Refresh",active:"Active",inactive:"Inactive",pending:"Pending",resolved:"Resolved",allVehicles:"All Vehicles",today:"Today",thisMonth:"This Month",selectAll:"Select All",tryAgain:"Try again",records:"records",noData:"No data",
-      date:"Date",vehicle:"Vehicle",driver:"Driver",status:"Status",action:"Action",ref:"Ref",route:"Route",type:"Type",amount:"Amount",method:"Method",litres:"Litres",costPerLitre:"Cost/L",totalCost:"Total Cost",odometer:"Odometer (mi)",mpg:"MPG",depot:"Depot",duration:"Duration",location:"Location",cost:"Cost",fleet:"Fleet",name:"Name",phone:"Phone",licence:"Licence",notes:"Notes",
+      date:"Date",vehicle:"Vehicle",driver:"Driver",status:"Status",action:"Action",ref:"Ref",route:"Route",type:"Type",amount:"Amount",method:"Method",litres:"Litres",costPerLitre:"Cost/L",totalCost:"Total Cost",odometer:"Odometer (mi)",mpg:"MPG",depot:"Depot",duration:"Duration",location:"Location",cost:"Cost",fleet:"Fleet",name:"Name",phone:"Phone",email:"Email",country:"Country",licence:"Licence",notes:"Notes",
       view:"View",reconcile:"Reconcile",addNew:"Add New",assign:"Assign",approve:"Approve",reject:"Reject",newCharge:"New Charge",details:"Details",close:"Close",
       createRecord:"Create Record",saving:"Saving…",creating:"Creating…",
       clearAll:"Clear all",apply:"Apply",stats:"Stats",noRecordsFound:"No records found",
@@ -859,7 +859,7 @@ export const translations: Record<Lang, Translations> = {
     },
     common: {
       save:"Speichern",cancel:"Abbrechen",upload:"Hochladen",download:"Herunterladen",search:"Suchen",new:"Neu",edit:"Bearbeiten",delete:"Löschen",submit:"Einreichen",back:"Zurück",loading:"Laden…",addVehicle:"Fahrzeug hinzufügen",export:"Exportieren",filter:"Filtern",refresh:"Aktualisieren",active:"Aktiv",inactive:"Inaktiv",pending:"Ausstehend",resolved:"Erledigt",allVehicles:"Alle Fahrzeuge",today:"Heute",thisMonth:"Diesen Monat",selectAll:"Alle auswählen",tryAgain:"Erneut versuchen",records:"Einträge",noData:"Keine Daten",
-      date:"Datum",vehicle:"Fahrzeug",driver:"Fahrer",status:"Status",action:"Aktion",ref:"Ref",route:"Strecke",type:"Typ",amount:"Betrag",method:"Methode",litres:"Liter",costPerLitre:"Kosten/L",totalCost:"Gesamtkosten",odometer:"Kilometerstand",mpg:"L/100km",depot:"Depot",duration:"Dauer",location:"Standort",cost:"Kosten",fleet:"Flotte",name:"Name",phone:"Telefon",licence:"Lizenz",notes:"Notizen",
+      date:"Datum",vehicle:"Fahrzeug",driver:"Fahrer",status:"Status",action:"Aktion",ref:"Ref",route:"Strecke",type:"Typ",amount:"Betrag",method:"Methode",litres:"Liter",costPerLitre:"Kosten/L",totalCost:"Gesamtkosten",odometer:"Kilometerstand",mpg:"L/100km",depot:"Depot",duration:"Dauer",location:"Standort",cost:"Kosten",fleet:"Flotte",name:"Name",phone:"Telefon",email:"E-Mail",country:"Land",licence:"Lizenz",notes:"Notizen",
       view:"Ansehen",reconcile:"Abgleichen",addNew:"Hinzufügen",assign:"Zuweisen",approve:"Genehmigen",reject:"Ablehnen",newCharge:"Neue Gebühr",details:"Details",close:"Schließen",
       createRecord:"Datensatz erstellen",saving:"Speichern…",creating:"Erstellen…",
       clearAll:"Alle löschen",apply:"Anwenden",stats:"Statistiken",noRecordsFound:"Keine Einträge gefunden",
@@ -1269,7 +1269,7 @@ export const translations: Record<Lang, Translations> = {
     },
     common: {
       save:"Enregistrer",cancel:"Annuler",upload:"Téléverser",download:"Télécharger",search:"Rechercher",new:"Nouveau",edit:"Modifier",delete:"Supprimer",submit:"Soumettre",back:"Retour",loading:"Chargement…",addVehicle:"Ajouter un véhicule",export:"Exporter",filter:"Filtrer",refresh:"Actualiser",active:"Actif",inactive:"Inactif",pending:"En attente",resolved:"Résolu",allVehicles:"Tous les véhicules",today:"Aujourd'hui",thisMonth:"Ce mois-ci",selectAll:"Tout sélectionner",tryAgain:"Réessayer",records:"entrées",noData:"Aucune donnée",
-      date:"Date",vehicle:"Véhicule",driver:"Conducteur",status:"Statut",action:"Action",ref:"Réf",route:"Itinéraire",type:"Type",amount:"Montant",method:"Méthode",litres:"Litres",costPerLitre:"Coût/L",totalCost:"Coût total",odometer:"Compteur (km)",mpg:"L/100km",depot:"Dépôt",duration:"Durée",location:"Emplacement",cost:"Coût",fleet:"Flotte",name:"Nom",phone:"Téléphone",licence:"Permis",notes:"Notes",
+      date:"Date",vehicle:"Véhicule",driver:"Conducteur",status:"Statut",action:"Action",ref:"Réf",route:"Itinéraire",type:"Type",amount:"Montant",method:"Méthode",litres:"Litres",costPerLitre:"Coût/L",totalCost:"Coût total",odometer:"Compteur (km)",mpg:"L/100km",depot:"Dépôt",duration:"Durée",location:"Emplacement",cost:"Coût",fleet:"Flotte",name:"Nom",phone:"Téléphone",email:"Email",country:"Pays",licence:"Permis",notes:"Notes",
       view:"Voir",reconcile:"Rapprocher",addNew:"Ajouter",assign:"Affecter",approve:"Approuver",reject:"Rejeter",newCharge:"Nouveau frais",details:"Détails",close:"Fermer",
       createRecord:"Créer un enregistrement",saving:"Enregistrement…",creating:"Création…",
       clearAll:"Tout effacer",apply:"Appliquer",stats:"Statistiques",noRecordsFound:"Aucun enregistrement trouvé",
@@ -1647,7 +1647,7 @@ export const translations: Record<Lang, Translations> = {
     },
     common: {
       save:"Guardar",cancel:"Cancelar",upload:"Subir",download:"Descargar",search:"Buscar",new:"Nuevo",edit:"Editar",delete:"Eliminar",submit:"Enviar",back:"Volver",loading:"Cargando…",addVehicle:"Añadir vehículo",export:"Exportar",filter:"Filtrar",refresh:"Actualizar",active:"Activo",inactive:"Inactivo",pending:"Pendiente",resolved:"Resuelto",allVehicles:"Todos los vehículos",today:"Hoy",thisMonth:"Este mes",selectAll:"Seleccionar todo",tryAgain:"Reintentar",records:"registros",noData:"Sin datos",
-      date:"Fecha",vehicle:"Vehículo",driver:"Conductor",status:"Estado",action:"Acción",ref:"Ref",route:"Ruta",type:"Tipo",amount:"Importe",method:"Método",litres:"Litros",costPerLitre:"Coste/L",totalCost:"Coste total",odometer:"Cuentakilómetros",mpg:"L/100km",depot:"Base",duration:"Duración",location:"Ubicación",cost:"Coste",fleet:"Flota",name:"Nombre",phone:"Teléfono",licence:"Permiso",notes:"Notas",
+      date:"Fecha",vehicle:"Vehículo",driver:"Conductor",status:"Estado",action:"Acción",ref:"Ref",route:"Ruta",type:"Tipo",amount:"Importe",method:"Método",litres:"Litros",costPerLitre:"Coste/L",totalCost:"Coste total",odometer:"Cuentakilómetros",mpg:"L/100km",depot:"Base",duration:"Duración",location:"Ubicación",cost:"Coste",fleet:"Flota",name:"Nombre",phone:"Teléfono",email:"Correo",country:"Pais",licence:"Permiso",notes:"Notas",
       view:"Ver",reconcile:"Conciliar",addNew:"Añadir",assign:"Asignar",approve:"Aprobar",reject:"Rechazar",newCharge:"Nuevo cargo",details:"Detalles",close:"Cerrar",
       createRecord:"Crear registro",saving:"Guardando…",creating:"Creando…",
       clearAll:"Limpiar todo",apply:"Aplicar",stats:"Estadísticas",noRecordsFound:"No se encontraron registros",
@@ -2025,7 +2025,7 @@ export const translations: Record<Lang, Translations> = {
     },
     common: {
       save:"Salva",cancel:"Annulla",upload:"Carica",download:"Scarica",search:"Cerca",new:"Nuovo",edit:"Modifica",delete:"Elimina",submit:"Invia",back:"Indietro",loading:"Caricamento…",addVehicle:"Aggiungi veicolo",export:"Esporta",filter:"Filtra",refresh:"Aggiorna",active:"Attivo",inactive:"Inattivo",pending:"In attesa",resolved:"Risolto",allVehicles:"Tutti i veicoli",today:"Oggi",thisMonth:"Questo mese",selectAll:"Seleziona tutto",tryAgain:"Riprova",records:"voci",noData:"Nessun dato",
-      date:"Data",vehicle:"Veicolo",driver:"Autista",status:"Stato",action:"Azione",ref:"Rif",route:"Percorso",type:"Tipo",amount:"Importo",method:"Metodo",litres:"Litri",costPerLitre:"Costo/L",totalCost:"Costo totale",odometer:"Contachilometri",mpg:"L/100km",depot:"Deposito",duration:"Durata",location:"Posizione",cost:"Costo",fleet:"Flotta",name:"Nome",phone:"Telefono",licence:"Patente",notes:"Note",
+      date:"Data",vehicle:"Veicolo",driver:"Autista",status:"Stato",action:"Azione",ref:"Rif",route:"Percorso",type:"Tipo",amount:"Importo",method:"Metodo",litres:"Litri",costPerLitre:"Costo/L",totalCost:"Costo totale",odometer:"Contachilometri",mpg:"L/100km",depot:"Deposito",duration:"Durata",location:"Posizione",cost:"Costo",fleet:"Flotta",name:"Nome",phone:"Telefono",email:"Email",country:"Paese",licence:"Patente",notes:"Note",
       view:"Vedi",reconcile:"Riconcilia",addNew:"Aggiungi",assign:"Assegna",approve:"Approva",reject:"Rifiuta",newCharge:"Nuovo addebito",details:"Dettagli",close:"Chiudi",
       createRecord:"Crea record",saving:"Salvataggio…",creating:"Creazione…",
       clearAll:"Cancella tutto",apply:"Applica",stats:"Statistiche",noRecordsFound:"Nessun record trovato",
@@ -2403,7 +2403,7 @@ export const translations: Record<Lang, Translations> = {
     },
     common: {
       save:"Zapisz",cancel:"Anuluj",upload:"Prześlij",download:"Pobierz",search:"Szukaj",new:"Nowy",edit:"Edytuj",delete:"Usuń",submit:"Wyślij",back:"Wstecz",loading:"Ładowanie…",addVehicle:"Dodaj pojazd",export:"Eksportuj",filter:"Filtruj",refresh:"Odśwież",active:"Aktywny",inactive:"Nieaktywny",pending:"Oczekujący",resolved:"Rozwiązany",allVehicles:"Wszystkie pojazdy",today:"Dziś",thisMonth:"W tym miesiącu",selectAll:"Zaznacz wszystkie",tryAgain:"Spróbuj ponownie",records:"wpisów",noData:"Brak danych",
-      date:"Data",vehicle:"Pojazd",driver:"Kierowca",status:"Status",action:"Akcja",ref:"Ref",route:"Trasa",type:"Typ",amount:"Kwota",method:"Metoda",litres:"Litry",costPerLitre:"Koszt/L",totalCost:"Koszt całkowity",odometer:"Przebieg (km)",mpg:"L/100km",depot:"Baza",duration:"Czas trwania",location:"Lokalizacja",cost:"Koszt",fleet:"Flota",name:"Nazwa",phone:"Telefon",licence:"Prawo jazdy",notes:"Notatki",
+      date:"Data",vehicle:"Pojazd",driver:"Kierowca",status:"Status",action:"Akcja",ref:"Ref",route:"Trasa",type:"Typ",amount:"Kwota",method:"Metoda",litres:"Litry",costPerLitre:"Koszt/L",totalCost:"Koszt całkowity",odometer:"Przebieg (km)",mpg:"L/100km",depot:"Baza",duration:"Czas trwania",location:"Lokalizacja",cost:"Koszt",fleet:"Flota",name:"Nazwa",phone:"Telefon",email:"Email",country:"Kraj",licence:"Prawo jazdy",notes:"Notatki",
       view:"Pokaż",reconcile:"Uzgodnij",addNew:"Dodaj",assign:"Przypisz",approve:"Zatwierdź",reject:"Odrzuć",newCharge:"Nowa opłata",details:"Szczegóły",close:"Zamknij",
       createRecord:"Utwórz rekord",saving:"Zapisywanie…",creating:"Tworzenie…",
       clearAll:"Wyczyść wszystko",apply:"Zastosuj",stats:"Statystyki",noRecordsFound:"Nie znaleziono rekordów",
@@ -2817,3 +2817,5 @@ export function LangProvider({ children }: { children: React.ReactNode }) {
 export function useLang() {
   return React.useContext(LangContext)
 }
+
+
