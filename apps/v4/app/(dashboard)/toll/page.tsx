@@ -7,6 +7,7 @@ import {
   Filter, Send, Eye, ImageIcon, Receipt, CreditCard,
   History, ChevronLeft, ChevronRight,
 } from "lucide-react"
+import { createOcrWorker, type OcrResult, ocrBadgeClass, ocrBadgeLabel, fileKey } from "@/lib/ocr-quality"
 import { useLang } from "@/components/lang-context"
 import { useConfirm } from "@/components/confirm-dialog"
 import JSZip from "jszip"
@@ -191,13 +192,52 @@ function AddReceiptsModal({ onClose, onDone }: { onClose: () => void; onDone: ()
   const [errMsg, setErrMsg] = React.useState("")
   const fileRef = React.useRef<HTMLInputElement>(null)
 
+  // ── OCR quality state ────────────────────────────────────────────────────
+  const [qualities, setQualities] = React.useState<Map<string, OcrResult>>(new Map())
+  const workerRef = React.useRef<Awaited<ReturnType<typeof createOcrWorker>> | null>(null)
+
+  // Initialise worker once, terminate on unmount
+  React.useEffect(() => {
+    createOcrWorker().then(w => { workerRef.current = w })
+    return () => { workerRef.current?.terminate() }
+  }, [])
+
+  // Mark files as "checking" immediately, then resolve them in parallel
+  const scanFiles = React.useCallback((incoming: File[]) => {
+    const images = incoming.filter(
+      f => f.type !== "application/pdf" && !f.name.toLowerCase().endsWith(".pdf")
+    )
+    // Instantly mark PDFs and images as "checking"
+    setQualities(prev => {
+      const next = new Map(prev)
+      incoming.forEach(f => {
+        const k = fileKey(f)
+        if (!next.has(k)) {
+          const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf")
+          next.set(k, { status: isPdf ? "pdf" : "checking", confidence: 0 })
+        }
+      })
+      return next
+    })
+    // Run image checks in parallel (don't block on each other)
+    images.forEach(async f => {
+      if (!workerRef.current) return
+      const result = await workerRef.current.checkFile(f)
+      setQualities(prev => new Map(prev).set(fileKey(f), result))
+    })
+  }, [])
+
   const addFiles = (incoming: FileList | File[]) => {
-    const valid = Array.from(incoming).filter(
+    const arr = Array.from(incoming)
+    const valid = arr.filter(
       f => ACCEPTED_MIME.includes(f.type) || ACCEPTED_EXTS.some(ext => f.name.toLowerCase().endsWith(ext))
     )
     setFiles(prev => {
       const existing = new Set(prev.map(f => f.name + f.size))
-      return [...prev, ...valid.filter(f => !existing.has(f.name + f.size))]
+      const added = valid.filter(f => !existing.has(f.name + f.size))
+      // Kick off OCR scan for newly added files
+      if (added.length) scanFiles(added)
+      return [...prev, ...added]
     })
   }
 
@@ -305,16 +345,36 @@ function AddReceiptsModal({ onClose, onDone }: { onClose: () => void; onDone: ()
                   <div className="flex flex-col gap-1.5">
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{t.tollReceipts.filesSelected.replace("{n}", String(files.length)).replace("{s}", files.length !== 1 ? "s" : "")}</p>
                     <div className="max-h-52 overflow-y-auto rounded-xl border divide-y">
-                      {files.map((f, i) => (
-                        <div key={i} className="flex items-center gap-3 px-3 py-2">
-                          <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          <span className="flex-1 truncate text-xs">{f.name}</span>
-                          <span className="text-[10px] text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
-                          <button onClick={() => removeFile(i)} className="rounded p-0.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20">
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ))}
+                      {files.map((f, i) => {
+                        const q = qualities.get(fileKey(f))
+                        return (
+                          <div key={i} className="flex items-center gap-3 px-3 py-2">
+                            <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            <span className="flex-1 truncate text-xs">{f.name}</span>
+                            {/* OCR quality badge */}
+                            {q && (
+                              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                ocrBadgeClass(q.status)
+                              }`}>
+                                {q.status === "checking"
+                                  ? <span className="inline-flex items-center gap-1">
+                                      <svg className="h-2.5 w-2.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                                      </svg>
+                                      Scanning…
+                                    </span>
+                                  : ocrBadgeLabel(q.status, q.confidence)
+                                }
+                              </span>
+                            )}
+                            <span className="text-[10px] text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
+                            <button onClick={() => removeFile(i)} className="rounded p-0.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20">
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 )}
@@ -388,7 +448,13 @@ function AddReceiptsModal({ onClose, onDone }: { onClose: () => void; onDone: ()
                   disabled={files.length === 0}
                   className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 >
-                  {files.length > 0 ? t.tollReceipts.btnUpload.replace("{n}", String(files.length)).replace("{s}", files.length !== 1 ? "s" : "") : t.tollReceipts.btnAdd}
+                  {(() => {
+                    const flagged = files.filter(f => qualities.get(fileKey(f))?.status === "unreadable").length
+                    const base = files.length > 0
+                      ? t.tollReceipts.btnUpload.replace("{n}", String(files.length)).replace("{s}", files.length !== 1 ? "s" : "")
+                      : t.tollReceipts.btnAdd
+                    return flagged > 0 ? `${base} · ⚠ ${flagged} unreadable` : base
+                  })()}
                 </button>
               </>
             )}
