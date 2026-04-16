@@ -443,19 +443,32 @@ function AddReceiptsModal({ onClose, onDone }: { onClose: () => void; onDone: ()
             {step === "select" && (
               <>
                 <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">{t.common.cancel}</button>
-                <button
-                  onClick={run}
-                  disabled={files.length === 0}
-                  className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                >
-                  {(() => {
-                    const flagged = files.filter(f => qualities.get(fileKey(f))?.status === "unreadable").length
-                    const base = files.length > 0
-                      ? t.tollReceipts.btnUpload.replace("{n}", String(files.length)).replace("{s}", files.length !== 1 ? "s" : "")
-                      : t.tollReceipts.btnAdd
-                    return flagged > 0 ? `${base} · ⚠ ${flagged} unreadable` : base
-                  })()}
-                </button>
+                {(() => {
+                  const unreadableCount = files.filter(f => qualities.get(fileKey(f))?.status === "unreadable").length
+                  const lowCount        = files.filter(f => qualities.get(fileKey(f))?.status === "low").length
+                  const isBlocked       = files.length === 0 || unreadableCount > 0
+                  return (
+                    <div className="flex flex-1 flex-col gap-1.5">
+                      <button
+                        onClick={run}
+                        disabled={isBlocked}
+                        className="w-full rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                      >
+                        {unreadableCount > 0
+                          ? `Remove ${unreadableCount} unreadable image${unreadableCount !== 1 ? "s" : ""} to continue`
+                          : files.length > 0
+                            ? t.tollReceipts.btnUpload.replace("{n}", String(files.length)).replace("{s}", files.length !== 1 ? "s" : "")
+                            : t.tollReceipts.btnAdd
+                        }
+                      </button>
+                      {lowCount > 0 && unreadableCount === 0 && (
+                        <p className="text-center text-[11px] text-amber-600 dark:text-amber-400">
+                          ⚠ {lowCount} image{lowCount !== 1 ? "s have" : " has"} low readability — may not scan correctly
+                        </p>
+                      )}
+                    </div>
+                  )
+                })()}
               </>
             )}
             {step === "done" && (
