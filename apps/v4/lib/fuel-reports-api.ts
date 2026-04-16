@@ -3,7 +3,7 @@
  * Shared endpoint for Toll Expenses and Parking Reports.
  * Differentiated by `report_type` field: "Toll" | "Parking"
  */
-import { ontrackFetch, buildQueryString, getToken } from "./ontrack-api"
+import { ontrackFetch, buildQueryString, getToken, ONTRACK_HOST } from "./ontrack-api"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -17,6 +17,9 @@ export interface TollReport {
   trip_id?: string
   crossing_date?: string
   direction?: string
+  toll_location?: string
+  entry_point?: string
+  exit_point?: string
   amount?: number
   amount_incl_tax?: number
   currency?: string
@@ -65,9 +68,12 @@ export interface FuelReportMeta {
 }
 
 export interface TollReportListResponse {
-  toll_reports: TollReport[]
+  fuel_reports: TollReport[]   // API always returns this key regardless of report_type
   meta: FuelReportMeta
 }
+
+// Alias kept for compatibility
+export type { TollReportListResponse as TollReportsResponse }
 
 export interface FuelReportListResponse {
   fuel_reports: ParkingReport[]
@@ -79,6 +85,9 @@ export type CreateTollPayload = {
   trip_id?: string
   crossing_date?: string
   direction?: string
+  toll_location?: string
+  entry_point?: string
+  exit_point?: string
   amount?: number
   amount_incl_tax?: number
   currency?: string
@@ -133,9 +142,64 @@ export async function listTollReports(params: {
   seen_status_of_amazon?: string
   vr_id?: string
 } = {}): Promise<TollReportListResponse> {
-  const merged = { page: 1, limit: 15, sort: "-created_at", ...params }
-  const qs = buildQueryString(merged as Record<string, string | number | boolean | undefined | null>)
+  const merged = {
+    page: 1,
+    limit: 50,
+    sort: "-created_at",
+    report_type: "toll",
+    ...params,
+  }
+  const base: Record<string, string | number | boolean | undefined | null> = {
+    page:    merged.page,
+    limit:   merged.limit,
+    sort:    merged.sort,
+    report_type: merged.report_type,
+    query:   merged.query,
+    vehicle: merged.vehicle,
+    driver:  merged.driver,
+    start_date: merged.start_date,
+    end_date:   merged.end_date,
+    seen_status_of_amazon: merged.seen_status_of_amazon,
+    vr_id:   merged.vr_id,
+  }
+  const qs = (
+    buildQueryString(base) +
+    "&with%5B%5D=driver&with%5B%5D=vehicle&with%5B%5D=reporter"
+  ).replace(/^&&/, "&")
   return ontrackFetch<TollReportListResponse>(`/fuel-reports${qs}`)
+}
+
+// ─── Import History ───────────────────────────────────────────────────────────
+
+export interface TollImportHistoryItem {
+  uuid: string
+  filename?: string
+  original_filename?: string
+  status: string
+  inserted_count?: number
+  updated_count?: number
+  skipped_count?: number
+  total_errors?: number
+  error_log_url?: string
+  created_at: string
+  updated_at?: string
+}
+
+export interface TollImportHistoryResponse {
+  data: TollImportHistoryItem[]
+  meta?: {
+    total: number
+    current_page: number
+    last_page: number
+  }
+}
+
+export async function listTollImportHistory(params: {
+  page?: number
+  limit?: number
+} = {}): Promise<TollImportHistoryResponse> {
+  const qs = buildQueryString({ page: params.page ?? 1, limit: params.limit ?? 20 })
+  return ontrackFetch<TollImportHistoryResponse>(`/fuel-reports/import-history${qs}`)
 }
 
 export async function getTollReport(id: string): Promise<{ toll_report: TollReport }> {
@@ -211,18 +275,22 @@ export async function bulkDeleteFuelReports(ids: string[]): Promise<{ status: st
 
 // ─── Import Toll ──────────────────────────────────────────────────────────────
 
-export async function uploadReportFile(file: File, type = "fuel_report_import"): Promise<{ uuid: string; original_filename: string }> {
+export async function uploadReportFile(file: File, type = "fuel_report_import"): Promise<{ uuid: string; original_filename?: string; url?: string }> {
   const fd = new FormData()
   fd.append("file", file)
   fd.append("type", type)
   const token = getToken()
-  const res = await fetch("https://ontrack-api.agilecyber.com/int/v1/files/upload", {
+  const res = await fetch(`${ONTRACK_HOST}/int/v1/files/upload`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: fd,
   })
   if (!res.ok) throw new Error("File upload failed")
-  return res.json()
+  const body = await res.json()
+  // API may return flat { uuid } or nested { file: { uuid } }
+  const fileObj = body?.file ?? body
+  if (!fileObj?.uuid) throw new Error("Upload response missing file UUID")
+  return { uuid: fileObj.uuid, original_filename: fileObj.original_filename, url: fileObj.url }
 }
 
 export async function importTollReports(fileUuids: string[]): Promise<TollImportResult> {
@@ -252,7 +320,7 @@ export async function exportFuelReports(params: {
   } as Record<string, string | number | boolean | undefined | null>)
   const token = getToken()
   const res = await fetch(
-    `https://ontrack-api.agilecyber.com/int/v1/fuel-reports/export${qs}`,
+    `${ONTRACK_HOST}/int/v1/fuel-reports/export${qs}`,
     { headers: { Authorization: `Bearer ${token}` } }
   )
   if (!res.ok) throw new Error(`Export failed: ${res.statusText}`)
@@ -273,7 +341,7 @@ export async function sendToAmazon(params: {
   filter_param?: "ready_to_sent" | "unseen" | "all"
 }): Promise<{ status: string; message: string; download_url?: string }> {
   const token = getToken()
-  const res = await fetch("https://ontrack-api.agilecyber.com/api/v1/report-email/send", {
+  const res = await fetch(`${ONTRACK_HOST}/api/v1/report-email/send`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,

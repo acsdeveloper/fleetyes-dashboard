@@ -1,263 +1,828 @@
 /**
- * Driver's Hours Rota Compliance Engine — Orchestrator
- * ─────────────────────────────────────────────────────
+ * Compliance Engine — Orchestrator
  *
- * Entry point for running compliance validation.
+ * This file contains ZERO rule logic.
+ * It only:
+ *   1. Converts API Order objects → DriverTrip[]
+ *   2. Calls each check module in sequence
+ *   3. Merges results into RotaComplianceReport
  *
- * This orchestrator:
- *   1. Determines the applicable ruleset (GB Domestic Goods or Assimilated)
- *   2. Runs the correct validator(s)
- *   3. Runs record-keeping validation
- *   4. Merges violations + warnings
- *   5. Returns a RotaComplianceReport
+ * To add a new rule:
+ *   - Create check-<rule>.ts with a check<Rule>(trips) function
+ *   - Import and call it in runComplianceCheck and prospectiveComplianceCheck below
+ *   - That is all.
  *
- * For HGV operations:
- *   - Vehicles > 3.5 tonnes → Assimilated (ex-EU) rules
- *   - Vehicles ≤ 3.5 tonnes → GB Domestic Goods rules
- *   - International operations → Always Assimilated
- *
- * Usage:
- *   import { evaluateCompliance } from "@/lib/compliance-engine"
- *   const report = evaluateCompliance(driverRecord)
- *
- * Or for the full async flow (fetches data from API):
- *   import { runComplianceCheck } from "@/lib/compliance-engine"
- *   const report = await runComplianceCheck(driver, "2025-07-15")
+ * Public API:
+ *   runComplianceCheck(driverUuid, tripIndex)                  → RotaComplianceReport
+ *   prospectiveComplianceCheck(driverUuid, date, order, index) → { violations }
+ *   getDriverStats(driverUuid, tripIndex, weekDates)           → DriverRuleStat[]
+ *   COMPLIANCE_RULES                                           → rule metadata for UI
+ *   re-exports: ComplianceViolation, RotaComplianceReport
  */
 
-import {
-  type DriverRecord,
-  type RotaComplianceReport,
-  type ComplianceViolation,
-  type VehicleConfig,
-  DEFAULT_VEHICLE_CONFIG,
-} from "./types"
+import type { Order } from "@/lib/orders-api"
+import type { DriverTrip } from "./types"
+import { checkOverlap }          from "./check-overlap"
+import { checkRestGap }          from "./check-rest-gap"
+import { checkWeeklyHoursRule }  from "./check-weekly-hours"
+import { checkWeeklyRest }       from "./check-weekly-rest"
+import { findOverlaps }          from "./overlap"
+import { findWeeklyRestViolation } from "./weekly-rest"
+import { shiftHours, totalWorkingMs } from "./shift-hours"
 
-import { validateGBDomesticGoods } from "./gb-domestic-goods"
-import { validateAssimilated } from "./assimilated"
-import { validateRecordKeeping, getRecordCoverage } from "./record-keeping"
-import { buildDriverRecord } from "./adapter"
-import { toDateStr } from "./utils"
+// Re-export types so the UI only needs to import from one place
+export type { ComplianceViolation, RotaComplianceReport } from "./types"
+export type { RuleId } from "./types"
 
-import type { Driver } from "../drivers-api"
+// ─── Rule Metadata (for the compliance panel drawer) ─────────────────────────
 
-// ─── Re-exports for convenience ──────────────────────────────────────────────
+import type { ComplianceRuleDefinition } from "./types"
 
-export type {
-  DriverRecord,
-  RotaComplianceReport,
-  ComplianceViolation,
-  VehicleConfig,
-  WorkingDay,
-  Activity,
-  Ruleset,
-  ComplianceSeverity,
-} from "./types"
-
-export {
-  VehicleType,
-  UsageType,
-  ActivityType,
-  DEFAULT_VEHICLE_CONFIG,
-} from "./types"
-
-export { buildDriverRecord, determineRuleset } from "./adapter"
-
-export {
-  prospectiveComplianceCheck,
-  type ProspectiveCheckResult,
-} from "./prospective-check"
-
-// ─── Rules Reference (for UI display) ────────────────────────────────────────
-
-export const COMPLIANCE_RULES = [
+export const COMPLIANCE_RULES: ComplianceRuleDefinition[] = [
   {
-    id: "EU_DAILY_WORK_LIMIT",
-    category: "Daily Limits",
-    title: "Daily Working Hours Limit",
-    description: "Maximum working hours per day are derived from the rest requirement: 13 hours with standard 11h rest, or 15 hours with reduced 9h rest (max 3 per week). When driving hours are tracked separately, a 9h/10h driving limit also applies.",
-    limit: "13h (15h reduced rest)",
-    severity: "hard" as const,
+    id:          "OVERLAP",
+    title:       "Overlapping Trips",
+    description: "Two trips assigned to the same driver overlap in time. A driver cannot be in two places at once.",
+    severity:    "hard",
+    category:    "Daily Limits",
+    limit:       "0 min",
   },
   {
-    id: "EU_BREAK_REQUIREMENT",
-    category: "Daily Limits",
-    title: "Intra-Shift Breaks",
-    description: "Breaks must be taken as per law during the work shift. Currently assumed to be compliant — will be enforced when driving hours are tracked separately.",
-    limit: "Assumed compliant",
-    severity: "soft" as const,
+    id:          "REST_GAP",
+    title:       "Insufficient Rest Between Shifts",
+    description: "EC 561/2006: minimum 11h rest required between shifts. Reduced rest (9–11h) allowed max 3× per week. Gap < 9h = hard violation. Gap 9–11h = soft warning.",
+    severity:    "hard",
+    category:    "Rest Periods",
+    limit:       "11h (min 9h)",
   },
   {
-    id: "EU_DAILY_REST",
-    category: "Rest Periods",
-    title: "Daily Rest Period",
-    description: "Minimum 11 hours continuous rest between working days. Can be reduced to 9 hours up to 3 times between weekly rests.",
-    limit: "11h (9h reduced, 3×/week)",
-    severity: "hard" as const,
+    id:          "DAILY_HOURS",
+    title:       "Daily Working Hours",
+    description: "EC 561/2006 Art.6: maximum 9h per day (extendable to 10h max twice per week). Exceeding 9h = warning; exceeding 56h in the week = violation.",
+    severity:    "hard",
+    category:    "Daily Limits",
+    limit:       "9h (max 10h ×2/wk)",
   },
   {
-    id: "EU_WEEKLY_REST",
-    category: "Rest Periods",
-    title: "Weekly Rest Period",
-    description: "At least 45 hours continuous rest per week. Can be reduced to 24 hours every other week (compensation due within 3 weeks).",
-    limit: "45h (24h reduced)",
-    severity: "hard" as const,
+    id:          "WEEKLY_HOURS",
+    title:       "Weekly Working Hours",
+    description: "EU Transport WTD (2002/15/EC): maximum 60h working time in any single week. Warning issued at 55h.",
+    severity:    "hard",
+    category:    "Weekly Limits",
+    limit:       "56h",
   },
   {
-    id: "EU_WEEKLY_DRIVE_LIMIT",
-    category: "Weekly Limits",
-    title: "Weekly Driving Limit",
-    description: "Maximum 56 hours driving in any single week (Monday to Sunday).",
-    limit: "56h per week",
-    severity: "hard" as const,
+    id:          "BIWEEKLY_HOURS",
+    title:       "Biweekly Working Hours",
+    description: "EC 561/2006 Art.6.3: maximum 90h across any two consecutive weeks. Warning issued at 80h.",
+    severity:    "hard",
+    category:    "Weekly Limits",
+    limit:       "90h / 2 weeks",
   },
   {
-    id: "EU_FORTNIGHTLY_DRIVE_LIMIT",
-    category: "Weekly Limits",
-    title: "Fortnightly Driving Limit",
-    description: "Maximum 90 hours driving in any two consecutive weeks.",
-    limit: "90h per fortnight",
-    severity: "hard" as const,
-  },
-  {
-    id: "EU_CONSECUTIVE_WORKING_DAYS",
-    category: "Weekly Limits",
-    title: "Consecutive Working Days",
-    description: "Maximum 6 consecutive 24-hour working periods before a weekly rest is required.",
-    limit: "6 days max",
-    severity: "hard" as const,
-  },
-  {
-    id: "RECORD_KEEPING",
-    category: "Record Keeping",
-    title: "29-Day Record Window",
-    description: "Drivers must carry records for the current day plus the previous 28 calendar days (29-day rolling window).",
-    limit: "29 days coverage",
-    severity: "soft" as const,
+    id:          "WEEKLY_REST",
+    title:       "Weekly Rest Period",
+    description: "EC 561/2006 Art.8.6 + internal policy: drivers must have ≥46h unbroken rest per 7-day period (company policy; EC minimum is 45h). Reduced rest (24h) allowed but must be compensated within 3 weeks. Warning: 24–46h. Violation: < 24h.",
+    severity:    "hard",
+    category:    "Rest Periods",
+    limit:       "46h (internal policy)",
   },
 ]
 
-// ─── Core Evaluation ─────────────────────────────────────────────────────────
+
+// ─── Order → DriverTrip conversion ───────────────────────────────────────────
 
 /**
- * Evaluate a pre-built DriverRecord against the applicable ruleset.
+ * Convert an API Order to a DriverTrip for the check modules.
  *
- * This is the pure, synchronous evaluation function — no API calls.
- * Use `runComplianceCheck()` for the full async flow that fetches data.
+ * End-time resolution (priority order):
+ *   1. estimated_end_date  — explicit API end time
+ *   2. scheduled_at + time — start + duration (time is in seconds per API)
+ *   3. scheduled_at + 8h   — conservative fallback; trip is never silently dropped
  *
- * @param record           The driver's historical + planned schedule
- * @param evaluationDate   The date to evaluate from (for record-keeping window)
- * @returns                Complete compliance report
+ * Returns null only when scheduled_at is missing (can't place the trip in time at all).
  */
-export function evaluateCompliance(
-  record: DriverRecord,
-  evaluationDate?: string,
-): RotaComplianceReport {
-  const evalDate = evaluationDate ?? toDateStr(new Date())
+function orderToTrip(order: Order): DriverTrip | null {
+  if (!order.scheduled_at) return null
 
-  // ── Step 1: Run the appropriate ruleset validator ──────────────
-  let rulesetIssues: ComplianceViolation[] = []
+  const startTime = new Date(order.scheduled_at)
 
-  switch (record.applicableRuleset) {
-    case "GB_DOMESTIC_GOODS":
-      rulesetIssues = validateGBDomesticGoods(record)
-      break
+  let endTime: Date
+  let endTimeSource: string
 
-    case "ASSIMILATED":
-      rulesetIssues = validateAssimilated(record)
-      break
-
-    case "GB_DOMESTIC_PASSENGER":
-      // Not applicable for HGV — included for completeness
-      // Would call validateGBDomesticPassenger(record) if needed
-      break
+  if (order.estimated_end_date) {
+    endTime = new Date(order.estimated_end_date)
+    endTimeSource = `eed:${order.estimated_end_date.slice(0,16)}`
+  } else if (order.time && order.time > 0) {
+    endTime = new Date(startTime.getTime() + order.time * 1000)
+    endTimeSource = `time:${order.time}s`
+  } else {
+    endTime = new Date(startTime.getTime() + 8 * 60 * 60 * 1000)
+    endTimeSource = "8h-fallback"
   }
 
-  // ── Step 2: Run record-keeping validation ─────────────────────
-  const recordIssues = validateRecordKeeping(record, evalDate)
-
-  // ── Step 3: Merge all issues ──────────────────────────────────
-  const allIssues = [...rulesetIssues, ...recordIssues]
-
-  // Separate violations from warnings
-  const violations = allIssues.filter(i => i.severity === "violation")
-  const warnings   = allIssues.filter(i => i.severity === "warning")
-
-  // ── Step 4: Calculate coverage ────────────────────────────────
-  const coverage = getRecordCoverage(record, evalDate)
-  const evaluatedDays = record.workingDays.length
+  // Sanity: end must be after start
+  if (endTime <= startTime) {
+    endTimeSource = `8h-sanity(was:${endTimeSource})`
+    endTime = new Date(startTime.getTime() + 8 * 60 * 60 * 1000)
+  }
 
   return {
-    isCompliant:        violations.length === 0,
-    violations,
-    warnings,
-    evaluatedDays,
-    recordCoverageDays: coverage,
+    orderId:       order.uuid,
+    driverUuid:    order.driver_assigned_uuid ?? order.driver_assigned?.uuid ?? "",
+    startTime,
+    endTime,
+    endTimeSource,
   }
 }
 
-// ─── Full Async Flow ─────────────────────────────────────────────────────────
-
-/**
- * Run a complete compliance check for a driver.
- *
- * This is the high-level async function that:
- *   1. Fetches 29 days of trip history from the Orders API
- *   2. Merges with rota data from localStorage
- *   3. Builds a DriverRecord
- *   4. Evaluates compliance
- *   5. Returns the report
- *
- * @param driver          The driver to evaluate
- * @param evaluationDate  The date to evaluate from (default: today)
- * @param vehicleConfig   Vehicle configuration overrides
- * @returns               Complete compliance report
- */
-export async function runComplianceCheck(
-  driver: Driver,
-  evaluationDate?: string,
-  vehicleConfig?: VehicleConfig,
-): Promise<RotaComplianceReport> {
-  const evalDate = evaluationDate ?? toDateStr(new Date())
-  const config   = vehicleConfig ?? DEFAULT_VEHICLE_CONFIG
-
-  // Build the driver record from API data
-  const record = await buildDriverRecord(driver, evalDate, config)
-
-  // Evaluate compliance
-  return evaluateCompliance(record, evalDate)
+/** Extract all trips for one driver from the tripIndex */
+function getDriverTrips(driverUuid: string, tripIndex: Map<string, Order>): DriverTrip[] {
+  const trips: DriverTrip[] = []
+  tripIndex.forEach(order => {
+    const assigned = order.driver_assigned_uuid ?? order.driver_assigned?.uuid
+    if (assigned !== driverUuid) return
+    const t = orderToTrip(order)
+    if (t) trips.push(t)
+  })
+  return trips
 }
 
-/**
- * Run compliance checks for multiple drivers in parallel.
- *
- * @param drivers         Array of drivers to evaluate
- * @param evaluationDate  The date to evaluate from (default: today)
- * @param vehicleConfig   Vehicle configuration (applied to all drivers)
- * @returns               Map of driverUuid → RotaComplianceReport
- */
-export async function runBulkComplianceCheck(
-  drivers: Driver[],
-  evaluationDate?: string,
-  vehicleConfig?: VehicleConfig,
-): Promise<Map<string, RotaComplianceReport>> {
-  const evalDate = evaluationDate ?? toDateStr(new Date())
-  const config   = vehicleConfig ?? DEFAULT_VEHICLE_CONFIG
-  const results  = new Map<string, RotaComplianceReport>()
+// ─── runComplianceCheck ───────────────────────────────────────────────────────
 
-  // Run all checks in parallel (each driver independently)
-  const entries = await Promise.allSettled(
-    drivers.map(async (driver) => {
-      const report = await runComplianceCheck(driver, evalDate, config)
-      return { uuid: driver.uuid, report }
-    })
+/**
+ * Full compliance check for one driver.
+ * Uses the tripIndex already loaded in the rota page — no extra API calls.
+ * Calls each rule check module in sequence and merges results.
+ *
+ * @param driverUuid  Driver to check
+ * @param tripIndex   All orders currently loaded in the UI (uuid → Order)
+ * @param weekDates   Optional: Sun–Sat date strings for the visible week.
+ *                    Required for weekly/biweekly checks. If omitted, those checks are skipped.
+ */
+export function runComplianceCheck(
+  driverUuid: string,
+  tripIndex: Map<string, Order>,
+  weekDates?: string[],
+) {
+  const trips = getDriverTrips(driverUuid, tripIndex)
+
+  // ── Check 1: Overlap ──────────────────────────────────────────────────────
+  const overlapResult    = checkOverlap(trips)
+
+  // ── Check 2: Rest Gap ─────────────────────────────────────────────────────
+  const restGapResult    = checkRestGap(trips)
+
+  // NOTE: checkDailyHours is intentionally omitted.
+  // Daily hours (9h/10h) is a DRIVING hours limit enforced by Relay.
+  // This system records WORKING/SHIFT hours only. 12.5h shifts are normal
+  // and must not trigger false violations here.
+
+  // ── Check 4: Weekly + Biweekly Hours ───────────────────────────────────────
+  // Only runs when weekDates is provided (rota page always passes it).
+  // Partitions trips by whether they fall in the current visible week or the prior week.
+  const weeklyResult = (() => {
+    if (!weekDates || weekDates.length === 0) return { violations: [], warnings: [] }
+    const weekSet  = new Set(weekDates)
+    const thisWeek = trips.filter(t => weekSet.has(
+      `${t.startTime.getFullYear()}-${String(t.startTime.getMonth()+1).padStart(2,"0")}-${String(t.startTime.getDate()).padStart(2,"0")}`
+    ))
+    const lastWeek = trips.filter(t => !weekSet.has(
+      `${t.startTime.getFullYear()}-${String(t.startTime.getMonth()+1).padStart(2,"0")}-${String(t.startTime.getDate()).padStart(2,"0")}`
+    ))
+    const weekEnd       = weekDates[weekDates.length - 1]  // Saturday
+    const weekStart     = weekDates[0]                     // Sunday
+    const weekLabel     = `w/c ${weekStart}`
+    const biweeklyLabel = `weeks ending ${weekEnd}`
+    return checkWeeklyHoursRule(thisWeek, lastWeek, weekEnd, weekLabel, biweeklyLabel)
+  })()
+
+  // ── Check 5: Weekly Rest ─────────────────────────────────────────────────────
+  // Run for the trips visible in the current week only.
+  // Pass the last prior-week trip end so pre-week rest gaps (Sun/Mon before first
+  // Tuesday shift) are correctly included in the "longest rest" calculation.
+  const weeklyRestResult = (() => {
+    if (!weekDates || weekDates.length === 0) return { violations: [], warnings: [] }
+    const weekSet    = new Set(weekDates)
+    const dayStr = (t: { startTime: Date }) =>
+      `${t.startTime.getFullYear()}-${String(t.startTime.getMonth()+1).padStart(2,"0")}-${String(t.startTime.getDate()).padStart(2,"0")}`
+    const weekTrips  = trips.filter(t =>  weekSet.has(dayStr(t)))
+    const priorTrips = trips.filter(t => !weekSet.has(dayStr(t)))
+    const priorSorted = [...priorTrips].sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
+    const lastPriorEnd = priorSorted.length > 0 ? priorSorted[priorSorted.length - 1].endTime : null
+    const weekEnd   = weekDates[weekDates.length - 1]
+    const weekStart = weekDates[0]
+    return checkWeeklyRest(weekTrips, weekEnd, lastPriorEnd, weekStart)
+  })()
+
+  // ── Merge ─────────────────────────────────────────────────────────────────
+  return {
+    violations: [
+      ...overlapResult.violations,
+      ...restGapResult.violations,
+      ...weeklyResult.violations,
+      ...weeklyRestResult.violations,
+    ],
+    warnings: [
+      ...overlapResult.warnings,
+      ...restGapResult.warnings,
+      ...weeklyResult.warnings,
+      ...weeklyRestResult.warnings,
+    ],
+  }
+}
+
+// ─── prospectiveComplianceCheck ───────────────────────────────────────────────
+
+/**
+ * Check if assigning a new trip to a driver would create a VIOLATION.
+ * Called before saving. Only violations block the assignment — warnings do not.
+ *
+ * Calls each rule check module in sequence with the combined trip set,
+ * then filters to only pairs involving the new trip.
+ *
+ * @param driverUuid  Driver being assigned
+ * @param _date       Assignment date (unused — we scan all trips in tripIndex)
+ * @param newOrder    The order being newly assigned
+ * @param tripIndex   All orders currently in the UI (uuid → Order)
+ */
+export function prospectiveComplianceCheck(
+  driverUuid: string,
+  _date: string,
+  newOrder: Order,
+  tripIndex: Map<string, Order>,
+) {
+  const newTrip = orderToTrip(newOrder)
+  if (!newTrip) return { violations: [] }
+  newTrip.driverUuid = driverUuid
+
+  // Existing trips for this driver (excluding the one being assigned)
+  const existing = getDriverTrips(driverUuid, tripIndex).filter(
+    t => t.orderId !== newOrder.uuid
+  )
+  if (existing.length === 0) return { violations: [] }
+
+  const all = [...existing, newTrip]
+
+  // ── Check 1: Overlap (prospective) ────────────────────────────────────────
+  const overlapResult = checkOverlap(all)
+  const overlapViolations = overlapResult.violations.filter(
+    v => v.tripAUuid === newOrder.uuid || v.tripBUuid === newOrder.uuid
   )
 
-  for (const entry of entries) {
-    if (entry.status === "fulfilled") {
-      results.set(entry.value.uuid, entry.value.report)
-    }
+  // ── Check 2: Rest Gap (prospective — violations only, warnings don't block) ──
+  const restGapResult = checkRestGap(all)
+  const restGapViolations = restGapResult.violations.filter(
+    v => v.tripAUuid === newOrder.uuid || v.tripBUuid === newOrder.uuid
+  )
+
+  // NOTE: Daily hours check omitted — driving hours are managed by Relay.
+
+  return {
+    violations: [
+      ...overlapViolations,
+      ...restGapViolations,
+    ],
+  }
+}
+
+// ─── getDriverStats ───────────────────────────────────────────────────────────
+
+/**
+ * Raw measured values for every compliance rule for a single driver.
+ * Used to populate utilisation bars in the Compliance Matrix view.
+ *
+ * All "minutes" fields are actual computed durations — not pass/fail.
+ * The UI can then compare them against the rule limits to draw bars.
+ */
+export interface DriverRuleStat {
+  ruleId:       string
+  /** Actual measured value (minutes, or count for OVERLAP/BREAK_45/REDUCED_REST_DAYS) */
+  usedMinutes:  number
+  /** Rule limit / target (minutes, or count) */
+  limitMinutes: number
+  /** 0–1 fill ratio for the progress bar ( usedMinutes / limitMinutes, capped at 1 ) */
+  ratio:        number
+  /** Formatted "used" string, e.g. "34h 20m" or "2 pairs" */
+  usedLabel:    string
+  /** Formatted limit string, e.g. "56h" */
+  limitLabel:   string
+  /** Human-readable detail for the tooltip */
+  detail:       string
+  status:       "compliant" | "warning" | "violation"
+}
+
+function fmtMins(minutes: number): string {
+  const h = Math.floor(minutes / 60)
+  const m = Math.round(minutes % 60)
+  return m === 0 ? `${h}h` : `${h}h ${m}m`
+}
+
+/**
+ * Compute raw stats for all 12 compliance rows for one driver.
+ * Matches the 10 rows in analysis.html (Driving Times + Resting Times +
+ * Compensated Weekly Rest) plus Overlap integrity check.
+ *
+ * Row order:
+ *   DRIVING TIMES:          CONTINUOUS_4H30, DAILY_HOURS, DAILY_AMPLITUDE,
+ *                           REDUCED_REST_DAYS, WEEKLY_HOURS, BIWEEKLY_HOURS
+ *   RESTING TIMES:          BREAK_45, REST_GAP
+ *   COMPENSATED WEEKLY REST: WEEKLY_REST, WEEKLY_REST_PRIOR, WEEKLY_REST_PRIOR2
+ *   INTEGRITY:              OVERLAP
+ *
+ * @param driverUuid  Driver to measure
+ * @param tripIndex   All orders currently in the UI
+ * @param weekDates   The visible week's date strings (Sunday→Saturday)
+ */
+export function getDriverStats(
+  driverUuid: string,
+  tripIndex: Map<string, Order>,
+  weekDates: string[],
+): DriverRuleStat[] {
+  const trips = getDriverTrips(driverUuid, tripIndex)
+  const weekSet = new Set(weekDates)
+
+  // ── Shared helpers ──────────────────────────────────────────────────────────
+  function toDayStr(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`
   }
 
-  return results
+  // ── Filter trips by window ─────────────────────────────────────────────────
+  const thisWeekTrips  = trips.filter(t =>  weekSet.has(toDayStr(t.startTime)))
+  const priorWeekTrips = trips.filter(t => !weekSet.has(toDayStr(t.startTime)))
+
+  // Pre-sorted arrays used by multiple stats
+  const allSorted  = [...trips].sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
+  const weekSorted = [...thisWeekTrips].sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
+
+  /** Longest gap (ms) between any consecutive end→start pair in a sorted trip list */
+  function longestGapMs(sortedTrips: typeof trips): number {
+    let max = 0
+    for (let i = 0; i < sortedTrips.length - 1; i++) {
+      const g = sortedTrips[i + 1].startTime.getTime() - sortedTrips[i].endTime.getTime()
+      if (g > max) max = g
+    }
+    return max
+  }
+
+  /** Format a Date as "DD Mon HH:MM" local time — used in diagnostic tooltips */
+  function fmtFull(d: Date): string {
+    const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+    return `${d.getDate()} ${MON[d.getMonth()]} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`
+  }
+
+  /** Longest gap pair (ms + bounding timestamps) between consecutive trips */
+  function longestGapPair(sortedTrips: typeof trips): { ms: number; gapStart: Date; gapEnd: Date } | null {
+    let best: { ms: number; gapStart: Date; gapEnd: Date } | null = null
+    for (let i = 0; i < sortedTrips.length - 1; i++) {
+      const g = sortedTrips[i + 1].startTime.getTime() - sortedTrips[i].endTime.getTime()
+      if (g > 0 && (best === null || g > best.ms)) {
+        best = { ms: g, gapStart: sortedTrips[i].endTime, gapEnd: sortedTrips[i + 1].startTime }
+      }
+    }
+    return best
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // SECTION 1 — DRIVING TIMES
+  // ───────────────────────────────────────────────────────────────────────────
+
+  // ── 1. CONTINUOUS_4H30 ─────────────────────────────────────────────────────
+  //  EC 561/2006 Art.7: no more than 4h 30m of continuous driving without a
+  //  45-minute break (may be split into 15+30 min).
+  //  We can only observe inter-trip gaps; intra-trip breaks are not in the data.
+  //  "Chain" = run of trips where each consecutive gap < 45 min.
+  //  Stat: longest chain's total driving duration vs 4h 30m limit.
+  const continuousStat: DriverRuleStat = (() => {
+    const BREAK_MS  = 45 * 60 * 1000
+    const limitMins = 4.5 * 60              // 270 min
+    if (weekSorted.length === 0) {
+      return { ruleId: "CONTINUOUS_4H30", usedMinutes: 0, limitMinutes: limitMins,
+        ratio: 0, usedLabel: "N/A", limitLabel: "4h 30m",
+        detail: "No trips this week", status: "compliant" as const }
+    }
+    let maxChainMs = 0
+    let curChainMs = weekSorted[0].endTime.getTime() - weekSorted[0].startTime.getTime()
+    for (let i = 0; i < weekSorted.length - 1; i++) {
+      const gapMs  = weekSorted[i + 1].startTime.getTime() - weekSorted[i].endTime.getTime()
+      const nextMs = weekSorted[i + 1].endTime.getTime()   - weekSorted[i + 1].startTime.getTime()
+      if (gapMs > 0 && gapMs < BREAK_MS) {
+        curChainMs += nextMs
+      } else {
+        maxChainMs = Math.max(maxChainMs, curChainMs)
+        curChainMs = nextMs
+      }
+    }
+    maxChainMs = Math.max(maxChainMs, curChainMs)
+    const usedMins = maxChainMs / 60000
+    const ratio    = Math.min(1, usedMins / limitMins)
+    const status   = usedMins > limitMins ? "violation" : usedMins > 4 * 60 ? "warning" : "compliant"
+    return {
+      ruleId: "CONTINUOUS_4H30", usedMinutes: usedMins, limitMinutes: limitMins,
+      ratio, usedLabel: fmtMins(usedMins), limitLabel: "4h 30m",
+      detail: `Longest unbroken driving block: ${fmtMins(usedMins)}\nLimit: 4h 30m (EC 561/2006 Art.7). A 45-min break (or 15+30 min split) resets the chain.\nNote: we can only see gaps between trips, not breaks within them.`, status,
+    }
+  })()
+
+  // ── 2. DAILY_HOURS — peak single-day derived DRIVING hours this week ───────
+  //  Uses shiftHours() derivation: single-day = block−3.5h, multi-day = 9h fixed.
+  //  EC 561/2006 Art.6: 9h standard (10h max, max twice per week).
+  const dailyStat: DriverRuleStat = (() => {
+    const dayTotals = new Map<string, number>()
+    for (const trip of thisWeekTrips) {
+      const { drivingHours } = shiftHours(trip.startTime, trip.endTime)
+      const d = toDayStr(trip.startTime)
+      dayTotals.set(d, (dayTotals.get(d) ?? 0) + drivingHours * 3_600_000)
+    }
+    const peakMs    = dayTotals.size > 0 ? Math.max(...dayTotals.values()) : 0
+    const peakMins  = peakMs / 60000
+    const limitMins = 10 * 60
+    const ratio     = Math.min(1, peakMins / limitMins)
+    const status    = peakMs > 10 * 3600000 ? "violation" : peakMs > 9 * 3600000 ? "warning" : "compliant"
+    let peakDay = ""
+    dayTotals.forEach((ms, d) => { if (ms === peakMs) peakDay = d })
+    return {
+      ruleId: "DAILY_HOURS", usedMinutes: peakMins, limitMinutes: limitMins,
+      ratio, usedLabel: thisWeekTrips.length === 0 ? "N/A" : fmtMins(peakMins), limitLabel: "10h max",
+      detail: `Peak day driving (derived): ${fmtMins(peakMins)}${peakDay ? ` (${peakDay})` : ""}\nSingle-day blocks: block − 3.5h. Multi-day blocks: 9h fixed.\nLimit: 9h standard, 10h extended (max 2×/week) — EC 561/2006 Art.6.1.`, status,
+    }
+  })()
+
+  // ── 3. DAILY_AMPLITUDE — max span from first to last activity on any day ──
+  //  "Amplitude" = last trip end − first trip start on the same calendar day.
+  //  Limit: 15h (EC 561/2006: working period must not exceed 15h with reduced rest).
+  //  Warning at 13h.
+  const amplitudeStat: DriverRuleStat = (() => {
+    const dayBounds = new Map<string, { min: number; max: number }>()
+    for (const trip of thisWeekTrips) {
+      const d  = toDayStr(trip.startTime)
+      const ex = dayBounds.get(d)
+      dayBounds.set(d, {
+        min: ex ? Math.min(ex.min, trip.startTime.getTime()) : trip.startTime.getTime(),
+        max: ex ? Math.max(ex.max, trip.endTime.getTime())   : trip.endTime.getTime(),
+      })
+    }
+    let maxAmpMs = 0
+    dayBounds.forEach(({ min, max }) => { if (max - min > maxAmpMs) maxAmpMs = max - min })
+    const usedMins  = maxAmpMs / 60000
+    const limitMins = 15 * 60
+    const ratio     = Math.min(1, usedMins / limitMins)
+    const status    = usedMins > limitMins ? "violation" : usedMins > 13 * 60 ? "warning" : "compliant"
+    return {
+      ruleId: "DAILY_AMPLITUDE", usedMinutes: usedMins, limitMinutes: limitMins,
+      ratio, usedLabel: thisWeekTrips.length === 0 ? "N/A" : fmtMins(usedMins), limitLabel: "15h max",
+      detail: `Widest day span (first trip start → last trip end on a single day): ${fmtMins(usedMins)}\nLimit: 15h (EC 561/2006). Warning at 13h.`, status,
+    }
+  })()
+
+  // ── 4. REDUCED_REST_DAYS — count of inter-trip gaps that are 9h–11h ────────
+  //  EC 561/2006: reduced daily rest (9–11h) allowed max 3× per 7-day period.
+  //  We scan the full sorted trip list so cross-week overnight pairs are caught.
+  const reducedRestStat: DriverRuleStat = (() => {
+    let count = 0
+    for (let i = 0; i < allSorted.length - 1; i++) {
+      const gapMs = allSorted[i + 1].startTime.getTime() - allSorted[i].endTime.getTime()
+      if (gapMs > 9 * 3600000 && gapMs < 11 * 3600000) count++
+    }
+    const limitCount = 3
+    const ratio   = Math.min(1, count / limitCount)
+    const status  = count > limitCount ? "violation" : count === limitCount ? "warning" : "compliant"
+    return {
+      ruleId: "REDUCED_REST_DAYS", usedMinutes: count, limitMinutes: limitCount,
+      ratio,
+      usedLabel:  count === 0 ? "None" : `${count} time${count !== 1 ? "s" : ""}`,
+      limitLabel: "max 3×/week",
+      detail: `Inter-trip gaps between 9h and 11h (reduced daily rest): ${count}\nMax allowed: 3× per week (EC 561/2006 Art.8.1). Each instance requires compensation.`, status,
+    }
+  })()
+
+  // ── 5. WEEKLY_HOURS — total derived WORKING time this week ──────────────────
+  //  Uses shiftHours() derivation: single-day = block−1h, multi-day = 11h fixed.
+  //  EU Transport WTD (2002/15/EC): absolute max 60h/week. Warning at 55h.
+  const weeklyStat: DriverRuleStat = (() => {
+    const totalMs   = totalWorkingMs(thisWeekTrips)
+    const totalMins = totalMs / 60000
+    const limitMins = 60 * 60
+    const ratio     = Math.min(1, totalMins / limitMins)
+    const status    = totalMs > 60 * 3600000 ? "violation" : totalMs > 55 * 3600000 ? "warning" : "compliant"
+    return {
+      ruleId: "WEEKLY_HOURS", usedMinutes: totalMins, limitMinutes: limitMins,
+      ratio, usedLabel: fmtMins(totalMins), limitLabel: "60h",
+      detail: `Total working hours this week (derived): ${fmtMins(totalMins)}\nSingle-day trips: block − 1h. Multi-day trips: 11h fixed.\nLimit: 60h/week (EU Transport WTD 2002/15/EC). Warning at 55h.`, status,
+    }
+  })()
+
+  // ── 6. BIWEEKLY_HOURS — derived working time this week + prior week ────────
+  //  EC 561/2006 Art.6.3: max 90h / 2 weeks. Warning at 80h.
+  const biweeklyStat: DriverRuleStat = (() => {
+    const thisMs    = totalWorkingMs(thisWeekTrips)
+    const priorMs   = totalWorkingMs(priorWeekTrips)
+    const allMs     = thisMs + priorMs
+    const totalMins = allMs / 60000
+    const limitMins = 90 * 60
+    const ratio     = Math.min(1, totalMins / limitMins)
+    const status    = allMs > 90 * 3600000 ? "violation" : allMs > 80 * 3600000 ? "warning" : "compliant"
+    return {
+      ruleId: "BIWEEKLY_HOURS", usedMinutes: totalMins, limitMinutes: limitMins,
+      ratio, usedLabel: fmtMins(totalMins), limitLabel: "90h",
+      detail: `2-week working total (derived): ${fmtMins(totalMins)}\nThis week: ${fmtMins(thisMs/60000)} + Prior week: ${fmtMins(priorMs/60000)}\nSingle-day trips: block − 1h. Multi-day trips: 11h fixed.\nLimit: 90h / 2 weeks (EC 561/2006 Art.6.3). Warning at 80h.`, status,
+    }
+  })()
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // SECTION 2 — RESTING TIMES
+  // ───────────────────────────────────────────────────────────────────────────
+
+  // ── 7. BREAK_45 — count of continuous driving chains that exceeded 4h30 ──
+  //  Each such chain means a 45-min break was not observed in the trip data.
+  //  (We cannot see breaks within trips — only inter-trip gaps.)
+  //  Count 0 = OK. Any count > 0 = violation (break was missed or not recorded).
+  const break45Stat: DriverRuleStat = (() => {
+    const BREAK_MS = 45 * 60 * 1000
+    const LIMIT_MS = 4.5 * 60 * 60 * 1000
+    let violations = 0
+    if (weekSorted.length > 0) {
+      let curChainMs = weekSorted[0].endTime.getTime() - weekSorted[0].startTime.getTime()
+      for (let i = 0; i < weekSorted.length - 1; i++) {
+        const gapMs  = weekSorted[i + 1].startTime.getTime() - weekSorted[i].endTime.getTime()
+        const nextMs = weekSorted[i + 1].endTime.getTime()   - weekSorted[i + 1].startTime.getTime()
+        if (gapMs > 0 && gapMs < BREAK_MS) {
+          curChainMs += nextMs
+        } else {
+          if (curChainMs > LIMIT_MS) violations++
+          curChainMs = nextMs
+        }
+      }
+      if (curChainMs > LIMIT_MS) violations++
+    }
+    const status = violations > 0 ? "violation" : "compliant"
+    return {
+      ruleId: "BREAK_45", usedMinutes: violations, limitMinutes: 0,
+      ratio: violations > 0 ? 1 : 0,
+      usedLabel:  violations === 0 ? "OK" : `${violations} missed`,
+      limitLabel: "0 missed",
+      detail: violations === 0
+        ? "Break taken in time each day"
+        : `${violations} driving block${violations !== 1 ? "s" : ""} without adequate break`,
+      status,
+    }
+  })()
+
+  // ── 8. REST_GAP — worst (shortest) inter-trip gap across ALL trips ─────────
+  //  EC 561/2006: 11h standard daily rest, min 9h reduced rest.
+  //  Scans the full trip history so cross-week overnight pairs are caught.
+  //  Inverted bar: more bar = LESS rest = worse.
+  const restGapStat: DriverRuleStat = (() => {
+    let worstMs  = Infinity
+    let worstA: DriverTrip | null = null
+    let worstB: DriverTrip | null = null
+    let hasNegative = false   // end-time bug: trip A ends AFTER trip B starts
+
+    for (let i = 0; i < allSorted.length - 1; i++) {
+      const a   = allSorted[i]
+      const b   = allSorted[i + 1]
+      const gap = b.startTime.getTime() - a.endTime.getTime()
+      if (gap < 0) {
+        hasNegative = true   // overlap/bad end-date — flag but don't count as rest
+      } else if (gap < worstMs) {
+        worstMs = gap
+        worstA  = a
+        worstB  = b
+      }
+    }
+
+    const hasTrips  = allSorted.length >= 2
+    const worstMins = hasTrips && isFinite(worstMs) ? worstMs / 60000 : 11 * 60
+    const limitMins = 11 * 60
+    const ratio     = hasTrips ? Math.min(1, Math.max(0, 1 - (worstMins / limitMins))) : 0
+
+    // A negative gap means a trip's endTime appears AFTER the next trip's startTime —
+    // most likely a 24h duration that hasn't been corrected yet.
+    const status = hasNegative                              ? "violation"
+                 : hasTrips && worstMs < 9  * 3600000      ? "violation"
+                 : hasTrips && worstMs < 11 * 3600000      ? "warning"
+                 :                                           "compliant"
+
+    const label = hasNegative          ? "Bad end-time"
+                : !isFinite(worstMs)   ? "N/A"
+                :                       fmtMins(worstMins)
+
+    // Full date+time format (local) so the operator can spot wrong dates instantly
+    const fmtFull = (d: Date) => {
+      const mon = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]
+      return `${d.getDate()} ${mon} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`
+    }
+
+    const pairDetail = worstA && worstB
+      ? `\nTrip A ended: ${fmtFull(worstA.endTime)} [${worstA.endTimeSource ?? "?"}]\nTrip B started: ${fmtFull(worstB.startTime)}\nGap: ${label}`
+      : ""
+    const negDetail = hasNegative
+      ? "\n⚠ One or more trip end-times fall AFTER the next trip starts.\nThis usually means estimated_end_date is still 24h instead of 12.5h.\nRun fix-trip-durations.js from console and refresh."
+      : ""
+
+    return {
+      ruleId: "REST_GAP", usedMinutes: worstMins, limitMinutes: limitMins,
+      ratio, usedLabel: label, limitLabel: "11h target",
+      detail: `Shortest rest gap: ${label}${pairDetail}${negDetail}`, status,
+    }
+  })()
+
+  // ── 8b. REST_GAP_COUNT — number of inter-trip gaps below the 9h legal minimum ─
+  //  Each such gap is an illegal rest violation (EC 561/2006 Art.8).
+  //  Count 0 = OK. Any count > 0 = violation — treated like overlap.
+  //  Scans allSorted so cross-day pairs (e.g. 2pm→next-day 5am) are caught.
+  const restGapCountStat: DriverRuleStat = (() => {
+    let count = 0
+    for (let i = 0; i < allSorted.length - 1; i++) {
+      const gapMs = allSorted[i + 1].startTime.getTime() - allSorted[i].endTime.getTime()
+      if (gapMs > 0 && gapMs < 9 * 3600000) count++
+    }
+    const status = count > 0 ? "violation" : "compliant"
+    return {
+      ruleId: "REST_GAP_COUNT", usedMinutes: count, limitMinutes: 0,
+      ratio: count > 0 ? 1 : 0,
+      usedLabel:  count === 0 ? "OK" : `${count} breach${count !== 1 ? "es" : ""}`,
+      limitLabel: "0 breaches",
+      detail: count === 0
+        ? "All rest gaps meet the 9h minimum"
+        : `${count} gap${count !== 1 ? "s" : ""} of less than 9h between trips`,
+      status,
+    }
+  })()
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // SECTION 3 — COMPENSATED WEEKLY REST
+  // ───────────────────────────────────────────────────────────────────────────
+
+  // ── 9. WEEKLY_REST ──────────────────────────────────────────────────────────────────
+  //  EC 561/2006 Art.8.6 + company policy: ≥46h unbroken rest per 7 days.
+  //  Includes the gap BEFORE the first trip of the week (e.g. Sunday+Monday rest
+  //  before a Tuesday shift) by using lastPriorTrip.endTime as the lower bound.
+  //  Inverted bar: more bar = LESS rest = worse.
+  const weeklyRestStat: DriverRuleStat = (() => {
+    const limitMins = 46 * 60
+
+    // No trips at all this week — full rest; trivially compliant
+    if (weekSorted.length === 0) {
+      return {
+        ruleId: "WEEKLY_REST", usedMinutes: 168 * 60, limitMinutes: limitMins,
+        ratio: 0, usedLabel: "Full week", limitLabel: "46h policy",
+        detail: "No trips this week — full rest (≥ 46h policy met)", status: "compliant" as const,
+      }
+    }
+
+    const priorSorted2 = [...priorWeekTrips].sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
+    const lastPriorEnd = priorSorted2.length > 0 ? priorSorted2[priorSorted2.length - 1].endTime : null
+
+    // Collect gap candidates with full timestamp context for the tooltip
+    interface WkGap { ms: number; label: string }
+    const gaps: WkGap[] = []
+
+    // Inter-trip gaps within this week
+    for (let i = 0; i < weekSorted.length - 1; i++) {
+      const ms = weekSorted[i+1].startTime.getTime() - weekSorted[i].endTime.getTime()
+      if (ms > 0) {
+        gaps.push({
+          ms,
+          label: `Trip ends ${fmtFull(weekSorted[i].endTime)} → next trip starts ${fmtFull(weekSorted[i+1].startTime)}`,
+        })
+      }
+    }
+
+    // Pre-week gap: only when we have a real prior-trip anchor
+    if (lastPriorEnd) {
+      const ms = weekSorted[0].startTime.getTime() - lastPriorEnd.getTime()
+      if (ms > 0) {
+        gaps.push({
+          ms,
+          label: `Prior week trip ended ${fmtFull(lastPriorEnd)} → first trip ${fmtFull(weekSorted[0].startTime)}`,
+        })
+      }
+    }
+    // If lastPriorEnd is null (no prior trips found), omit the pre-week candidate.
+    // Using the week boundary as an anchor produces false positives (Monday 04:39 − Sunday 00:00 = 28h).
+
+    // Post-last-trip gap: from last trip end to end of the week period.
+    // Only added for 2+ trips — for a single-trip week (e.g. one Saturday trip), the gap
+    // from trip-end to Saturday 23:59 would be tiny (2-3h) and is NOT the driver's weekly
+    // rest. Their rest is the multi-day block before the trip, which needs lastPriorEnd to
+    // measure. Without this guard a Saturday-only driver gets a false violation.
+    const weekEnd = weekDates.length > 0 ? new Date(weekDates[weekDates.length - 1] + "T23:59:59") : null
+    if (weekEnd && weekSorted.length >= 2) {
+      const lastInWeek = weekSorted[weekSorted.length - 1]
+      const ms = weekEnd.getTime() - lastInWeek.endTime.getTime()
+      if (ms > 0) {
+        gaps.push({
+          ms,
+          label: `Last trip ended ${fmtFull(lastInWeek.endTime)} → end of week period ${fmtFull(weekEnd)}`,
+        })
+      }
+    }
+
+    if (gaps.length === 0) {
+      // No gapable data at all — treat as N/A (compliant by default)
+      return {
+        ruleId: "WEEKLY_REST", usedMinutes: limitMins, limitMinutes: limitMins,
+        ratio: 0, usedLabel: "N/A", limitLabel: "46h policy",
+        detail: "No gap data to evaluate (all trips may be on a single day with no week-end boundary).",
+        status: "compliant" as const,
+      }
+    }
+
+    const best     = gaps.reduce((a, b) => a.ms > b.ms ? a : b)
+    const bestMins = best.ms / 60000
+    const bestMs   = best.ms
+
+    const status: "compliant" | "warning" | "violation" =
+      bestMs >= 46 * 3600000 ? "compliant" :
+      bestMs >= 24 * 3600000 ? "warning"   : "violation"
+
+    const ratio = status === "compliant" ? 0 : Math.min(1, Math.max(0, 1 - (bestMins / limitMins)))
+    const rule  = status === "compliant" ? "≥ 46h — compliant" :
+                  status === "warning"   ? "24–46h — reduced rest (compensation required within 3 weeks)" :
+                                          "< 24h — violation (EC 561/2006 Art.8.6)"
+
+    return {
+      ruleId: "WEEKLY_REST", usedMinutes: bestMins, limitMinutes: limitMins,
+      ratio, usedLabel: fmtMins(bestMins), limitLabel: "46h policy",
+      detail: `Longest rest gap this week: ${fmtMins(bestMins)}\n${best.label}\nResult: ${rule}`, status,
+    }
+  })()
+
+  // ── 10. WEEKLY_REST_PRIOR — longest gap in the PRIOR week (Week -1) ────────
+  //  Uses priorWeekTrips — the same trips already fetched for biweekly hours.
+  //  Inverted bar: more bar = LESS rest = worse.
+  const priorRestStat: DriverRuleStat = (() => {
+    const priorSorted = [...priorWeekTrips].sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
+    const hasTrips    = priorSorted.length >= 2
+    const pair        = hasTrips ? longestGapPair(priorSorted) : null
+    const maxMs       = pair?.ms ?? null
+    const maxMins     = maxMs !== null ? maxMs / 60000 : 46 * 60
+    const limitMins   = 46 * 60
+    const ratio       = hasTrips && maxMs !== null ? Math.min(1, Math.max(0, 1 - (maxMins / limitMins))) : 0
+    const status      = hasTrips && maxMs !== null && maxMs < 24 * 3600000 ? "violation"
+                      : hasTrips && maxMs !== null && maxMs < 46 * 3600000 ? "warning" : "compliant"
+    const label       = hasTrips && maxMs !== null ? fmtMins(maxMins)
+                      : priorWeekTrips.length === 0 ? "No data" : "N/A"
+    const pairDetail  = pair
+      ? `\nGap: trip ended ${fmtFull(pair.gapStart)} → next started ${fmtFull(pair.gapEnd)}`
+      : priorWeekTrips.length === 0
+        ? "\nPrior week not loaded — fetch a wider date range to see this."
+        : ""
+    return {
+      ruleId: "WEEKLY_REST_PRIOR", usedMinutes: maxMins, limitMinutes: limitMins,
+      ratio, usedLabel: label, limitLabel: "46h policy",
+      detail: `Longest rest gap in prior week (week −1): ${label}${pairDetail}`, status,
+    }
+  })()
+
+  // ── 11. WEEKLY_REST_PRIOR2 — two weeks ago (Week -2) ─────────────────────
+  //  The rota page only fetches the current + one prior week, so this will
+  //  always show "No data" until a separate week -2 fetch is added.
+  //  Shown as neutral (compliant) so it doesn't pollute the violation counts.
+  const prior2RestStat: DriverRuleStat = {
+    ruleId: "WEEKLY_REST_PRIOR2", usedMinutes: 0, limitMinutes: 46 * 60,
+    ratio: 0, usedLabel: "No data", limitLabel: "46h policy",
+    detail: "Week −2 data not loaded (requires additional API fetch)", status: "compliant",
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // BONUS — OVERLAP integrity check
+  // Not in EC 561/2006 — internal diagnostic: two trips at the same time.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  // ── 12. OVERLAP — overlapping trip pairs within the current week ──────────
+  const overlapStat: DriverRuleStat = (() => {
+    const overlaps = findOverlaps(thisWeekTrips)
+    const count    = overlaps.length
+    const status   = count > 0 ? "violation" : "compliant"
+    return {
+      ruleId: "OVERLAP", usedMinutes: count, limitMinutes: 0,
+      ratio: count > 0 ? 1 : 0,
+      usedLabel:  count === 0 ? "None" : `${count} pair${count !== 1 ? "s" : ""}`,
+      limitLabel: "0 allowed",
+      detail: count === 0 ? "No overlaps" : `${count} overlap${count !== 1 ? "s" : ""} detected`,
+      status,
+    }
+  })()
+
+  return [
+    // ── Driving Times ─────────────────────────────────────────────────────
+    continuousStat,     // CONTINUOUS_4H30   — longest continuous driving block
+    dailyStat,          // DAILY_HOURS        — peak single-day total
+    amplitudeStat,      // DAILY_AMPLITUDE    — max day span (first→last activity)
+    reducedRestStat,    // REDUCED_REST_DAYS  — count of 9–11h gaps this week
+    weeklyStat,         // WEEKLY_HOURS       — total this week
+    biweeklyStat,       // BIWEEKLY_HOURS     — total this + prior week
+    // ── Resting Times ─────────────────────────────────────────────────────
+    break45Stat,        // BREAK_45           — missed 45-min break instances
+    restGapStat,        // REST_GAP           — worst (shortest) inter-trip gap
+    // ── Compensated Weekly Rest ───────────────────────────────────────────
+    weeklyRestStat,     // WEEKLY_REST        — best rest gap this week
+    priorRestStat,      // WEEKLY_REST_PRIOR  — best rest gap week −1
+    prior2RestStat,     // WEEKLY_REST_PRIOR2 — best rest gap week −2 (no data yet)
+    // ── Integrity ─────────────────────────────────────────────────────────
+    restGapCountStat,   // REST_GAP_COUNT     — count of gaps < 9h (illegal rest)
+    overlapStat,        // OVERLAP            — simultaneous trips (hard violation)
+  ]
 }

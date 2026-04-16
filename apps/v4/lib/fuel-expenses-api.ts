@@ -1,7 +1,7 @@
 /**
  * Fuel Expenses API — /int/v1/fuel-expenses
  */
-import { ontrackFetch, buildQueryString } from "./ontrack-api"
+import { ontrackFetch, buildQueryString, ONTRACK_HOST } from "./ontrack-api"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -202,7 +202,7 @@ export async function exportFuelExpenses(params: {
     from_date: from_date ?? null,
     to_date: to_date ?? null,
   } as Record<string, string | number | boolean | undefined | null>)
-  const url = `https://ontrack-api.agilecyber.com/int/v1/fuel-expenses/export${qs}`
+  const url = `${ONTRACK_HOST}/int/v1/fuel-expenses/export${qs}`
   const token = (await import("./ontrack-api")).getToken()
   const res = await fetch(url, {
     method: selections.length > 0 ? "POST" : "GET",
@@ -227,7 +227,7 @@ export async function uploadFuelFile(file: File): Promise<{ uuid: string; origin
   fd.append("file", file)
   fd.append("type", "fuel-import")
   const token = (await import("./ontrack-api")).getToken()
-  const res = await fetch("https://ontrack-api.agilecyber.com/int/v1/files/upload", {
+  const res = await fetch(`${ONTRACK_HOST}/int/v1/files/upload`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: fd,
@@ -251,7 +251,7 @@ export async function getFuelImportLogs(perPage = 15): Promise<ImportLogsRespons
   // Note: different base path — uses /api/v1 not /int/v1
   const token = (await import("./ontrack-api")).getToken()
   const res = await fetch(
-    `https://ontrack-api.agilecyber.com/api/v1/expense-reports/fuel-import-logs?per_page=${perPage}`,
+    `${ONTRACK_HOST}/api/v1/expense-reports/fuel-import-logs?per_page=${perPage}`,
     { headers: { Authorization: `Bearer ${token}` } }
   )
   if (!res.ok) throw new Error("Failed to fetch import logs")

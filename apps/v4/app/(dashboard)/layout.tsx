@@ -6,6 +6,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { TopBar } from "@/components/top-bar"
 import { LangProvider } from "@/components/lang-context"
 import { NavVisibilityProvider } from "@/components/nav-visibility-context"
+import { ConfirmDialogProvider } from "@/components/confirm-dialog"
 import { getToken } from "@/lib/ontrack-api"
 
 export default function DashboardLayout({
@@ -30,13 +31,15 @@ export default function DashboardLayout({
   return (
     <LangProvider>
       <NavVisibilityProvider>
-        <div className="flex h-svh">
-          <AppSidebar />
-          <main className="flex flex-1 flex-col min-w-0 overflow-x-hidden overflow-y-auto">
-            <TopBar />
-            {children}
-          </main>
-        </div>
+        <ConfirmDialogProvider>
+          <div className="flex h-svh">
+            <AppSidebar />
+            <main className="flex flex-1 flex-col min-w-0 overflow-x-hidden overflow-y-auto">
+              <TopBar />
+              {children}
+            </main>
+          </div>
+        </ConfirmDialogProvider>
       </NavVisibilityProvider>
     </LangProvider>
   )

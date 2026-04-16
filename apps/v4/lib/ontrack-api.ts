@@ -1,7 +1,7 @@
 /**
  * OnTrack API — Base Client
  *
- * Base URL: https://ontrack-api.agilecyber.com/int/v1
+ * Base URL: process.env.NEXT_PUBLIC_ONTRACK_HOST + /int/v1
  * Auth: POST /auth/login → Bearer token
  * Token is stored on `window.__fleetyes_token` to reuse the
  * same pattern as the existing compliance-api.ts client.
@@ -9,12 +9,35 @@
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-const ONTRACK_BASE = "https://ontrack-api.agilecyber.com/int/v1"
+export const ONTRACK_HOST =
+  process.env.NEXT_PUBLIC_ONTRACK_HOST ?? "https://ontrack-api.agilecyber.com"
+
+const ONTRACK_BASE = `${ONTRACK_HOST}/int/v1`
 
 // ─── Token helper (persisted in localStorage) ───────────────────────────────
 
-const TOKEN_KEY = "fleetyes_ontrack_token"
+const TOKEN_KEY       = "fleetyes_ontrack_token"
 const COMPANY_UUID_KEY = "fleetyes_company_uuid"
+const USER_KEY         = "fleetyes_current_user"
+
+export interface CurrentUser {
+  name:  string
+  email: string
+  role:  string
+}
+
+export function getCurrentUser(): CurrentUser | null {
+  if (typeof window === "undefined") return null
+  const raw = localStorage.getItem(USER_KEY)
+  if (!raw) return null
+  try { return JSON.parse(raw) as CurrentUser } catch { return null }
+}
+
+export function setCurrentUser(user: CurrentUser) {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(USER_KEY, JSON.stringify(user))
+  }
+}
 
 export function getToken(): string {
   if (typeof window === "undefined") return ""
@@ -31,6 +54,7 @@ export function clearToken() {
   if (typeof window !== "undefined") {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(COMPANY_UUID_KEY)
+    localStorage.removeItem(USER_KEY)
   }
 }
 
@@ -48,36 +72,68 @@ export function setCompanyUuid(uuid: string) {
 
 // ─── Generic fetch helper ────────────────────────────────────────────────────
 
+const FETCH_TIMEOUT_MS = 30_000   // 30 s — prevents infinite hangs on stuck POST requests
+
 export async function ontrackFetch<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
   const token = getToken()
 
+  // When body is FormData the browser must set Content-Type itself so it can
+  // append the multipart boundary — never force it to application/json in that case.
+  const isFormData = options.body instanceof FormData
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...((options.headers as Record<string, string>) ?? {}),
   }
 
-  const res = await fetch(`${ONTRACK_BASE}${path}`, {
-    ...options,
-    headers,
-  })
+  // AbortController gives us a hard timeout so the UI never gets stuck
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
+  let res: Response
+  try {
+    res = await fetch(`${ONTRACK_BASE}${path}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    })
+  } catch (err) {
+    clearTimeout(timer)
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new OnTrackApiError(
+        `Request timed out after ${FETCH_TIMEOUT_MS / 1000}s — the server did not respond.`,
+        408
+      )
+    }
+    throw err
+  }
+  clearTimeout(timer)
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }))
+    const errorsVal = body?.errors
+    const errorsMsg = errorsVal
+      ? Array.isArray(errorsVal)
+        ? errorsVal.join("; ")
+        : Object.values(errorsVal).flat().join("; ")
+      : null
     const message =
       body?.error ??
       body?.message ??
-      (body?.errors ? Object.values(body.errors).flat().join("; ") : null) ??
+      errorsMsg ??
       `HTTP ${res.status}`
     throw new OnTrackApiError(message, res.status, body)
   }
 
   if (res.status === 204) return undefined as T
-  return res.json() as Promise<T>
+  return res.json().catch(() => {
+    throw new OnTrackApiError("Server returned a non-JSON response.", res.status)
+  }) as Promise<T>
 }
+
 
 // ─── Error class ─────────────────────────────────────────────────────────────
 
@@ -125,27 +181,51 @@ export async function login(credentials: LoginRequest): Promise<LoginResponse> {
   const data: LoginResponse = await res.json()
   setToken(data.token)
 
-  // Immediately resolve the current user's company_uuid by looking up their
-  // user record via email. This is the only safe way since the token is an
-  // opaque Sanctum token (not a JWT) and the login response has no user object.
+  // Fetch the authenticated user profile via the dedicated /users/me endpoint.
+  // This is cleaner than the old email-based /users?email=... lookup.
   try {
-    const email = encodeURIComponent(credentials.identity)
-    const userRes = await fetch(
-      `${ONTRACK_BASE}/users?email=${email}&limit=1`,
-      { headers: { Authorization: `Bearer ${data.token}` } }
-    )
-    if (userRes.ok) {
-      const userData = await userRes.json()
-      const companyUuid: string = userData?.users?.[0]?.company_uuid ?? ""
-      if (companyUuid) setCompanyUuid(companyUuid)
+    const meRes = await fetch(`${ONTRACK_BASE}/users/me`, {
+      headers: { Authorization: `Bearer ${data.token}` },
+    })
+    if (meRes.ok) {
+      const meData = await meRes.json()
+      const u = meData?.user
+      if (u?.company_uuid) setCompanyUuid(u.company_uuid)
+      if (u) {
+        setCurrentUser({
+          name:  u.name       ?? credentials.identity,
+          email: u.email      ?? credentials.identity,
+          role:  u.role_name  ?? u.type ?? "User",
+        })
+      }
     }
   } catch {
-    // Non-fatal — company_uuid lookup failed; drivers will be unfiltered
-    console.warn("[OnTrack] Could not resolve company_uuid from /users")
+    // Non-fatal — profile lookup failed; top bar will show fallback "User"
+    console.warn("[OnTrack] Could not resolve user profile from /users/me")
   }
 
   return data
 }
+
+/** Re-fetch the authenticated user profile on demand (e.g. from the Settings page). */
+export async function fetchCurrentUser(): Promise<CurrentUser | null> {
+  try {
+    const meData = await ontrackFetch<{ user: Record<string, string> }>("/users/me")
+    const u = meData?.user
+    if (!u) return null
+    const profile: CurrentUser = {
+      name:  u.name      ?? "",
+      email: u.email     ?? "",
+      role:  u.role_name ?? u.type ?? "User",
+    }
+    if (u.company_uuid) setCompanyUuid(u.company_uuid)
+    setCurrentUser(profile)
+    return profile
+  } catch {
+    return null
+  }
+}
+
 
 
 // ─── Pagination helper ──────────────────────────────────────────────────────

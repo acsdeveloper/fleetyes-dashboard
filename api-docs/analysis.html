@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Remaining Driving and Resting Times - Kinetic Monolith</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-secondary": "#ffffff",
+                        "secondary": "#10b981",
+                        "tertiary": "#f59e0b",
+                        "error": "#ef4444",
+                        "surface": "#ffffff",
+                        "background": "#f8fafc",
+                        "on-background": "#1e293b",
+                        "on-surface": "#1e293b",
+                        "outline": "#64748b",
+                        "outline-variant": "#e2e8f0",
+                        "surface-container": "#ffffff",
+                        "surface-container-high": "#f1f5f9",
+                        "surface-container-highest": "#e2e8f0",
+                        "primary": "#334155"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.5rem",
+                        "xl": "1rem",
+                        "full": "9999px"
+                    },
+                    fontFamily: {
+                        "body": ["Montserrat", "sans-serif"],
+                        "headline": ["Montserrat", "sans-serif"],
+                        "label": ["Montserrat", "sans-serif"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .route-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        body {
+            font-family: 'Montserrat', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex items-center justify-center p-4 md:p-8 selection:bg-primary/10 selection:text-primary">
+<div class="max-w-5xl w-full">
+<!-- Dashboard Card -->
+<div class="bg-surface-container rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-outline-variant/60 overflow-hidden">
+<!-- CardHeader -->
+<div class="p-8 md:p-12 flex flex-col md:flex-row justify-between items-start gap-6">
+<div class="space-y-2">
+<h1 class="text-3xl md:text-4xl font-headline font-extrabold tracking-tight text-on-surface">Remaining Driving and Resting Times</h1>
+<div class="flex flex-wrap items-center gap-3 text-outline font-label text-sm">
+<span>Vehicle: <span class="text-primary font-bold">241D25183</span></span>
+<span class="w-1 h-1 rounded-full bg-outline-variant hidden sm:block"></span>
+<span>Driver: <span class="text-primary font-semibold">Vasile Bolovan</span></span>
+</div>
+</div>
+<div class="flex items-center gap-2 bg-secondary/10 px-4 py-2 rounded-full border border-secondary/20">
+<div class="w-2 h-2 rounded-full bg-secondary shadow-[0_0_8px_rgba(16,185,129,0.4)]"></div>
+<span class="text-secondary font-label text-xs font-bold uppercase tracking-widest">Status: Driving</span>
+</div>
+</div>
+<div class="px-8 md:px-12 pb-12">
+<!-- SECTION 1: Driving Times Assistant -->
+<div class="mb-12">
+<div class="flex items-center gap-3 mb-8">
+<span class="material-symbols-outlined text-secondary text-2xl">timer</span>
+<h3 class="font-headline font-bold text-xl text-on-surface">Driving Times Assistant</h3>
+</div>
+<div class="grid grid-cols-[2fr_1fr_1fr_1fr_2fr] gap-4 mb-4 px-3">
+<div class="font-label text-[10px] uppercase tracking-[0.15em] font-bold text-outline">Metric</div>
+<div class="font-label text-[10px] uppercase tracking-[0.15em] font-bold text-outline text-right">Total</div>
+<div class="font-label text-[10px] uppercase tracking-[0.15em] font-bold text-outline text-right">Maximum</div>
+<div class="font-label text-[10px] uppercase tracking-[0.15em] font-bold text-outline text-right">Remaining</div>
+<div class="font-label text-[10px] uppercase tracking-[0.15em] font-bold text-outline">Utilization</div>
+</div>
+<div class="space-y-2">
+<!-- Row 1 -->
+<div class="grid grid-cols-[2fr_1fr_1fr_1fr_2fr] gap-4 items-center p-4 rounded-xl hover:bg-surface-container-high transition-colors">
+<div class="font-semibold text-on-surface text-sm">Driving time 4h30</div>
+<div class="text-outline text-sm text-right font-medium">00:05:00</div>
+<div class="text-outline text-sm text-right font-medium">04:30:00</div>
+<div class="text-primary font-bold text-sm text-right">04:25:00</div>
+<div class="relative h-2.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="absolute inset-y-0 left-0 bg-secondary rounded-full route-pulse" style="width: 2%"></div>
+</div>
+</div>
+<!-- Row 2 -->
+<div class="grid grid-cols-[2fr_1fr_1fr_1fr_2fr] gap-4 items-center p-4 rounded-xl hover:bg-surface-container-high transition-colors">
+<div class="font-semibold text-on-surface text-sm">Daily driving time</div>
+<div class="text-outline text-sm text-right font-medium">02:24:00</div>
+<div class="text-outline text-sm text-right font-medium">10:00:00</div>
+<div class="text-primary font-bold text-sm text-right">07:36:00</div>
+<div class="relative h-2.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="absolute inset-y-0 left-0 bg-secondary rounded-full route-pulse" style="width: 24%"></div>
+</div>
+</div>
+<!-- Row 3 -->
+<div class="grid grid-cols-[2fr_1fr_1fr_1fr_2fr] gap-4 items-center p-4 rounded-xl hover:bg-surface-container-high transition-colors">
+<div class="font-semibold text-on-surface text-sm">Daily amplitude</div>
+<div class="text-outline text-sm text-right font-medium">05:57:00</div>
+<div class="text-outline text-sm text-right font-medium">15:00:00</div>
+<div class="text-primary font-bold text-sm text-right">09:03:00</div>
+<div class="relative h-2.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="absolute inset-y-0 left-0 bg-secondary rounded-full route-pulse" style="width: 39%"></div>
+</div>
+</div>
+<!-- Row 4 -->
+<div class="grid grid-cols-[2fr_1fr_1fr_1fr_2fr] gap-4 items-center p-4 rounded-xl hover:bg-surface-container-high transition-colors">
+<div class="font-semibold text-on-surface text-sm"># days of reduced daily rest</div>
+<div class="text-outline text-sm text-right font-medium">1 day</div>
+<div class="text-outline text-sm text-right font-medium">3 days</div>
+<div class="text-primary font-bold text-sm text-right">2 days</div>
+<div class="relative h-2.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="absolute inset-y-0 left-0 bg-secondary rounded-full route-pulse" style="width: 33%"></div>
+</div>
+</div>
+<!-- Row 5 -->
+<div class="grid grid-cols-[2fr_1fr_1fr_1fr_2fr] gap-4 items-center p-4 rounded-xl hover:bg-surface-container-high transition-colors">
+<div class="font-semibold text-on-surface text-sm">Weekly driving time</div>
+<div class="text-outline text-sm text-right font-medium">17:51:00</div>
+<div class="text-outline text-sm text-right font-medium">56:00:00</div>
+<div class="text-primary font-bold text-sm text-right">38:09:00</div>
+<div class="relative h-2.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="absolute inset-y-0 left-0 bg-secondary rounded-full route-pulse" style="width: 31%"></div>
+</div>
+</div>
+<!-- Row 6 -->
+<div class="grid grid-cols-[2fr_1fr_1fr_1fr_2fr] gap-4 items-center p-4 rounded-xl hover:bg-surface-container-high transition-colors">
+<div class="font-semibold text-on-surface text-sm">Bi-weekly driving time</div>
+<div class="text-outline text-sm text-right font-medium">56:54:00</div>
+<div class="text-outline text-sm text-right font-medium">90:00:00</div>
+<div class="text-tertiary font-bold text-sm text-right">33:06:00</div>
+<div class="relative h-2.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="absolute inset-y-0 left-0 bg-tertiary rounded-full" style="width: 63%"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="w-full h-px bg-outline-variant/60 my-10"></div>
+<!-- SECTION 2: Resting Times Assistant -->
+<div class="mb-12">
+<div class="flex items-center gap-3 mb-8">
+<span class="material-symbols-outlined text-tertiary text-2xl">hotel</span>
+<h3 class="font-headline font-bold text-xl text-on-surface">Resting Times Assistant</h3>
+</div>
+<div class="grid grid-cols-[2fr_1fr_1fr_1fr_2fr] gap-4 mb-4 px-3">
+<div class="font-label text-[10px] uppercase tracking-[0.15em] font-bold text-outline">Metric</div>
+<div class="font-label text-[10px] uppercase tracking-[0.15em] font-bold text-outline text-right">Total</div>
+<div class="font-label text-[10px] uppercase tracking-[0.15em] font-bold text-outline text-right">Minimum</div>
+<div class="font-label text-[10px] uppercase tracking-[0.15em] font-bold text-outline text-right">Remaining</div>
+<div class="font-label text-[10px] uppercase tracking-[0.15em] font-bold text-outline">Utilization</div>
+</div>
+<div class="space-y-2">
+<div class="grid grid-cols-[2fr_1fr_1fr_1fr_2fr] gap-4 items-center p-4 rounded-xl hover:bg-surface-container-high transition-colors">
+<div class="font-semibold text-on-surface text-sm">Break 45'</div>
+<div class="text-outline text-sm text-right font-medium">00:00:00</div>
+<div class="text-outline text-sm text-right font-medium">00:45:00</div>
+<div class="text-primary font-bold text-sm text-right">00:45:00</div>
+<div class="relative h-2.5 bg-surface-container-highest rounded-full">
+<div class="absolute inset-y-0 left-0 bg-primary/20 rounded-full" style="width: 0%"></div>
+</div>
+</div>
+<div class="grid grid-cols-[2fr_1fr_1fr_1fr_2fr] gap-4 items-center p-4 rounded-xl hover:bg-surface-container-high transition-colors">
+<div class="font-semibold text-on-surface text-sm">Previous daily rest</div>
+<div class="text-outline text-sm text-right font-medium">11:52:00</div>
+<div class="text-outline text-sm text-right font-medium">11:00:00</div>
+<div class="text-primary font-bold text-sm text-right">00:00:00</div>
+<div class="relative h-2.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="absolute inset-y-0 left-0 bg-secondary rounded-full" style="width: 100%"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="w-full h-px bg-outline-variant/60 my-10"></div>
+<!-- SECTION 3: Compensated Weekly Rest -->
+<div>
+<div class="flex items-center gap-3 mb-8">
+<span class="material-symbols-outlined text-error text-2xl">balance</span>
+<h3 class="font-headline font-bold text-xl text-on-surface">Compensated Weekly Rest</h3>
+</div>
+<div class="grid grid-cols-[2fr_1fr_1fr_1fr_2fr] gap-4 mb-4 px-3">
+<div class="font-label text-[10px] uppercase tracking-[0.15em] font-bold text-outline">Metric</div>
+<div class="font-label text-[10px] uppercase tracking-[0.15em] font-bold text-outline text-right">Total</div>
+<div class="font-label text-[10px] uppercase tracking-[0.15em] font-bold text-outline text-right">Minimum</div>
+<div class="font-label text-[10px] uppercase tracking-[0.15em] font-bold text-outline text-right">Owed</div>
+<div class="font-label text-[10px] uppercase tracking-[0.15em] font-bold text-outline">Fulfillment</div>
+</div>
+<div class="space-y-2 mb-10">
+<div class="grid grid-cols-[2fr_1fr_1fr_1fr_2fr] gap-4 items-center p-4 rounded-xl hover:bg-surface-container-high transition-colors">
+<div class="font-semibold text-on-surface text-sm">Week -1 Rest</div>
+<div class="text-outline text-sm text-right font-medium">24:00:00</div>
+<div class="text-outline text-sm text-right font-medium">45:00:00</div>
+<div class="text-error font-bold text-sm text-right">21:00:00</div>
+<div class="relative h-2.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="absolute inset-y-0 left-0 bg-tertiary rounded-full" style="width: 53%"></div>
+</div>
+</div>
+<div class="grid grid-cols-[2fr_1fr_1fr_1fr_2fr] gap-4 items-center p-4 rounded-xl hover:bg-surface-container-high transition-colors">
+<div class="font-semibold text-on-surface text-sm">Week -2 Rest</div>
+<div class="text-outline text-sm text-right font-medium">45:00:00</div>
+<div class="text-outline text-sm text-right font-medium">45:00:00</div>
+<div class="text-primary font-bold text-sm text-right">00:00:00</div>
+<div class="relative h-2.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="absolute inset-y-0 left-0 bg-secondary rounded-full" style="width: 100%"></div>
+</div>
+</div>
+</div>
+<!-- Alert Box -->
+<div class="bg-error/5 border border-error/20 p-6 rounded-2xl flex flex-col sm:flex-row items-center gap-6">
+<div class="w-12 h-12 rounded-full bg-error/10 flex items-center justify-center text-error shrink-0">
+<span class="material-symbols-outlined text-3xl">warning</span>
+</div>
+<div class="flex-1 text-center sm:text-left">
+<p class="text-error font-extrabold text-base mb-1">Action Required: Must compensate 21h by 26/04/2026 23:59</p>
+<p class="text-error/70 text-[11px] uppercase tracking-wider font-bold">Violation Risk High — Regulatory compliance threshold reached</p>
+</div>
+<button class="bg-error text-white font-bold text-xs uppercase tracking-widest px-6 py-3 hover:bg-error/90 rounded-xl transition-all shadow-lg shadow-error/20 whitespace-nowrap">View Regulations</button>
+</div>
+</div>
+</div>
+</div>
+<footer class="mt-12 text-center text-outline text-[11px] font-bold uppercase tracking-[0.25em] opacity-60">
+            © 2024 Kinetic Monolith Logistics Systems | Enterprise Grade Compliance v4.2.1
+        </footer>
+</div>
+</body></html>

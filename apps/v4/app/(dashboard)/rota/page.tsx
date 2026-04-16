@@ -2,8 +2,8 @@
 
 import * as React from "react"
 import {
-  ChevronLeft, ChevronRight, Check, X,
-  Sun, Loader2, MapPin, AlertTriangle, ShieldCheck, ShieldAlert, XCircle, BookOpen,
+  Check, X,
+  Sun, Loader2, MapPin, AlertTriangle, ShieldCheck, ShieldAlert, XCircle, BookOpen, Download,
 } from "lucide-react"
 import {
   type RotaStatus, type RotaEntry, type DriverPreference,
@@ -11,11 +11,12 @@ import {
   getAllPreferences, upsertPreference,
   weekStart, weekDates, weekKey, fmtDate, fmtDay, getISOWeek,
 } from "@/lib/rota-store"
-import { listOrders, updateOrder, type Order } from "@/lib/orders-api"
-import { listDrivers, getDriverDetail, type Driver } from "@/lib/drivers-api"
+import { listOrders, updateOrder, getPeriod, type Order, type AllocationPeriod } from "@/lib/orders-api"
+import { listDrivers, getDriver, type Driver } from "@/lib/drivers-api"
 import { listDriverLeave, type LeaveRequest } from "@/lib/leave-requests-api"
 import { dedupBy } from "@/lib/utils"
 import { useLang } from "@/components/lang-context"
+import { exportRelayXls } from "@/lib/relay-export"
 import {
   runComplianceCheck,
   prospectiveComplianceCheck,
@@ -23,6 +24,8 @@ import {
   type RotaComplianceReport,
   type ComplianceViolation,
 } from "@/lib/compliance-engine"
+import { shiftHours } from "@/lib/compliance-engine/shift-hours"
+import { ComplianceMatrixView } from "@/components/compliance-matrix"
 import * as ReactDOM from "react-dom"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -73,6 +76,30 @@ function isoLocalDate(iso: string): string {
 function isoLocalTime(iso: string): string {
   const d = new Date(iso)
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+}
+
+/** Enumerate "YYYY-MM-DD" strings for every calendar day from start to end inclusive */
+function periodDates(start: string, end: string): string[] {
+  const result: string[] = []
+  const cur = new Date(start + "T12:00:00")
+  const endD = new Date(end + "T12:00:00")
+  while (cur <= endD) {
+    result.push(
+      `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`
+    )
+    cur.setDate(cur.getDate() + 1)
+  }
+  return result
+}
+
+/**
+ * Fallback dates when get-period API is unavailable.
+ * Returns 7 days starting from next week's Sunday.
+ */
+function fallbackDates(): string[] {
+  const today = new Date()
+  const nextSun = weekStart(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7))
+  return weekDates(nextSun)
 }
 
 // ─── Cell Popover ─────────────────────────────────────────────────────────────
@@ -356,22 +383,40 @@ function TripsDockPanel({
     const start = dates[0]
     const end   = dates[dates.length - 1]
 
-    listOrders({ scheduled_at: start, end_date: end, limit: 200 })
+    // Extend fetch window 1 day before Sunday (back to Saturday) and 1 day after Saturday (to next Sunday).
+    // This ensures trips that START on the Sunday before or sunday after are
+    // included in tripIndex so the compliance engine can detect rest-gap
+    // violations between adjacent-week trips (e.g. a Sunday overnight trip
+    // followed by a sunday morning trip has an insufficient rest gap).
+    const fetchStart = (() => {
+      const d = new Date(start + "T12:00:00")
+      d.setDate(d.getDate() - 1)
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+    })()
+    const fetchEnd = (() => {
+      const d = new Date(end + "T12:00:00")
+      d.setDate(d.getDate() + 1)
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+    })()
+
+    listOrders({ scheduled_at: fetchStart, end_date: fetchEnd, limit: 250 })
       .then(res => {
         const unassigned = (res.data ?? []).filter(o => {
           const a = o.driver_assigned_uuid || o.driver_assigned?.uuid
           if (a) return false
-          // Keep only trips that actually fall in this week (using local date)
+          // Dock only shows unassigned trips within the actual visible week
           const d = o.scheduled_at ? isoLocalDate(o.scheduled_at) : undefined
           return d ? datesSet.has(d) : false
         })
         setAllTrips(unassigned)
-        // Bubble all fetched orders (not just unassigned) up to parent for cell labels
+        // Bubble ALL fetched orders (including adjacent days) up to parent.
+        // The compliance engine uses these to detect cross-week rest gaps.
         onTripsLoaded?.(res.data ?? [])
       })
       .catch(() => setAllTrips([]))
       .finally(() => setLoading(false))
   }, [dates, refreshKey])
+
 
   // Filter by selected day tab
   const visible = allTrips.filter(o => {
@@ -389,9 +434,9 @@ function TripsDockPanel({
     <div className="rounded-xl border bg-card flex flex-col overflow-hidden h-full">
       {/* Header */}
       <div className="border-b px-3 py-2.5 shrink-0">
-        <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Unassigned Trips</p>
+        <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{t.rota.unassignedTrips}</p>
         <p className="text-[10px] text-muted-foreground/70 mt-0.5">
-          {loading ? "Loading…" : `${visible.length} trip${visible.length !== 1 ? "s" : ""} · drag to assign`}
+          {loading ? t.common.loading : `${visible.length} trip${visible.length !== 1 ? "s" : ""} · ${t.rota.dragToAssign}`}
         </p>
       </div>
 
@@ -404,7 +449,7 @@ function TripsDockPanel({
               activeDay === "all" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
             }`}
           >
-            All
+            {t.common.all}
           </button>
           {daysWithTrips.map(d => (
             <button
@@ -414,7 +459,7 @@ function TripsDockPanel({
                 activeDay === d ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
               }`}
             >
-              {DAYS[new Date(d + "T12:00:00").getDay()]}
+              {new Date(d + "T12:00:00").getDate()} – {DAYS[new Date(d + "T12:00:00").getDay()]}
             </button>
           ))}
         </div>
@@ -423,14 +468,14 @@ function TripsDockPanel({
       {/* 3-column card grid */}
       <div className="flex-1 overflow-y-auto p-2">
         {loading ? (
-          <div className="flex items-center justify-center gap-2 py-8 text-xs text-muted-foreground">
+          <div className="flex items-center justify-center py-10 gap-2 text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Loading…
+            {t.common.loading}
           </div>
         ) : visible.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
             <MapPin className="h-5 w-5 opacity-30" />
-            <p className="text-xs">No unassigned trips</p>
+            <p className="text-xs">{t.rota.noUnassignedTrips}</p>
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-1.5">
@@ -685,7 +730,7 @@ export default function RotaPage() {
   const { t } = useLang()
   const STATUS_CONFIG = buildStatusConfig(t.rota)
   const DAYS = buildDays(t.rota)
-  const [monday, setMonday] = React.useState<Date>(() => weekStart(new Date()))
+  const [period, setPeriod] = React.useState<AllocationPeriod | null>(null)
   const [drivers, setDrivers] = React.useState<Driver[]>([])
   const [rotas, setRotas] = React.useState<RotaEntry[]>([])
   const [preferences, setPreferences] = React.useState<DriverPreference[]>([])
@@ -784,26 +829,74 @@ export default function RotaPage() {
   const [compliancePanelOpen, setCompliancePanelOpen] = React.useState(false)
   /** Active tab in compliance panel: 'issues' or 'rules' */
   const [compliancePanelTab, setCompliancePanelTab] = React.useState<"issues" | "rules">("issues")
+  /** Top-level view: rota grid or analysis matrix */
+  const [rotaView, setRotaView] = React.useState<"grid" | "analysis">("grid")
 
   // Popover state
   const [popover, setPopover] = React.useState<{
     driver: Driver; date: string; rect: DOMRect
   } | null>(null)
 
-  const dates = React.useMemo(() => weekDates(monday), [monday])
-  const wk = React.useMemo(() => weekKey(monday), [monday])
-  const week = getISOWeek(monday)
+  const dates = React.useMemo(
+    () => period ? periodDates(period.start_date, period.end_date) : fallbackDates(),
+    [period]
+  )
+  const wk = React.useMemo(() => weekKey(new Date(dates[0] + "T12:00:00")), [dates])
+  const week = getISOWeek(new Date(dates[0] + "T12:00:00"))
 
-  // Load drivers on mount; then batch-fetch shift preferences in parallel (non-blocking)
+  // ── annotatedTripIndex — tripIndex + rota-entry driver assignments ──────────
+  // listOrders may not return driver_assigned_uuid on trips that are already
+  // allocated. The rota entries (local store) are the authoritative
+  // driver→trip mapping. This memo overlays them so the compliance engine and
+  // the matrix always see the correct driver for every trip, even on cold load.
+  const annotatedTripIndex = React.useMemo(() => {
+    const out = new Map(tripIndex)
+    const weekRotas = getWeekRota(dates)
+    for (const rota of weekRotas) {
+      for (const uuid of rota.trip_uuids ?? []) {
+        const order = out.get(uuid)
+        if (order && !order.driver_assigned_uuid) {
+          out.set(uuid, { ...order, driver_assigned_uuid: rota.driver_uuid })
+        }
+      }
+    }
+    return out
+  }, [tripIndex, dates])
+
+  // ── Mount: fire all independent fetches in parallel ─────────────────────
+  // listDrivers, getPeriod, and listDriverLeave have no dependency on each
+  // other — run them all at once rather than sequentially.
   React.useEffect(() => {
     setLoading(true)
-    listDrivers()
-      .then(async (r) => {
-        const eligible = (r.drivers ?? []).filter((d) => (d.status as string) !== "pending")
-        const deduped  = dedupBy(dedupBy(eligible, "uuid"), (d) => `${d.name}|${d.phone ?? ""}`)
-        setDrivers(deduped)
-        // Fire all detail requests in parallel — drivers = 30 max, allSettled won't throw
-        const results = await Promise.allSettled(deduped.map(d => getDriverDetail(d.uuid)))
+
+    // getPeriod times out quickly — a 400 or slow response must not block the grid.
+    // 3s is generous; if it fails we just use fallbackDates().
+    const getPeriodFast = () => Promise.race([
+      getPeriod(),
+      new Promise<null>(resolve => setTimeout(() => resolve(null), 3_000)),
+    ]).catch(() => null)
+
+    Promise.all([
+      listDrivers(),
+      getPeriodFast(),
+      listDriverLeave({ per_page: 500, sort: "-start_date" }),
+    ]).then(([driversRes, periodRes, leaveRes]) => {
+      // ── Drivers ──
+      const eligible = (driversRes.drivers ?? []).filter((d) => (d.status as string) !== "pending")
+      const deduped  = dedupBy(dedupBy(eligible, "uuid"), (d) => `${d.name}|${d.phone ?? ""}`)
+      setDrivers(deduped)
+
+      // ── Period ──
+      if (periodRes) setPeriod(periodRes)
+
+      // ── Leaves ──
+      setLeaves(leaveRes.data ?? [])
+
+      // ── Shift preferences — deferred so the grid renders first ──
+      // getDriver is one API call per driver; defer to idle time so it
+      // never blocks the initial paint.
+      const fetchPrefs = async () => {
+        const results = await Promise.allSettled(deduped.map(d => getDriver(d.uuid)))
         const map = new Map<string, { start: string; end: string }>()
         results.forEach((res, i) => {
           if (res.status !== "fulfilled") return
@@ -812,22 +905,25 @@ export default function RotaPage() {
           map.set(deduped[i].uuid, { start: sp.start.slice(0, 5), end: sp.end.slice(0, 5) })
         })
         setPrefMap(map)
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
+      }
+
+      // Use requestIdleCallback when available (Chrome/Edge) otherwise setTimeout 0
+      if (typeof requestIdleCallback !== "undefined") {
+        requestIdleCallback(() => { fetchPrefs().catch(() => {}) })
+      } else {
+        setTimeout(() => { fetchPrefs().catch(() => {}) }, 0)
+      }
+    })
+    .catch(() => {})
+    .finally(() => setLoading(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Load rota + leaves on week change
+  // Load rota from localStorage on week change (sync — no API call)
   React.useEffect(() => {
     const weekRotas = getWeekRota(dates)
     setRotas(weekRotas)
     setPreferences(getAllPreferences())
-    // Note: assignedTripUuids is now derived from the live tripIndex (below),
-    // NOT from localStorage, so external API unassignments are always reflected.
-
-    listDriverLeave({ per_page: 500, sort: "-start_date" })
-      .then(res => setLeaves(res.data ?? []))
-      .catch(() => {})
   }, [dates, wk])
 
   /**
@@ -847,39 +943,39 @@ export default function RotaPage() {
     })
   }
 
-  // ── Compliance Engine — Run checks when drivers load or week changes ─────
-  const runComplianceChecks = React.useCallback(async () => {
-    if (drivers.length === 0) return
-    setComplianceLoading(true)
-    const today = dates[dates.length - 1] // evaluate through end of visible week
+  // ── Compliance Engine — Run checks using annotatedTripIndex (no extra API calls) ──
+  const runComplianceChecks = React.useCallback(() => {
+    if (drivers.length === 0 || annotatedTripIndex.size === 0) return
     const results = new Map<string, RotaComplianceReport>()
-    const settled = await Promise.allSettled(
-      drivers.map(async (d) => {
-        const report = await runComplianceCheck(d, today)
-        return { uuid: d.uuid, report }
-      })
-    )
-    for (const result of settled) {
-      if (result.status === "fulfilled") {
-        results.set(result.value.uuid, result.value.report)
-      }
+    for (const driver of drivers) {
+      results.set(driver.uuid, runComplianceCheck(driver.uuid, annotatedTripIndex, dates))
     }
     setComplianceReports(results)
-    setComplianceLoading(false)
-  }, [drivers, dates])
+  }, [drivers, annotatedTripIndex, dates])
 
 
-  // Trigger compliance check after initial load and on week change
+  // Re-run compliance whenever annotatedTripIndex or drivers change — fires on page load
+  // as soon as both API responses arrive, with no user action required.
   React.useEffect(() => {
-    if (!loaderDone || drivers.length === 0) return
+    if (drivers.length === 0 || annotatedTripIndex.size === 0) return
     runComplianceChecks()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaderDone, drivers.length, wk])
+  }, [drivers, wk, annotatedTripIndex])
 
   /**
    * Get all violations/warnings for a specific driver + date cell.
    * Returns { violations: [...], warnings: [...] }
+   *
+   * Weekly rules (WEEKLY_REST, WEEKLY_HOURS, BIWEEKLY_HOURS) are attributed to
+   * Saturday (the week-end date) by the engine, but should visually appear on
+   * EVERY day of the week — so an operator can see at a glance that the whole
+   * week is affected, not just Saturday.
    */
+  const WEEKLY_RULE_IDS = new Set([
+    "WEEKLY_REST", "WEEKLY_REST_PRIOR", "WEEKLY_HOURS", "BIWEEKLY_HOURS",
+  ])
+  // Pre-compute once at component level so getCellCompliance and getDriverComplianceStatus share it
+  const weekSet = new Set(dates)
   function getCellCompliance(driverUuid: string, date: string): {
     violations: ComplianceViolation[]
     warnings: ComplianceViolation[]
@@ -887,8 +983,12 @@ export default function RotaPage() {
     const report = complianceReports.get(driverUuid)
     if (!report) return { violations: [], warnings: [] }
     return {
-      violations: report.violations.filter(v => v.date === date),
-      warnings:   report.warnings.filter(w => w.date === date),
+      violations: report.violations.filter(v =>
+        v.date === date || (WEEKLY_RULE_IDS.has(v.ruleId) && weekSet.has(v.date))
+      ),
+      warnings: report.warnings.filter(w =>
+        w.date === date || (WEEKLY_RULE_IDS.has(w.ruleId) && weekSet.has(w.date))
+      ),
     }
   }
 
@@ -900,7 +1000,6 @@ export default function RotaPage() {
     const report = complianceReports.get(driverUuid)
     if (!report) return "compliant"
     // Filter to only include issues for the visible week dates
-    const weekSet = new Set(dates)
     const weekViolations = report.violations.filter(v => weekSet.has(v.date))
     const weekWarnings   = report.warnings.filter(w => weekSet.has(w.date))
     if (weekViolations.length > 0) return "violation"
@@ -910,7 +1009,6 @@ export default function RotaPage() {
 
   /** Count total violations and warnings across all drivers for the visible week */
   const complianceSummary = React.useMemo(() => {
-    const weekSet = new Set(dates)
     let totalViolations = 0
     let totalWarnings = 0
     let driversWithIssues = 0
@@ -924,14 +1022,41 @@ export default function RotaPage() {
     return { totalViolations, totalWarnings, driversWithIssues }
   }, [complianceReports, dates])
 
-  const navWeek = (delta: number) => {
-    setMonday(prev => {
-      const d = new Date(prev)
-      d.setDate(d.getDate() + delta * 7)
-      return d
-    })
-    setPopover(null)
+  /**
+   * Compute a driver's total working hours for the visible week directly from
+   * annotatedTripIndex. Called inline during render so the ring updates
+   * immediately when a trip is dragged — no state roundtrip required.
+   */
+  function getDriverWeeklyHoursInfo(driverUuid: string): {
+    hours: number; label: string; pct: number; color: string; tooltipText: string
+  } {
+    const workingMs = [...annotatedTripIndex.values()]
+      .filter(o => {
+        const d = o.driver_assigned_uuid ?? (o.driver_assigned as { uuid?: string } | undefined)?.uuid
+        if (d !== driverUuid) return false
+        if (!o.scheduled_at) return false
+        return weekSet.has(o.scheduled_at.slice(0, 10))
+      })
+      .reduce((sum, o) => {
+        const start  = new Date(o.scheduled_at!)
+        const endRaw = o.estimated_end_date
+          ? new Date(o.estimated_end_date)
+          : new Date(start.getTime() + (o.time || 0) * 1000)
+        const { workingHours } = shiftHours(start, endRaw)
+        return sum + workingHours * 3_600_000
+      }, 0)
+    const hours = workingMs / 3_600_000
+    const h     = Math.floor(hours)
+    const m     = Math.round((hours % 1) * 60)
+    const label = m === 0 ? `${h}h` : `${parseFloat(hours.toFixed(1))}h`
+    const pct   = Math.min(1, hours / 60)
+    const color = hours > 60 ? "#ef4444" : hours > 55 ? "#f59e0b" : "#22c55e"
+    const tooltipText = `${h}h${m > 0 ? ` ${m}m` : ""} of 60h weekly working time (WTD)`
+    return { hours, label, pct, color, tooltipText }
   }
+
+  // Week navigation is intentionally removed — the allocation period
+  // is locked to what the API returns via get-period.
 
   const getEntry = (driverUuid: string, date: string): RotaEntry | undefined =>
     rotas.find((r) => r.driver_uuid === driverUuid && r.date === date)
@@ -1116,6 +1241,18 @@ export default function RotaPage() {
     }
     upsertRota(newEntry)
 
+    // ── Optimistically patch tripIndex so the NEXT prospective check ────────
+    // sees this trip as assigned. Without this, the dock refetch is async and a
+    // second drag (e.g. 5am next day) will find existing.length===0 and silently
+    // pass without checking the rest gap against the first trip.
+    if (tripOrder) {
+      setTripIndex(prev => {
+        const next = new Map(prev)
+        next.set(tripUuid, { ...tripOrder, driver_assigned_uuid: driver.uuid })
+        return next
+      })
+    }
+
     const cellKey = `${driver.uuid}|${date}`
     setSavingCells(prev => new Set(prev).add(cellKey))
     await updateOrder(tripUuid, { driver_assigned_uuid: driver.uuid }).catch(() => {})
@@ -1220,10 +1357,15 @@ export default function RotaPage() {
   // so the layout doesn't reflow on every dragOver and break DnD hit-testing.
   // Non-target columns collapse to 0; target takes all remaining width.
   const COL_TRANSITION = "width 0.25s ease, min-width 0.25s ease, max-width 0.25s ease, opacity 0.15s ease"
+  // During drag: target date column expands (9999px → clipped by flex parent),
+  // all other date columns collapse to 0.
+  // Driver-name column shrinks from 120 to 80px so the table total stays inside
+  // the container and doesn't trigger a horizontal scrollbar.
   function colW(d: string) {
     if (!draggingDate) return 52
     return d === draggingDate ? 9999 : 0
   }
+  const driverColW = draggingDate ? 80 : 120
 
   // Preference match: compute once per render so all rows can reference it
   const draggingTime = draggingTrip?.scheduled_at ? isoLocalTime(draggingTrip.scheduled_at) : null
@@ -1242,28 +1384,47 @@ export default function RotaPage() {
       {/* ── Toolbar ──────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 flex-wrap shrink-0">
 
-        {/* Week nav — ‹ Week 13 · 24 Mar – 30 Mar › */}
-        <div className="flex items-center gap-0 rounded-xl border bg-card px-1 py-1">
+        {/* Allocation period — static display, no navigation */}
+        <div className="flex items-center gap-2 rounded-xl border bg-card px-3 py-1.5">
+          <span className="text-xs font-semibold text-foreground">
+            {fmtDate(dates[0])} – {fmtDate(dates[dates.length - 1])}
+          </span>
+          <span className="text-[10px] text-muted-foreground/60 font-medium">· Allocation Period</span>
+        </div>
+
+        {/* Grid / Analysis tab switcher */}
+        <div className="flex items-center gap-0.5 rounded-xl border bg-muted/40 p-0.5">
           <button
-            onClick={() => navWeek(-1)}
-            className="flex h-7 w-7 items-center justify-center rounded-lg hover:bg-muted transition-colors"
-            title="Previous week"
+            onClick={() => setRotaView("grid")}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-all ${
+              rotaView === "grid"
+                ? "bg-card shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
           >
-            <ChevronLeft className="h-4 w-4" />
+            <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <rect x="1" y="1" width="6" height="6" rx="1"/>
+              <rect x="9" y="1" width="6" height="6" rx="1"/>
+              <rect x="1" y="9" width="6" height="6" rx="1"/>
+              <rect x="9" y="9" width="6" height="6" rx="1"/>
+            </svg>
+            {t.rota.grid}
           </button>
           <button
-            onClick={() => { setMonday(weekStart(new Date())); setPopover(null) }}
-            className="flex items-center px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-            title="Jump to current week"
+            onClick={() => setRotaView("analysis")}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-all ${
+              rotaView === "analysis"
+                ? "bg-card shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
           >
-            Week {week} &nbsp;·&nbsp; {fmtDate(dates[0])} – {fmtDate(dates[6])}
-          </button>
-          <button
-            onClick={() => navWeek(1)}
-            className="flex h-7 w-7 items-center justify-center rounded-lg hover:bg-muted transition-colors"
-            title="Next week"
-          >
-            <ChevronRight className="h-4 w-4" />
+            <ShieldAlert className="h-3.5 w-3.5" />
+            {t.rota.analysis}
+            {complianceSummary.totalViolations > 0 && (
+              <span className="rounded-full bg-red-500 px-1 text-[8px] font-bold text-white leading-[1.6]">
+                {complianceSummary.totalViolations}
+              </span>
+            )}
           </button>
         </div>
 
@@ -1285,7 +1446,7 @@ export default function RotaPage() {
           {complianceLoading ? (
             <span className="inline-flex items-center gap-1.5 rounded-xl border border-border/60 bg-card px-3 py-1.5 text-[11px] text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Checking compliance…
+              {t.rota.checkingCompliance}
             </span>
           ) : complianceSummary.totalViolations > 0 ? (
             <button
@@ -1293,9 +1454,9 @@ export default function RotaPage() {
               className="inline-flex items-center gap-1.5 rounded-xl border border-red-300/60 bg-red-50 dark:bg-red-900/20 px-3 py-1.5 text-[11px] font-semibold text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
             >
               <ShieldAlert className="h-3.5 w-3.5" />
-              {complianceSummary.totalViolations} violation{complianceSummary.totalViolations !== 1 ? "s" : ""}
+              {t.rota.violations.replace("{n}", String(complianceSummary.totalViolations)).replace("{w}", String(complianceSummary.totalWarnings)).split("·")[0].trim()}
               {complianceSummary.totalWarnings > 0 && (
-                <span className="text-amber-600 dark:text-amber-400"> · {complianceSummary.totalWarnings} warning{complianceSummary.totalWarnings !== 1 ? "s" : ""}</span>
+                <span className="text-amber-600 dark:text-amber-400"> · {t.rota.warnings.replace("{w}", String(complianceSummary.totalWarnings))}</span>
               )}
             </button>
           ) : complianceSummary.totalWarnings > 0 ? (
@@ -1304,7 +1465,7 @@ export default function RotaPage() {
               className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300/60 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
             >
               <AlertTriangle className="h-3.5 w-3.5" />
-              {complianceSummary.totalWarnings} warning{complianceSummary.totalWarnings !== 1 ? "s" : ""}
+              {t.rota.warnings.replace("{w}", String(complianceSummary.totalWarnings))}
             </button>
           ) : complianceReports.size > 0 ? (
             <button
@@ -1312,17 +1473,38 @@ export default function RotaPage() {
               className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300/60 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors"
             >
               <ShieldCheck className="h-3.5 w-3.5" />
-              All compliant
+              {t.rota.allCompliant}
             </button>
           ) : null}
+
+          {/* Export Relay button */}
+          <button
+            onClick={() => exportRelayXls([...tripIndex.values()], drivers)}
+            title="Export driver assignments as Relay BulkAssign.xls"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-border/60 bg-card px-3 py-1.5 text-[11px] font-semibold text-foreground hover:bg-muted transition-colors"
+          >
+            <Download className="h-3.5 w-3.5" />
+            {t.rota.exportRelay}
+          </button>
         </div>
       </div>
 
-      {/* ── Main two-column area ──────────────────────────────────────────── */}
+      {/* ── Main two-column area (grid view) ────────────────────────────────── */}
+      {rotaView === "analysis" ? (
+        <div className="flex-1 min-h-0 overflow-hidden rounded-xl border bg-card">
+          <ComplianceMatrixView
+            drivers={drivers}
+            tripIndex={annotatedTripIndex}
+            complianceReports={complianceReports}
+            dates={dates}
+            onOpenPanel={() => setCompliancePanelOpen(true)}
+          />
+        </div>
+      ) : (
       <div className="flex flex-1 gap-4 min-h-0">
 
         {/* ── Left: driver grid ─────────────────────────────────────────── */}
-        <div className="flex-1 min-w-0 overflow-auto rounded-xl border bg-card">
+        <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden rounded-xl border bg-card">
           {(loading || !loaderDone) ? (
             <RotaLoader apiReady={!loading} onFinished={handleLoaderFinished} />
           ) : (
@@ -1331,8 +1513,12 @@ export default function RotaPage() {
                 <tr className="border-b">
                   <th
                     className="py-2 text-left text-[11px] font-bold text-muted-foreground px-2 overflow-hidden"
-                    style={{ width: 120, minWidth: 120, maxWidth: 120 }}
-                  >Driver</th>
+                    style={{ width: driverColW, minWidth: driverColW, maxWidth: driverColW, transition: COL_TRANSITION }}
+                  >{t.rota.driver}</th>
+                  <th
+                    className="py-2 text-center text-[10px] font-bold text-muted-foreground overflow-hidden"
+                    style={{ width: 42, minWidth: 42, maxWidth: 42 }}
+                  >{t.rota.hrs}</th>
                   {dates.map((d, i) => (
                     <th
                       key={d}
@@ -1360,8 +1546,8 @@ export default function RotaPage() {
                               : "hover:bg-muted/10"}
                           `}
                         >
-                          {/* Avatar + name, fixed 120px */}
-                          <td className="px-2 py-1 w-[120px] min-w-[120px] max-w-[120px] overflow-hidden">
+                          {/* Avatar + name, fixed width shrinks slightly during drag */}
+                          <td className="px-2 py-1 overflow-hidden" style={{ width: driverColW, minWidth: driverColW, maxWidth: driverColW, transition: COL_TRANSITION }}>
                             <div className="flex items-center gap-1.5 min-w-0">
                               <span className="relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-bold">
                                 {(driver.name ?? "?")[0].toUpperCase()}
@@ -1369,10 +1555,10 @@ export default function RotaPage() {
                                 {(() => {
                                   const dcs = getDriverComplianceStatus(driver.uuid)
                                   if (dcs === "violation") return (
-                                    <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-red-500 border-2 border-card" title="Compliance violation" />
+                                    <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-red-500 border-2 border-card" title={t.rota.complianceViolation} />
                                   )
                                   if (dcs === "warning") return (
-                                    <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-amber-500 border-2 border-card" title="Compliance warning" />
+                                    <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-amber-500 border-2 border-card" title={t.rota.complianceWarning} />
                                   )
                                   return null
                                 })()}
@@ -1386,6 +1572,20 @@ export default function RotaPage() {
                               )}
                             </div>
                           </td>
+                          {/* Weekly hours column */}
+                          {(() => {
+                            const wh = getDriverWeeklyHoursInfo(driver.uuid)
+                            const textColor = wh.hours > 60 ? "#ef4444" : wh.hours > 55 ? "#f59e0b" : wh.hours > 0 ? "#22c55e" : undefined
+                            return (
+                              <td
+                                className="text-center text-[11px] font-medium tabular-nums"
+                                style={{ width: 42, minWidth: 42, maxWidth: 42, color: textColor }}
+                                title={wh.hours > 0 ? wh.tooltipText : undefined}
+                              >
+                                {wh.hours > 0 ? wh.label : <span className="text-muted-foreground/30">–</span>}
+                              </td>
+                            )
+                          })()}
                           {dates.map((date) => {
                             const entry         = getEntry(driver.uuid, date)
                             // After the cleanup effect runs, stale WD entries are removed from
@@ -1463,11 +1663,12 @@ export default function RotaPage() {
                                         .filter(o => {
                                           const a = o.driver_assigned_uuid || o.driver_assigned?.uuid
                                           if (a !== driver.uuid || !o.scheduled_at) return false
-                                          const startD = isoLocalDate(o.scheduled_at)
-                                          const endD = (o.estimated_end_date && !isNaN(new Date(o.estimated_end_date).getTime()))
-                                            ? isoLocalDate(o.estimated_end_date)
-                                            : startD
-                                          return date >= startD && date <= endD
+                                          // Show the trip ONLY in its start-date column.
+                                          // Previously we showed it in every column from startD to endD —
+                                          // that made overnight trips (e.g. 14:00 → 01:30 next day) appear
+                                          // twice: once on the correct day and again on the next day,
+                                          // making operators think there was a second trip assigned.
+                                          return isoLocalDate(o.scheduled_at) === date
                                         })
                                         .sort((a, b) => (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? ""))
 
@@ -1578,9 +1779,16 @@ export default function RotaPage() {
             assignedUuids={assignedTripUuids}
             refreshKey={dockRefreshKey}
             onTripsLoaded={(orders) => {
-              const m = new Map<string, Order>()
-              orders.forEach(o => m.set(o.uuid, o))
-              setTripIndex(m)
+              // MERGE into existing tripIndex — do NOT replace it wholesale.
+              // If we replace, the optimistic driver-assignment patches added in
+              // handleDrop get wiped before the API confirms them, leaving the
+              // compliance engine with zero trips for newly-assigned drivers and
+              // silently passing rest-gap and REST_GAP_COUNT checks.
+              setTripIndex(prev => {
+                const next = new Map(prev)
+                orders.forEach(o => next.set(o.uuid, o))
+                return next
+              })
             }}
             onDragStart={(trip) => {
               draggingTripRef.current = trip
@@ -1593,6 +1801,7 @@ export default function RotaPage() {
           />
         </div>
       </div>
+      )} {/* end rotaView === "grid" */}
 
       {/* Reassignment confirmation dialog */}
       {reassignDialog && ReactDOM.createPortal(
@@ -1611,47 +1820,47 @@ export default function RotaPage() {
             <div className="p-5 flex flex-col gap-4">
               {/* Header */}
               <div>
-                <p className="text-sm font-bold">Reassign {reassignDialog.driver.name}?</p>
+                <p className="text-sm font-bold">{t.rota.reassignTitle} {reassignDialog.driver.name}?</p>
                 <p className="text-xs text-muted-foreground mt-0.5">{fmtDay(reassignDialog.date)}, {fmtDate(reassignDialog.date)}</p>
               </div>
               {/* Current vs new */}
               <div className="rounded-xl border bg-muted/30 p-3 flex flex-col gap-2 text-xs">
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Currently assigned</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{t.rota.currentlyAssigned}</p>
                   {reassignDialog.existingUuids.map(uid => {
-                    const t = tripIndex.get(uid)
+                    const trip = tripIndex.get(uid)
                     return (
                       <span key={uid} className="inline-flex items-center gap-1 rounded-[100px] border border-emerald-300/60 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 text-[11px] font-medium text-emerald-800 dark:text-emerald-300 mr-1">
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
-                        {t ? `${t.scheduled_at?.slice(11,16)} · ${t.public_id}` : uid.slice(0,8)}
+                        {trip ? `${trip.scheduled_at?.slice(11,16)} · ${trip.public_id}` : uid.slice(0,8)}
                       </span>
                     )
                   })}
                 </div>
                 <div className="border-t pt-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Will be replaced with</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{t.rota.willBeReplacedWith}</p>
                   {(() => {
-                    const t = reassignDialog.newTripOrder
+                    const trip = reassignDialog.newTripOrder
                     return (
                       <span className="inline-flex items-center gap-1 rounded-[100px] border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary mr-1">
                         <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
-                        {t ? `${t.scheduled_at?.slice(11,16)} · ${t.public_id}` : reassignDialog.newTripUuid.slice(0,8)}
+                        {trip ? `${trip.scheduled_at?.slice(11,16)} · ${trip.public_id}` : reassignDialog.newTripUuid.slice(0,8)}
                       </span>
                     )
                   })()}
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">The existing trip{reassignDialog.existingUuids.length !== 1 ? 's' : ''} will be unassigned and returned to the unassigned pool.</p>
+              <p className="text-xs text-muted-foreground">{t.rota.existingTripUnassigned}</p>
               {/* Actions */}
               <div className="flex gap-2">
                 <button
                   onClick={() => setReassignDialog(null)}
                   className="flex-1 rounded-lg border px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
-                >Cancel</button>
+                >{t.common.cancel}</button>
                 <button
                   onClick={confirmReassign}
                   className="flex-1 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
-                >Reassign</button>
+                >{t.rota.reassignTitle}</button>
               </div>
             </div>
           </div>
@@ -1699,8 +1908,8 @@ export default function RotaPage() {
                   <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
                 </span>
                 <div>
-                  <p className="text-sm font-bold text-red-700 dark:text-red-300">Allocation Blocked</p>
-                  <p className="text-[11px] text-muted-foreground">Compliance violation prevents this assignment</p>
+                  <p className="text-sm font-bold text-red-700 dark:text-red-300">{t.rota.allocationBlocked}</p>
+                  <p className="text-[11px] text-muted-foreground">{t.rota.complianceViolationBlocked}</p>
                 </div>
               </div>
               {/* Driver + date */}
@@ -1727,7 +1936,7 @@ export default function RotaPage() {
               <button
                 onClick={() => setComplianceReject(null)}
                 className="w-full rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 transition-colors"
-              >Understood</button>
+              >{t.rota.understood}</button>
             </div>
           </div>
         </>,
@@ -1763,9 +1972,9 @@ export default function RotaPage() {
                   : <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
               </span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold">Compliance Report</p>
+                <p className="text-sm font-bold">{t.rota.complianceReport}</p>
                 <p className="text-[11px] text-muted-foreground">
-                  Week {week} · {complianceSummary.driversWithIssues} driver{complianceSummary.driversWithIssues !== 1 ? "s" : ""} with issues
+                  {fmtDate(dates[0])} – {fmtDate(dates[dates.length - 1])} · {t.rota.driversWithIssues.replace("{n}", String(complianceSummary.driversWithIssues))}
                 </p>
               </div>
               <button
@@ -1780,17 +1989,17 @@ export default function RotaPage() {
             <div className="flex gap-3 px-5 py-3 border-b bg-muted/20 shrink-0">
               <div className="flex-1 rounded-xl border bg-card p-3 text-center">
                 <p className="text-lg font-bold text-red-600">{complianceSummary.totalViolations}</p>
-                <p className="text-[10px] font-medium text-muted-foreground">Violations</p>
+                <p className="text-[10px] font-medium text-muted-foreground">{t.rota.violationsLabel}</p>
               </div>
               <div className="flex-1 rounded-xl border bg-card p-3 text-center">
                 <p className="text-lg font-bold text-amber-600">{complianceSummary.totalWarnings}</p>
-                <p className="text-[10px] font-medium text-muted-foreground">Warnings</p>
+                <p className="text-[10px] font-medium text-muted-foreground">{t.rota.warningsLabel}</p>
               </div>
               <div className="flex-1 rounded-xl border bg-card p-3 text-center">
                 <p className="text-lg font-bold text-emerald-600">
                   {drivers.length - complianceSummary.driversWithIssues}
                 </p>
-                <p className="text-[10px] font-medium text-muted-foreground">Compliant</p>
+                <p className="text-[10px] font-medium text-muted-foreground">{t.rota.complianceCompliant}</p>
               </div>
             </div>
 
@@ -1805,7 +2014,7 @@ export default function RotaPage() {
                 }`}
               >
                 <AlertTriangle className="h-3.5 w-3.5" />
-                Issues
+                {t.rota.issuesTab}
                 {(complianceSummary.totalViolations + complianceSummary.totalWarnings) > 0 && (
                   <span className="rounded-full bg-red-100 dark:bg-red-900/30 px-1.5 py-0.5 text-[9px] font-bold text-red-700 dark:text-red-300">
                     {complianceSummary.totalViolations + complianceSummary.totalWarnings}
@@ -1821,7 +2030,7 @@ export default function RotaPage() {
                 }`}
               >
                 <BookOpen className="h-3.5 w-3.5" />
-                Rules Reference
+                {t.rota.rulesRef}
               </button>
             </div>
 
@@ -1873,6 +2082,13 @@ export default function RotaPage() {
                                   <div className="min-w-0">
                                     <p className="text-[10px] font-semibold text-red-700 dark:text-red-300">{v.message}</p>
                                     <p className="text-[9px] text-red-600/60 mt-0.5">{v.calculation}</p>
+                                    {v.tripStartTime && v.tripEndTime && (
+                                      <p className="text-[9px] text-red-500/50 mt-0.5">
+                                        Trip &middot; {new Date(v.tripStartTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })}
+                                        {" → "}
+                                        {new Date(v.tripEndTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })}
+                                      </p>
+                                    )}
                                     <div className="flex items-center gap-2 mt-1">
                                       <span className="text-[8px] font-mono text-muted-foreground/60">{v.ruleId}</span>
                                       <span className="text-[8px] text-muted-foreground/60">·</span>
@@ -1889,6 +2105,13 @@ export default function RotaPage() {
                                   <div className="min-w-0">
                                     <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-300">{w.message}</p>
                                     <p className="text-[9px] text-amber-600/60 mt-0.5">{w.calculation}</p>
+                                    {w.tripStartTime && w.tripEndTime && (
+                                      <p className="text-[9px] text-amber-500/50 mt-0.5">
+                                        Trip &middot; {new Date(w.tripStartTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })}
+                                        {" → "}
+                                        {new Date(w.tripEndTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })}
+                                      </p>
+                                    )}
                                     <div className="flex items-center gap-2 mt-1">
                                       <span className="text-[8px] font-mono text-muted-foreground/60">{w.ruleId}</span>
                                       <span className="text-[8px] text-muted-foreground/60">·</span>
@@ -1907,9 +2130,9 @@ export default function RotaPage() {
                   {complianceSummary.totalViolations === 0 && complianceSummary.totalWarnings === 0 && (
                     <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
                       <ShieldCheck className="h-8 w-8 opacity-30" />
-                      <p className="text-sm font-semibold">All Clear</p>
+                      <p className="text-sm font-semibold">{t.rota.allClear}</p>
                       <p className="text-xs text-center max-w-[240px]">
-                        No compliance violations or warnings detected for this week. All drivers are within their permitted hours.
+                        {t.rota.noComplianceDesc}
                       </p>
                     </div>
                   )}
@@ -1964,3 +2187,5 @@ export default function RotaPage() {
     </div>
   )
 }
+
+

@@ -4,20 +4,19 @@
  * Geotab uses a JSON-RPC 2.0 API at:
  *   POST https://<server>/apiv1
  *
- * Fill in GEOTAB_CONFIG below with your real credentials.
+ * Credentials are loaded at call-time from Org Settings → Integrations
+ * (stored in localStorage via lib/geotab-settings.ts).
  * All API calls use "MultiCall" to batch requests in a single round-trip.
  *
  * Docs: https://developers.geotab.com/myGeotab/apiReference
  */
 
-// ─── CONFIG (edit these) ──────────────────────────────────────────────────────
+import { getGeotabConfig } from "@/lib/geotab-settings"
 
-export const GEOTAB_CONFIG = {
-  server:   "my.geotab.com",       // e.g. "my3.geotab.com"
-  database: "YOUR_COMPANY_DB",     // e.g. "fleetyes"
-  userName: "api@fleetyes.co.uk",  // service account email
-  password: "YOUR_API_PASSWORD",   // service account password
-} as const
+// ─── CONFIG — resolved at call-time from Org Settings ────────────────────────
+// Use getGeotabConfig() from lib/geotab-settings.ts to get credentials.
+// GEOTAB_CONFIG is kept as a re-export for any consumers that destructure it,
+// but it is evaluated lazily on each call.
 
 // ─── GEOTAB TYPES (per API reference) ────────────────────────────────────────
 
@@ -108,7 +107,7 @@ interface RpcResponse<T> {
   error?: { message: string; name: string }
 }
 
-const BASE_URL = () => `https://${GEOTAB_CONFIG.server}/apiv1`
+const BASE_URL = () => `https://${getGeotabConfig().server}/apiv1`
 
 async function rpc<T>(method: string, params: Record<string, unknown>): Promise<T> {
   const res = await fetch(BASE_URL(), {
@@ -117,11 +116,10 @@ async function rpc<T>(method: string, params: Record<string, unknown>): Promise<
     body: JSON.stringify({
       method,
       params: {
-        credentials: {
-          database: GEOTAB_CONFIG.database,
-          userName: GEOTAB_CONFIG.userName,
-          password: GEOTAB_CONFIG.password,
-        },
+        credentials: (() => {
+          const cfg = getGeotabConfig()
+          return { database: cfg.database, userName: cfg.userName, password: cfg.password }
+        })(),
         ...params,
       },
     }),

@@ -4,10 +4,68 @@ import * as React from "react"
 import {
   ChevronLeft, ChevronRight,
   Clock, CalendarIcon, Users, IdCard, Car, MapPin,
-  ChevronDown, ChevronUp, RefreshCw,
+  RefreshCw, X, Paperclip, FileText, FileSpreadsheet, FileCode, File,
 } from "lucide-react"
 import { listOrders, type Order, type OrderStatus } from "@/lib/orders-api"
 import { listDriverLeave, listVehicleUnavailability, type LeaveRequest } from "@/lib/leave-requests-api"
+import { listDrivers, type Driver } from "@/lib/drivers-api"
+import { listVehicles, type Vehicle } from "@/lib/vehicles-api"
+import { getFileTypeIcon } from "@/app/(dashboard)/maintenance-trips/page"
+import { useLang } from "@/components/lang-context"
+
+// ─── Attachment file cache & hook (maintenance trips only) ───────────────────
+// Cache stores full file list so the icon doubles as a download link.
+interface CachedFile { uuid: string; original_filename: string; url: string }
+const _fileCache = new Map<string, CachedFile[]>()
+
+function useLeaveFiles(uuid: string, enabled: boolean) {
+  const init = _fileCache.get(uuid)
+  const [files, setFiles] = React.useState<CachedFile[]>(init ?? [])
+  const [ready, setReady] = React.useState(init !== undefined)
+  React.useEffect(() => {
+    if (!enabled) return
+    if (_fileCache.has(uuid)) { setFiles(_fileCache.get(uuid)!); setReady(true); return }
+    let dead = false
+    void (async () => {
+      try {
+        const { getToken, ONTRACK_HOST } = await import("@/lib/ontrack-api")
+        const res = await fetch(
+          `${ONTRACK_HOST}/int/v1/files?subject_uuid=${uuid}&limit=10`,
+          { headers: { Authorization: `Bearer ${getToken()}` } }
+        )
+        if (!res.ok || dead) return
+        const d = await res.json()
+        const list: CachedFile[] = d?.files ?? d?.data ?? []
+        _fileCache.set(uuid, list)
+        if (!dead) { setFiles(list); setReady(true) }
+      } catch { _fileCache.set(uuid, []); if (!dead) setReady(true) }
+    })()
+    return () => { dead = true }
+  }, [uuid, enabled])
+  return { files, ready }
+}
+
+// Calendar-chip icon: typed icon link → first file; badge if multiple.
+// Clicks are stopPropagation so the chip's own onClick (open sidebar) still fires.
+function LeaveAttachmentIcon({ uuid }: { uuid: string }) {
+  const { files } = useLeaveFiles(uuid, true)
+  if (!files.length) return null
+  const { Icon, cls } = getFileTypeIcon(files[0].original_filename, (files[0] as { content_type?: string }).content_type)
+  return (
+    <a
+      href={files[0].url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={files.length === 1 ? files[0].original_filename : `${files.length} attachments`}
+      onClick={e => e.stopPropagation()}
+      className={`inline-flex items-center gap-0.5 shrink-0 hover:opacity-100 opacity-80 ${cls}`}
+    >
+      <Icon className="h-2.5 w-2.5" />
+      {files.length > 1 && <span className="text-[8px] leading-none font-bold">{files.length}</span>}
+    </a>
+  )
+}
+
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -197,13 +255,13 @@ const CHIP = {
   noDriver:     "border-l-2 border-amber-500  bg-amber-100/70 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
 } as const
 
-const LEGEND = [
-  { chip: CHIP.driverLeave,  label: "Driver unavailable" },
-  { chip: CHIP.vehicleLeave, label: "Veh. off" },
-  { chip: CHIP.assigned,     label: "Fully assigned" },
-  { chip: CHIP.unassigned,   label: "Unassigned" },
-  { chip: CHIP.noVehicle,    label: "No vehicle" },
-  { chip: CHIP.noDriver,     label: "No driver" },
+const LEGEND_CHIPS = [
+  { key: "driverOff" as const, chip: CHIP.driverLeave  },
+  { key: "vehicleOff" as const,chip: CHIP.vehicleLeave },
+  { key: "fullyAssigned" as const, chip: CHIP.assigned },
+  { key: "unassigned" as const, chip: CHIP.unassigned  },
+  { key: "noVehicle" as const,  chip: CHIP.noVehicle   },
+  { key: "noDriver" as const,   chip: CHIP.noDriver    },
 ] as const
 
 function leaveChip(l: LeaveRequest): string {
@@ -232,18 +290,30 @@ function orderChip(o: Order, hd: (o: Order) => boolean, hv: (o: Order) => boolea
   return CHIP.noDriver
 }
 
-// ─── Status colour map ────────────────────────────────────────────────────────
-
-const STATUS_COLORS: Record<OrderStatus, { badge: string; dot: string; label: string }> = {
-  created:    { badge: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400", dot: "bg-yellow-500", label: "Created" },
-  dispatched: { badge: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400", dot: "bg-purple-500", label: "Dispatched" },
-  started:    { badge: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",         dot: "bg-blue-500",  label: "In Progress" },
-  completed:  { badge: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",     dot: "bg-green-500", label: "Completed" },
-  canceled:   { badge: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",            dot: "bg-zinc-400",  label: "Cancelled" },
+/** Solid bg color class for the duration tail line, matching the chip accent */
+function orderAccentBg(o: Order, hd: (o: Order) => boolean, hv: (o: Order) => boolean): string {
+  const d = hd(o), v = hv(o)
+  if (d && v)   return "bg-green-500"
+  if (!d && !v) return "bg-blue-500"
+  if (d && !v)  return "bg-yellow-500"
+  return "bg-amber-500"
 }
 
-function statusStyle(s?: string) {
-  return STATUS_COLORS[(s as OrderStatus) ?? "created"] ?? STATUS_COLORS.created
+// ─── Status colour map ────────────────────────────────────────────────────────
+
+type StatusColorsMap = Record<OrderStatus, { badge: string; dot: string; label: string }>
+function makeStatusColors(tc: { created: string; dispatched?: string; started?: string; completed: string; cancelled?: string }): StatusColorsMap {
+  return {
+    created:    { badge: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400", dot: "bg-yellow-500", label: tc.created },
+    dispatched: { badge: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400", dot: "bg-purple-500", label: tc.dispatched ?? tc.created },
+    started:    { badge: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",         dot: "bg-blue-500",  label: tc.started ?? "In Progress" },
+    completed:  { badge: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",     dot: "bg-green-500", label: tc.completed },
+    canceled:   { badge: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",            dot: "bg-zinc-400",  label: tc.cancelled ?? "Cancelled" },
+  }
+}
+
+function statusStyle(s: string | undefined, statusColors: StatusColorsMap) {
+  return statusColors[(s as OrderStatus) ?? "created"] ?? statusColors.created
 }
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
@@ -261,7 +331,13 @@ function Row({ icon, label, value, muted }: { icon: React.ReactNode; label: stri
 }
 
 function OrderCard({ order }: { order: Order }) {
-  const s    = statusStyle(order.status)
+  const { t } = useLang()
+  const tc = t.calendar
+  const STATUS_COLORS_LOCAL = makeStatusColors({
+    created: tc.created, dispatched: tc.assigned, started: "In Progress",
+    completed: t.common.completed, cancelled: t.common.cancelled,
+  })
+  const s    = statusStyle(order.status, STATUS_COLORS_LOCAL)
   const dest = order.dropoff_name ?? order.payload?.dropoff?.name ?? "—"
   return (
     <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
@@ -273,20 +349,24 @@ function OrderCard({ order }: { order: Order }) {
         </span>
       </div>
       <div className="space-y-1.5 p-3 text-xs">
-        <Row icon={<Clock   className="h-3 w-3" />} label="Scheduled"   value={fmtDate(order.scheduled_at)} />
-        <Row icon={<Clock   className="h-3 w-3" />} label="Est. End"    value={fmtDate(order.estimated_end_date)} />
-        <Row icon={<CalendarIcon className="h-3 w-3" />} label="Created" value={fmtDate(order.created_at)} />
-        <Row icon={<Users   className="h-3 w-3" />} label="Fleet"       value={order.fleet_name ?? "—"} />
-        <Row icon={<IdCard  className="h-3 w-3" />} label="Driver"      value={driverName(order) ?? "No Driver"} muted={!driverName(order)} />
-        <Row icon={<Car     className="h-3 w-3" />} label="Vehicle"     value={vehiclePlate(order) ?? "No Vehicle"} muted={!vehiclePlate(order)} />
-        <Row icon={<MapPin  className="h-3 w-3" />} label="Destination" value={dest} />
+        <Row icon={<Clock   className="h-3 w-3" />} label={t.common.scheduled ?? "Scheduled"} value={fmtDate(order.scheduled_at)} />
+        <Row icon={<Clock   className="h-3 w-3" />} label={tc.estEnd}              value={fmtDate(order.estimated_end_date)} />
+        <Row icon={<CalendarIcon className="h-3 w-3" />} label={tc.created}        value={fmtDate(order.created_at)} />
+        <Row icon={<Users   className="h-3 w-3" />} label={t.common.fleet}         value={order.fleet?.name ?? order.fleet_name ?? "—"} />
+        <Row icon={<IdCard  className="h-3 w-3" />} label={t.common.driver}        value={driverName(order) ?? tc.noDriver} muted={!driverName(order)} />
+        <Row icon={<Car     className="h-3 w-3" />} label={t.common.vehicle}       value={vehiclePlate(order) ?? tc.noVehicle} muted={!vehiclePlate(order)} />
+        <Row icon={<MapPin  className="h-3 w-3" />} label={tc.destination}         value={dest} />
       </div>
     </div>
   )
 }
 
 function LeaveCard({ leave: l }: { leave: LeaveRequest }) {
-  const who = l.vehicle_name ?? l.user?.name ?? "Unknown"
+  const { t } = useLang()
+  const tc = t.calendar
+  const who       = l.vehicle_name ?? l.user?.name ?? "Unknown"
+  const isVehicle = l.unavailability_type === "vehicle"
+  const { files } = useLeaveFiles(l.uuid, isVehicle)
   return (
     <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
       <div className={`flex items-center justify-between border-b px-3 py-2 ${leaveChip(l)}`}>
@@ -294,21 +374,176 @@ function LeaveCard({ leave: l }: { leave: LeaveRequest }) {
         <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-medium">{l.status}</span>
       </div>
       <div className="space-y-1 p-3 text-xs">
-        <div className="flex justify-between"><span className="font-medium text-muted-foreground">Type</span><span>{l.leave_type}</span></div>
-        <div className="flex justify-between"><span className="font-medium text-muted-foreground">Period</span><span>{l.start_date.slice(0,10)} → {l.end_date.slice(0,10)}</span></div>
-        <div className="flex justify-between"><span className="font-medium text-muted-foreground">Days</span><span>{l.total_days}</span></div>
+        <div className="flex justify-between"><span className="font-medium text-muted-foreground">{t.common.type}</span><span>{l.leave_type}</span></div>
+        <div className="flex justify-between"><span className="font-medium text-muted-foreground">{t.common.duration}</span><span>{l.start_date.slice(0,10)} → {l.end_date.slice(0,10)}</span></div>
+        <div className="flex justify-between"><span className="font-medium text-muted-foreground">{t.common.duration}</span><span>{l.total_days}</span></div>
         {l.reason && <div className="pt-1 text-muted-foreground border-t">{l.reason}</div>}
+        {isVehicle && files.length > 0 && (
+          <div className="pt-2 mt-1 border-t space-y-1">
+            <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Attachments</div>
+            {files.map(f => {
+              const { Icon, cls } = getFileTypeIcon(f.original_filename, (f as { content_type?: string }).content_type)
+              return (
+                <a
+                  key={f.uuid}
+                  href={f.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex items-center gap-1.5 hover:underline truncate ${cls}`}
+                  title={f.original_filename}
+                >
+                  <Icon className="h-3 w-3 shrink-0" />
+                  <span className="truncate text-foreground hover:text-primary">{f.original_filename}</span>
+                </a>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
+  )
+}
+
+// ─── Trip sidebar ─────────────────────────────────────────────────────────────
+
+interface SidebarData {
+  title:       string
+  trips:       Order[]
+  leaves:      LeaveRequest[]
+  continuing?: Order[]     // week-scoped continuing trips (started before this week)
+  initialTab?: 'all' | 'trips' | 'vehicle' | 'drivers' | 'continuing'
+}
+
+function TripSidebar({ data, onClose }: { data: SidebarData; onClose: () => void }) {
+  const [tab, setTab] = React.useState<'all' | 'trips' | 'vehicle' | 'drivers' | 'continuing'>('all')
+
+  // Reset to requested initial tab whenever content changes (new day clicked)
+  React.useEffect(() => { setTab(data.initialTab ?? 'all') }, [data])
+
+  // Close on Escape key
+  React.useEffect(() => {
+    const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', fn)
+    return () => document.removeEventListener('keydown', fn)
+  }, [onClose])
+
+  const vehicleLeaves    = data.leaves.filter(l => l.unavailability_type === 'vehicle')
+  const driverLeaves     = data.leaves.filter(l => l.unavailability_type !== 'vehicle')
+  const contOrders       = data.continuing ?? []
+
+  const visibleTrips  = tab === 'all' || tab === 'trips'      ? data.trips     : []
+  const visibleLeaves = tab === 'all'                          ? data.leaves
+                      : tab === 'vehicle'                      ? vehicleLeaves
+                      : tab === 'drivers'                      ? driverLeaves
+                      : []
+  const visibleCont   = tab === 'all' || tab === 'continuing'  ? contOrders     : []
+
+  const visibleCount = visibleTrips.length + visibleLeaves.length + visibleCont.length
+  const total        = data.trips.length + data.leaves.length + contOrders.length
+
+  // Sidebar width locked to TOTAL on open; grid cols adapt per tab
+  const CARD_W    = 300
+  const GAP       = 12
+  const PAD       = 24
+  const panelCols = Math.min(Math.max(total, 1), 4)
+  const gridCols  = Math.min(Math.max(visibleCount, 1), 4)
+  const panelW    = `min(${panelCols * CARD_W + (panelCols - 1) * GAP + PAD}px, 90vw)`
+
+  const TABS = [
+    { id: 'all'        as const, label: 'All',        count: total                },
+    { id: 'trips'      as const, label: 'Trips',      count: data.trips.length    },
+    { id: 'vehicle'    as const, label: 'Vehicle',    count: vehicleLeaves.length },
+    { id: 'drivers'    as const, label: 'Drivers',    count: driverLeaves.length  },
+    { id: 'continuing' as const, label: 'Continuing', count: contOrders.length   },
+  ].filter(t => t.id === 'all' || t.count > 0)
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]" onClick={onClose} />
+      {/* Panel */}
+      <div
+        className="fixed inset-y-0 right-0 z-50 flex flex-col bg-card border-l shadow-2xl overflow-hidden transition-[width] duration-200"
+        style={{ width: panelW }}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-2 border-b px-4 py-3 shrink-0">
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold text-sm truncate">{data.title}</div>
+            <div className="text-[11px] text-muted-foreground">
+              {total} event{total !== 1 ? 's' : ''}
+              {data.trips.length    > 0 && ` · ${data.trips.length} trip${data.trips.length > 1 ? 's' : ''}`}
+              {vehicleLeaves.length > 0 && ` · ${vehicleLeaves.length} vehicle`}
+              {driverLeaves.length  > 0 && ` · ${driverLeaves.length} driver`}
+              {contOrders.length    > 0 && ` · ${contOrders.length} continuing`}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-0.5 border-b bg-muted/30 px-3 pt-2 pb-0 shrink-0">
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`relative flex items-center gap-1.5 rounded-t-md px-3 py-1.5 text-xs font-medium transition-colors
+                ${tab === t.id
+                  ? 'bg-card text-foreground shadow-sm border border-b-card border-border -mb-px'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                }`}
+            >
+              {t.label}
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none
+                ${tab === t.id
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground'
+                }`}
+              >
+                {t.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-3">
+          {visibleCount === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center text-sm text-muted-foreground gap-2">
+              <span className="text-2xl">—</span>
+              No {tab === 'trips' ? 'trips' : tab === 'vehicle' ? 'vehicle events' : tab === 'drivers' ? 'driver events' : tab === 'continuing' ? 'continuing trips' : 'events'} for this period
+            </div>
+          ) : (
+            <div
+              className="grid content-start"
+              style={{ gridTemplateColumns: `repeat(${gridCols}, ${CARD_W}px)`, gap: GAP }}
+            >
+              {/* Continuing first, then leaves, then trips */}
+              {visibleCont.map(o   => <OrderCard key={o.uuid} order={o}  />)}
+              {visibleLeaves.map(l => <LeaveCard  key={l.uuid} leave={l}  />)}
+              {visibleTrips.map(o  => <OrderCard key={o.uuid} order={o}  />)}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
   )
 }
 
 // ─── Legend ───────────────────────────────────────────────────────────────────
 
 function LegendBar() {
+  const { t } = useLang()
+  const tc = t.calendar
+  const legend = LEGEND_CHIPS.map(({ key, chip }) => ({ chip, label: tc[key] }))
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-      {LEGEND.map(({ chip, label }) => (
+      {legend.map(({ chip, label }) => (
         <div key={label} className="flex items-center gap-1.5">
           <span className={`inline-block h-3 w-3 rounded-sm ${chip.replace(/text-\S+/g, "").replace(/border-l-2\s/g, "").trim()}`} />
           <span className="text-[11px] text-muted-foreground font-medium">{label}</span>
@@ -322,18 +557,117 @@ function LegendBar() {
 
 function WeekView({
   anchor, today, orders, leaveEvents, selected, setSelected,
-  hd, hv, showOrders, showDriverLeave, showVehicleLeave,
+  hd, hv, showOrders, showDriverLeave, showVehicleLeave, onSidebar,
 }: {
   anchor: Date; today: Date
   orders: Order[]; leaveEvents: LeaveRequest[]
   selected: Date | null; setSelected: (d: Date | null) => void
   hd: (o: Order) => boolean; hv: (o: Order) => boolean
   showOrders: boolean; showDriverLeave: boolean; showVehicleLeave: boolean
+  onSidebar: (d: SidebarData) => void
 }) {
   const week        = getWeekDays(anchor)
-  const PX_PER_HOUR = 28   // 28px × 24h = 672px — fits 1080p without scrolling
+
+  // Multi-day trips (scheduled_at and estimated_end_date on different calendar days)
+  // that appear anywhere in this week — numbered 1..N sorted by start time.
+  const allContinuing = React.useMemo(() => {
+    if (!showOrders) return [] as { order: Order; num: number }[]
+    return orders
+      .filter(o => {
+        if (!o.scheduled_at || !o.estimated_end_date) return false
+        // Must span MULTIPLE calendar days (start ≠ end day)
+        if (isSameDay(new Date(o.scheduled_at), new Date(o.estimated_end_date))) return false
+        // Must appear in this week
+        return week.some(d => orderSpansDay(o, d))
+      })
+      .sort((a, b) => new Date(a.scheduled_at!).getTime() - new Date(b.scheduled_at!).getTime())
+      .map((o, i) => ({ order: o, num: i + 1 }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orders, anchor, showOrders])
+  /** UUID → sequential number for end-marker circles */
+  const contNumMap = new Map(allContinuing.map(({ order: o, num }) => [o.uuid, num]))
+  const PX_PER_HOUR = 32   // 32px/hr × 24h = 1536px — proper density, scrollable
   const FIRST_HOUR  = HOURS[0]
-  const GRID_H      = HOURS.length * PX_PER_HOUR
+
+  // ── Layout constants (defined early so hourH can use them) ───────────────
+  const CARD_H   = PX_PER_HOUR - 2   // 30px — height of one stacked card
+  const MAX_SHOW = 3                  // max cards shown before +X badge
+
+  // Variable-height rows based on trip density per hour across the whole week.
+  // 0 trips → HALF_PH (compressed).  1 trip → PX_PER_HOUR.  n trips (≤ MAX_SHOW) → n*CARD_H.
+  // Hour height is the same across ALL day columns (shared time gutter).
+  const HALF_PH = PX_PER_HOUR / 2
+  const tripsPerHour = React.useMemo(() => {
+    const counts = new Map<number, number>(HOURS.map(h => [h, 0]))
+    if (!showOrders) return counts
+    HOURS.forEach(h => {
+      const max = Math.max(0, ...week.map(d =>
+        orders.filter(o =>
+          o.scheduled_at &&
+          isSameDay(new Date(o.scheduled_at!), d) &&
+          new Date(o.scheduled_at!).getHours() === h
+        ).length
+      ))
+      counts.set(h, max)
+    })
+    return counts
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orders, anchor, showOrders])
+  const CIRCLE_SIZE = 18             // px — end-marker dot (larger to fit number)
+  const CIRCLE_GAP  = 2              // px — gap between stacked dots
+
+  // endsPerHour: max continuation trips ENDING in each hour across all days.
+  // Used to expand hour height and reserve space in the right rail.
+  const endsPerHour = React.useMemo(() => {
+    const counts = new Map<number, number>(HOURS.map(h => [h, 0]))
+    week.forEach(d => {
+      HOURS.forEach(h => {
+        const n = orders.filter(o =>
+          o.scheduled_at &&
+          o.estimated_end_date &&
+          !isSameDay(new Date(o.scheduled_at!), d) &&
+          isSameDay(new Date(o.estimated_end_date!), d) &&
+          new Date(o.estimated_end_date!).getHours() === h
+        ).length
+        if (n > counts.get(h)!) counts.set(h, n)
+      })
+    })
+    return counts
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orders, anchor])
+  const hourH   = HOURS.map(h => {
+    const starts = tripsPerHour.get(h) ?? 0
+    const ends   = endsPerHour.get(h) ?? 0
+    const fromStarts = starts === 0 ? 0 : Math.max(PX_PER_HOUR, Math.min(starts, MAX_SHOW) * CARD_H)
+    const fromEnds   = ends   === 0 ? 0 : ends * (CIRCLE_SIZE + CIRCLE_GAP)
+    const combined   = Math.max(fromStarts, fromEnds)
+    return combined === 0 ? HALF_PH : combined
+  })
+  const hourOff = HOURS.map((_, i) => hourH.slice(0, i).reduce((s, v) => s + v, 0))
+  const GRID_H  = hourH.reduce((s, v) => s + v, 0)
+  /** Pixel top for the START of hour h */
+  const hTop = (h: number) => { const i = h - FIRST_HOUR; return i >= 0 ? (hourOff[i] ?? 0) : 0 }
+  /** Pixel position for a timestamp within this grid (used for solo events) */
+  const msToPx = (ms: number) => {
+    const dt = new Date(ms); const h = dt.getHours(); const i = h - FIRST_HOUR
+    if (i < 0 || i >= HOURS.length) return 0
+    return hourOff[i] + (dt.getMinutes() / 60) * hourH[i]
+  }
+
+  // Scroll to the earliest trip in this week (or 07:00 if none) — before paint
+  const scrollRef = React.useRef<HTMLDivElement>(null)
+  React.useLayoutEffect(() => {
+    if (!scrollRef.current) return
+    const weekStrs = week.map(d =>
+      `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`
+    )
+    const earliest = orders
+      .filter(o => o.scheduled_at && weekStrs.includes(isoLocalDateStr(o.scheduled_at)))
+      .map(o => isoHours(o.scheduled_at!))
+      .sort((a, b) => a - b)[0]
+    const targetHour = earliest !== undefined ? Math.max(FIRST_HOUR, earliest - 0.5) : 7
+    scrollRef.current.scrollTop = hTop(Math.floor(targetHour))
+  }, [anchor, orders])
 
   function ordersForDay(d: Date) {
     if (!showOrders) return []
@@ -350,117 +684,309 @@ function WeekView({
   return (
     <div className="flex flex-col flex-1 overflow-hidden min-h-0">
 
-      {/* Day header row */}
-      <div className="flex border-b shrink-0">
-        <div className="w-14 shrink-0 border-r" />
-        {week.map((d, i) => {
-          const isTod = isSameDay(d, today)
-          const isSel = !!selected && isSameDay(d, selected)
-          return (
-            <button
-              key={i}
-              onClick={() => setSelected(isSel ? null : d)}
-              className={[
-                "flex-1 flex flex-col items-center py-2 text-center text-xs font-medium transition-colors hover:bg-muted/30",
-                isSel ? "bg-primary/10" : "",
-              ].join(" ")}
-            >
-              <span className="text-muted-foreground uppercase tracking-wide text-[10px]">{DAYS[d.getDay()]}</span>
-              <span className={[
-                "mt-0.5 flex h-6 w-6 items-center justify-center rounded-full font-semibold text-xs",
-                isTod ? "bg-primary text-primary-foreground" : "text-foreground",
-              ].join(" ")}>{d.getDate()}</span>
-            </button>
-          )
-        })}
-      </div>
+      {/* Single scroll container — headers sticky inside, time grid scrolls */}
+      <div ref={scrollRef} className="flex-1 overflow-y-scroll overflow-x-hidden min-h-0">
 
-      {/* Scrollable time grid — no separate all-day row; leave events live IN the column */}
-      <div className="flex flex-1 overflow-y-auto min-h-0">
+        {/* ── Sticky header block (day labels + all-day row) ──────────── */}
+        <div className="sticky top-0 z-20 flex flex-col border-b bg-card shadow-sm">
 
-        {/* Time gutter */}
-        <div className="w-14 shrink-0 border-r relative" style={{ height: GRID_H }}>
-          {HOURS.map(h => (
-            <div key={h} className="absolute w-full border-t" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }}>
-              <span className="text-[9px] text-muted-foreground px-1">{fmtHour(h)}</span>
+          {/* Day header row */}
+          <div className="flex border-b">
+            <div className="w-14 shrink-0 border-r" />
+            {week.map((d, i) => {
+              const isTod = isSameDay(d, today)
+              const isSel = !!selected && isSameDay(d, selected)
+              return (
+                <button
+                  key={i}
+                  onClick={() => setSelected(isSel ? null : d)}
+                  className={[
+                    "flex-1 flex items-center justify-center gap-1.5 py-1.5 text-center text-xs font-medium transition-colors hover:bg-muted/30",
+                    isSel ? "bg-primary/10" : "",
+                  ].join(" ")}
+                >
+                  <span className="text-muted-foreground uppercase tracking-wide text-[10px]">{DAYS[d.getDay()]}</span>
+                  <span className={[
+                    "flex h-5 w-5 items-center justify-center rounded-full font-semibold text-[11px]",
+                    isTod ? "bg-primary text-primary-foreground" : "text-foreground",
+                  ].join(" ")}>{d.getDate()}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* All-day row (leaves + maintenance) */}
+          <div className="flex bg-muted/15">
+            <div className="w-14 shrink-0 border-r flex items-start justify-end pr-1 pt-1">
+              <span className="text-[8px] text-muted-foreground leading-none">all day</span>
             </div>
-          ))}
+            {week.map((d, i) => {
+              const leaves    = leaveForDay(d)
+              const dayLabel  = d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })
+              return (
+                <div key={i} className="flex-1 border-r p-0.5 flex flex-col gap-0.5 min-h-[28px]">
+                  {leaves.map(l => {
+                    const isVehicle = l.unavailability_type === "vehicle"
+                    const name      = l.vehicle_name ?? l.user?.name ?? "—"
+                    const colorCls  = isVehicle
+                      ? "border-l-2 border-neutral-500 bg-neutral-100/80 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"
+                      : "border-l-2 border-red-400   bg-red-50/80    text-red-800   dark:bg-red-900/30  dark:text-red-300"
+                    return (
+                      <button
+                        key={l.uuid}
+                        type="button"
+                        title={`${leaveLabel(l)}: ${name} — click to open`}
+                        onClick={() => onSidebar({
+                          title:      dayLabel,
+                          trips:      ordersForDay(d),
+                          leaves:     leaveForDay(d),
+                          continuing: allContinuing.map(c => c.order),
+                        })}
+                        className={`overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-pointer text-left w-full ${colorCls}`}
+                      >
+                        <div className="flex items-center gap-1 font-semibold truncate leading-tight">
+                          {isVehicle && <LeaveAttachmentIcon uuid={l.uuid} />}
+                          {leaveLabel(l)}: {name}
+                        </div>
+                        <div className="opacity-70 text-[8px] truncate leading-tight mt-0.5">
+                          {l.start_date.slice(0,10)} → {l.end_date.slice(0,10)}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* ── Continuing trips strip (between all-day and time grid) ───────── */}
+          {allContinuing.length > 0 && (
+            <div className="flex border-b bg-indigo-50/30 dark:bg-indigo-950/20">
+              <div className="w-14 shrink-0 border-r flex items-center justify-end pr-1">
+                <span className="text-[7px] text-muted-foreground leading-tight text-right">cont.</span>
+              </div>
+              {week.map((d, i) => {
+                const dayConts = allContinuing.filter(({ order: o }) => {
+                  // Normalise to local midnight timestamps for robust day comparison.
+                  // This explicitly includes the trip's start day (sd <= td <= ed).
+                  const s  = new Date(o.scheduled_at!)
+                  const e  = new Date(o.estimated_end_date!)
+                  const sd = new Date(s.getFullYear(), s.getMonth(), s.getDate()).getTime()
+                  const ed = new Date(e.getFullYear(), e.getMonth(), e.getDate()).getTime()
+                  const td = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+                  return td >= sd && td <= ed
+                })
+                const shown    = dayConts.slice(0, 4)
+                const extra    = dayConts.length - shown.length
+                const dayLabel = d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })
+                return (
+                  <div key={i} className="flex-1 border-r p-0.5 flex flex-wrap gap-0.5 min-h-[14px]">
+                    {shown.map(({ order: o, num }) => {
+                      const chip = orderChip(o, hd, hv)
+                      return (
+                        <div
+                          key={o.uuid}
+                          title={`#${num} ${o.internal_id ?? o.public_id}\nStarted: ${fmtTime(o.scheduled_at!)}\nDriver: ${driverName(o) ?? 'No driver'}\nVehicle: ${vehiclePlate(o) ?? 'No vehicle'}`}
+                          className={`flex items-center gap-0.5 rounded px-1 py-0.5 text-[8px] font-medium overflow-hidden cursor-pointer hover:opacity-90 transition-opacity ${chip}`}
+                          style={{ width: 'calc(50% - 1px)' }}
+                          onClick={() => onSidebar({
+                            title:      dayLabel,
+                            trips:      ordersForDay(d),
+                            leaves:     leaveForDay(d),
+                            continuing: allContinuing.map(c => c.order),
+                            initialTab: 'continuing',
+                          })}
+                        >
+                          <span className="shrink-0 rounded-full h-3.5 w-3.5 flex items-center justify-center bg-white/40 dark:bg-black/30 font-bold text-[7px] leading-none border border-current/20">
+                            {num}
+                          </span>
+                          <span className="truncate leading-none">{fmtTime(o.scheduled_at!)} {o.internal_id ?? o.public_id}</span>
+                        </div>
+                      )
+                    })}
+                    {extra > 0 && (
+                      <button
+                        type="button"
+                        className="flex items-center justify-center rounded px-1 py-0.5 text-[8px] font-bold bg-muted/80 hover:bg-primary hover:text-primary-foreground transition-colors leading-none"
+                        style={{ width: 'calc(50% - 1px)' }}
+                        onClick={() => onSidebar({
+                          title:      dayLabel,
+                          trips:      ordersForDay(d),
+                          leaves:     leaveForDay(d),
+                          continuing: allContinuing.map(c => c.order),
+                          initialTab: 'continuing',
+                        })}
+                      >
+                        +{extra}
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
-        {/* Day columns */}
-        {week.map((d, ci) => {
-          const dayOrds  = ordersForDay(d)
-          const dayLeave = leaveForDay(d)
-          const isSel    = !!selected && isSameDay(d, selected)
+        {/* ── Time grid ───────────────────────────────────────────────── */}
+        <div className="flex">
 
-          return (
-            <div
-              key={ci}
-              className={`flex-1 border-r relative ${isSel ? "bg-primary/5" : ""}`}
-              style={{ height: GRID_H }}
-            >
-              {/* Hour grid lines */}
-              {HOURS.map(h => (
-                <div key={h} className="absolute w-full border-t border-muted/30" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }} />
-              ))}
+          {/* Time gutter */}
+          <div className="w-14 shrink-0 border-r relative" style={{ height: GRID_H }}>
+            {HOURS.map((h, i) => (
+              <div key={h} className="absolute w-full border-t" style={{ top: hourOff[i] }}>
+                <span className={`text-[9px] px-1 leading-none block ${
+                  (tripsPerHour.get(h) ?? 0) + (endsPerHour.get(h) ?? 0) > 0
+                    ? 'text-muted-foreground'
+                    : 'text-muted-foreground/40'
+                }`}>
+                  {fmtHour(h)}
+                </span>
+              </div>
+            ))}
+          </div>
 
-              {/* Leave events — full-height strips side by side */}
-              {dayLeave.map((l, li) => {
-                const isVehicle = l.unavailability_type === "vehicle"
-                const totalLeave = dayLeave.length
-                const stripW = 100 / totalLeave
-                const name   = l.vehicle_name ?? l.user?.name ?? leaveLabel(l)
-                return (
+          {/* Day columns */}
+          {week.map((d, ci) => {
+            const dayOrds = ordersForDay(d)
+            const isSel   = !!selected && isSameDay(d, selected)
+
+            return (
+              <div
+                key={ci}
+                className={`flex-1 border-r relative ${isSel ? "bg-primary/5" : ""}`}
+                style={{ height: GRID_H }}
+              >
+                {/* Hour grid lines — dimmer for empty rows */}
+                {HOURS.map((h, i) => (
                   <div
-                    key={l.uuid}
-                    className={`absolute top-0 bottom-0 overflow-hidden ${
-                      isVehicle
-                        ? "bg-neutral-700/15 border-l-2 border-neutral-700"
-                        : "bg-red-500/15 border-l-2 border-red-500"
+                    key={h}
+                    className={`absolute w-full border-t ${
+                      (tripsPerHour.get(h) ?? 0) + (endsPerHour.get(h) ?? 0) > 0
+                        ? 'border-muted/30'
+                        : 'border-muted/15'
                     }`}
-                    style={{ left: `${li * stripW}%`, width: `${stripW}%`, height: GRID_H }}
-                  >
-                    {/* Label pinned at top of strip */}
-                    <div className={`sticky top-1 mx-0.5 rounded px-1 py-0.5 text-[8px] font-semibold leading-tight truncate ${
-                      isVehicle ? "bg-neutral-800 text-white" : "bg-red-500/80 text-white"
-                    }`}>
-                      {name}
-                    </div>
-                  </div>
-                )
-              })}
+                    style={{ top: hourOff[i] }}
+                  />
+                ))}
 
-              {/* Orders — positioned by scheduled_at, spans fill if multi-day */}
-              {dayOrds.map(o => {
-                if (!o.scheduled_at) return null
-                const { top, height, isStart, isEnd } = effectiveSlot(o, d, PX_PER_HOUR, FIRST_HOUR, GRID_H)
-                return (
-                  <div
-                    key={o.uuid}
-                    title={`${o.internal_id ?? o.public_id} — ${fmtTime(o.scheduled_at)}${o.estimated_end_date ? ` → ${fmtTime(o.estimated_end_date)}` : ""}`}
-                    className={`absolute right-0.5 rounded px-1 py-0.5 text-[9px] font-medium overflow-hidden cursor-default ${
-                      dayLeave.length > 0 ? "left-[35%]" : "left-0.5"
-                    } ${orderChip(o, hd, hv)}`}
-                    style={{ top, height }}
-                  >
-                    <div className="font-semibold truncate">
-                      {isStart ? fmtTime(o.scheduled_at) : "00:00"} {o.internal_id ?? o.public_id}
-                      {!isStart && <span className="opacity-50 ml-0.5">(cont.)</span>}
-                    </div>
-                    {height > 32 && (
-                      <div className="opacity-70 text-[8px] truncate">
-                        {driverName(o) ?? "No driver"} · {vehiclePlate(o) ?? "No vehicle"}
-                      </div>
-                    )}
-                    {height > 48 && o.estimated_end_date && (
-                      <div className="opacity-60 text-[8px]">ends {fmtTime(o.estimated_end_date)}</div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )
-        })}
+                {/* Trip cards — hour-bucketed vertical stacking */}
+                {(() => {
+                  const allTrips = dayOrds.filter(o => !!o.scheduled_at)
+                  if (allTrips.length === 0) return null
+
+                  const nodes: React.ReactNode[] = []
+
+                  // Group continuation endings by end-hour and render as
+                  // stacked circles in the right rail, centred vertically.
+                  const endsByHour = new Map<number, typeof allTrips>()
+                  allTrips
+                    .filter(o => !isSameDay(new Date(o.scheduled_at!), d) && !!o.estimated_end_date)
+                    .forEach(o => {
+                      const endDate = new Date(o.estimated_end_date!)
+                      if (!isSameDay(endDate, d)) return
+                      const h = endDate.getHours()
+                      if (!endsByHour.has(h)) endsByHour.set(h, [])
+                      endsByHour.get(h)!.push(o)
+                    })
+
+                  endsByHour.forEach((endings, h) => {
+                    const slotTop  = hTop(h)
+                    const slotH    = hourH[h - FIRST_HOUR] ?? PX_PER_HOUR
+                    const totalH   = endings.length * CIRCLE_SIZE + (endings.length - 1) * CIRCLE_GAP
+                    // Centre the stack vertically within the slot
+                    const startY   = slotTop + Math.max(0, Math.round((slotH - totalH) / 2))
+                    endings.forEach((o, i) => {
+                      const chip = orderChip(o, hd, hv)
+                      nodes.push(
+                        <div
+                          key={`end-${o.uuid}`}
+                          title={`#${contNumMap.get(o.uuid)} ${o.internal_id ?? o.public_id} ends ${fmtTime(o.estimated_end_date!)}`}
+                          className={`absolute rounded-full border-2 ${chip} flex items-center justify-center text-[7px] font-bold opacity-90`}
+                          style={{
+                            top:    startY + i * (CIRCLE_SIZE + CIRCLE_GAP),
+                            right:  1,
+                            width:  CIRCLE_SIZE,
+                            height: CIRCLE_SIZE,
+                            zIndex: 10,
+                          }}
+                        >
+                          {contNumMap.get(o.uuid)}
+                        </div>
+                      )
+                    })
+                  })
+
+
+                  // Group trips that START on this day by their start hour
+                  const byHour = new Map<number, typeof allTrips>()
+                  allTrips
+                    .filter(o => isSameDay(new Date(o.scheduled_at!), d))
+                    .sort((a, b) => new Date(a.scheduled_at!).getTime() - new Date(b.scheduled_at!).getTime())
+                    .forEach(o => {
+                      const h = new Date(o.scheduled_at!).getHours()
+                      if (!byHour.has(h)) byHour.set(h, [])
+                      byHour.get(h)!.push(o)
+                    })
+
+                  byHour.forEach((group, h) => {
+                    const slotTop = hTop(h)
+                    const slotHt  = hourH[h - FIRST_HOUR] ?? PX_PER_HOUR
+                    const shown   = group.slice(0, MAX_SHOW)
+                    const extra   = group.length - shown.length
+                    // Divide the slot evenly between the shown cards
+                    const cardHt  = Math.floor(slotHt / shown.length)
+
+                    shown.forEach((o, i) => {
+                      const chip     = orderChip(o, hd, hv)
+                      const isLast   = i === shown.length - 1
+                      const showBadge = isLast && extra > 0
+                      nodes.push(
+                        <div
+                          key={o.uuid}
+                          title={`${o.internal_id ?? o.public_id} — ${fmtTime(o.scheduled_at)}${o.estimated_end_date ? ` → ${fmtTime(o.estimated_end_date)}` : ""}`}
+                          className={`absolute rounded px-1.5 py-1 text-[9px] font-medium cursor-default overflow-hidden ${chip}`}
+                          style={{ top: slotTop + i * cardHt, height: cardHt - 1, left: "1%", right: "15px", zIndex: i + 1 }}
+                        >
+                          <div className="flex items-start justify-between gap-0.5 h-full">
+                            <div className="min-w-0 flex-1">
+                              <div className="font-semibold truncate leading-tight">
+                                {fmtTime(o.scheduled_at!)} {o.internal_id ?? o.public_id}
+                              </div>
+                              <div className="opacity-70 text-[8px] truncate leading-tight mt-0.5">
+                                {driverName(o) ?? "No driver"} · {vehiclePlate(o) ?? "No vehicle"}
+                              </div>
+                            </div>
+                            {showBadge && (
+                              <button
+                                type="button"
+                                title={`+${extra} more trips at this hour — click to view all`}
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  onSidebar({
+                                    title: `${d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} ${fmtHour(h)} — ${group.length} trips`,
+                                    trips: group,
+                                    leaves: [],
+                                  })
+                                }}
+                                className="shrink-0 self-start rounded px-1 py-0.5 bg-black/25 dark:bg-white/25 text-[8px] font-bold leading-none hover:bg-primary hover:text-primary-foreground transition-colors"
+                              >
+                                +{extra}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })
+                  })
+
+                  return nodes
+                })()}
+
+              </div>
+            )
+          })}
+        </div>
+
       </div>
     </div>
   )
@@ -470,16 +996,30 @@ function WeekView({
 
 function DayView({
   anchor, today, orders, leaveEvents,
-  hd, hv, showOrders, showDriverLeave, showVehicleLeave,
+  hd, hv, showOrders, showDriverLeave, showVehicleLeave, onSidebar,
 }: {
   anchor: Date; today: Date
   orders: Order[]; leaveEvents: LeaveRequest[]
   hd: (o: Order) => boolean; hv: (o: Order) => boolean
   showOrders: boolean; showDriverLeave: boolean; showVehicleLeave: boolean
+  onSidebar: (d: SidebarData) => void
 }) {
-  const PX_PER_HOUR = 28   // matches week view — 28 × 24 = 672px, fits 1080p
+  const PX_PER_HOUR = 32   // 32px/hr × 24h = 1536px — proper density, scrollable
   const FIRST_HOUR  = HOURS[0]
   const GRID_H      = HOURS.length * PX_PER_HOUR
+
+  // Scroll to earliest trip or 07:00 — before paint
+  const scrollRef = React.useRef<HTMLDivElement>(null)
+  React.useLayoutEffect(() => {
+    if (!scrollRef.current) return
+    const anchorStr = `${anchor.getFullYear()}-${String(anchor.getMonth()+1).padStart(2,"0")}-${String(anchor.getDate()).padStart(2,"0")}`
+    const earliest = orders
+      .filter(o => o.scheduled_at && isoLocalDateStr(o.scheduled_at) === anchorStr)
+      .map(o => isoHours(o.scheduled_at!))
+      .sort((a, b) => a - b)[0]
+    const targetHour = earliest !== undefined ? Math.max(0, earliest - 0.5) : 7
+    scrollRef.current.scrollTop = targetHour * PX_PER_HOUR
+  }, [anchor, orders])
 
   const dayOrders = !showOrders ? [] : orders.filter(o => orderSpansDay(o, anchor))
   const dayLeave  = leaveEvents.filter(l => {
@@ -488,95 +1028,186 @@ function DayView({
     return isInRange(anchor, l.start_date, l.end_date)
   })
 
-  // Leave events get left strips; the rest of the width is for orders
-  const leaveW = dayLeave.length > 0 ? Math.min(dayLeave.length * 72, 216) : 0
+  const allDayLeave = dayLeave  // leaves shown in all-day row
 
-  // Columnize overlapping orders so they sit side-by-side
-  const ordersWithSlot = dayOrders
-    .filter(o => !!o.scheduled_at)
+  // Separate: trips starting on this day vs continuations from previous days
+  const startingTrips = dayOrders
+    .filter(o => !!o.scheduled_at && isSameDay(new Date(o.scheduled_at!), anchor))
     .map(o => ({
       ...o,
-      // For non-start days, treat as starting at midnight for column-conflict purposes
-      _start: orderSpansDay(o, anchor) && !isSameDay(new Date(o.scheduled_at!), anchor)
-        ? anchor.setHours(0, 0, 0, 0)
-        : new Date(o.scheduled_at!).getTime(),
+      _start: new Date(o.scheduled_at!).getTime(),
       _end: o.estimated_end_date
         ? new Date(o.estimated_end_date).getTime()
         : new Date(o.scheduled_at!).getTime() + 3_600_000,
     }))
-  const layout = columnizeEvents(ordersWithSlot, e => e._start, e => e._end)
+
+  const continuationTrips = dayOrders
+    .filter(o => !!o.scheduled_at && !isSameDay(new Date(o.scheduled_at!), anchor))
+
+  // Only columnize the trips that actually start today — continuations never compete
+  const layout = columnizeEvents(startingTrips, e => e._start, e => e._end)
+
+  const anchorLabel = anchor.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden min-h-0">
-      <div className="flex flex-1 overflow-y-auto min-h-0">
 
-        {/* Time gutter */}
-        <div className="w-14 shrink-0 border-r relative" style={{ height: GRID_H }}>
-          {HOURS.map(h => (
-            <div key={h} className="absolute w-full border-t" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }}>
-              <span className="text-[9px] text-muted-foreground px-2">{fmtHour(h)}</span>
+      {/* Single scroll container — sticky header inside, same pattern as WeekView */}
+      <div ref={scrollRef} className="flex-1 overflow-y-scroll overflow-x-hidden min-h-0">
+
+        {/* ── Sticky header block ─────────────────────────────────────── */}
+        <div className="sticky top-0 z-20 flex flex-col border-b bg-card shadow-sm">
+
+          {/* Day title */}
+          <div className="flex border-b px-4 py-2 items-center gap-2">
+            <span className="font-semibold text-sm text-foreground">{anchorLabel}</span>
+            {isSameDay(anchor, today) && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-medium">Today</span>
+            )}
+          </div>
+
+          {/* All-day row — leaves + continuations */}
+          {(allDayLeave.length > 0 || continuationTrips.length > 0) && (
+            <div className="flex bg-muted/15">
+              <div className="w-14 shrink-0 border-r flex items-start justify-end pr-1 pt-1">
+                <span className="text-[8px] text-muted-foreground leading-none">all day</span>
+              </div>
+              <div className="flex-1 p-0.5 flex flex-wrap gap-0.5">
+                {/* Leave cards */}
+                {allDayLeave.map(l => {
+                  const isVehicle = l.unavailability_type === "vehicle"
+                  const name      = l.vehicle_name ?? l.user?.name ?? "—"
+                  const colorCls  = isVehicle
+                    ? "border-l-2 border-neutral-500 bg-neutral-100/80 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"
+                    : "border-l-2 border-red-400   bg-red-50/80 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                  return (
+                    <div
+                      key={l.uuid}
+                      title={`${leaveLabel(l)}: ${name}\n${l.start_date.slice(0,10)} → ${l.end_date.slice(0,10)}`}
+                      className={`overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-default min-w-[120px] ${colorCls}`}
+                    >
+                      <div className="flex items-center gap-1 font-semibold truncate leading-tight">
+                        {isVehicle && <LeaveAttachmentIcon uuid={l.uuid} />}
+                        {leaveLabel(l)}: {name}
+                      </div>
+                      <div className="opacity-70 text-[8px] truncate leading-tight mt-0.5">
+                        {l.start_date.slice(0,10)} → {l.end_date.slice(0,10)}
+                      </div>
+                    </div>
+                  )
+                })}
+                {/* Continuation trip cards */}
+                {continuationTrips.map(o => {
+                  const chip = orderChip(o, hd, hv)
+                  return (
+                    <div
+                      key={o.uuid}
+                      title={`${o.internal_id ?? o.public_id} (started ${fmtTime(o.scheduled_at)}${o.estimated_end_date ? ` → ${fmtTime(o.estimated_end_date)}` : ""})`}
+                      className={`overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-default min-w-[120px] ${chip}`}
+                    >
+                      <div className="font-semibold truncate leading-tight">→ cont. {o.internal_id ?? o.public_id}</div>
+                      <div className="opacity-70 text-[8px] truncate leading-tight mt-0.5">
+                        {driverName(o) ?? "No driver"} · {vehiclePlate(o) ?? "No vehicle"}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-          ))}
+          )}
         </div>
 
-        {/* Events area */}
-        <div className="flex-1 relative" style={{ height: GRID_H }}>
-          {/* Hour grid lines */}
-          {HOURS.map(h => (
-            <div key={h} className="absolute w-full border-t border-muted/30" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }} />
-          ))}
+        {/* ── Time grid ───────────────────────────────────────────────── */}
+        <div className="flex">
 
-          {/* Full-day leave strips — left portion */}
-          {dayLeave.map((l, li) => {
-            const isVehicle = l.unavailability_type === "vehicle"
-            const stripPx   = leaveW / dayLeave.length
-            const name      = l.vehicle_name ?? l.user?.name ?? leaveLabel(l)
-            return (
-              <div
-                key={l.uuid}
-                className={`absolute top-0 overflow-hidden rounded-sm ${
-                  isVehicle
-                    ? "bg-neutral-700/15 border-l-2 border-neutral-700"
-                    : "bg-red-500/15 border-l-2 border-red-500"
-                }`}
-                style={{ left: li * stripPx, width: stripPx - 2, height: GRID_H }}
-              >
-                <div className={`sticky top-1 mx-0.5 rounded px-1.5 py-1 text-[9px] font-semibold leading-tight truncate ${
-                  isVehicle ? "bg-neutral-800 text-white" : "bg-red-500/80 text-white"
-                }`}>
-                  {leaveLabel(l)}: {name}
-                  <div className="text-[8px] font-normal opacity-80 mt-0.5">{l.start_date.slice(0,10)} → {l.end_date.slice(0,10)}</div>
-                </div>
+          {/* Time gutter */}
+          <div className="w-14 shrink-0 border-r relative" style={{ height: GRID_H }}>
+            {HOURS.map(h => (
+              <div key={h} className="absolute w-full border-t" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }}>
+                <span className="text-[9px] text-muted-foreground px-2">{fmtHour(h)}</span>
               </div>
-            )
-          })}
+            ))}
+          </div>
 
-          {/* Orders — columnized, multi-day aware */}
-          {layout.map(({ item: o, col, totalCols }) => {
-            const { top, height, isStart, isEnd } = effectiveSlot(o, anchor, PX_PER_HOUR, FIRST_HOUR, GRID_H)
-            const left  = `calc(${leaveW + 4}px + ${col} * (100% - ${leaveW + 8}px) / ${totalCols})`
-            const right = `calc((${totalCols - col - 1}) * (100% - ${leaveW + 8}px) / ${totalCols} + 2px)`
-            return (
-              <div
-                key={o.uuid}
-                className={`absolute rounded-lg px-2 py-1 text-xs font-medium shadow-sm overflow-hidden ${orderChip(o, hd, hv)}`}
-                style={{ top, height, left, right, zIndex: col + 1 }}
-              >
-                <div className="font-semibold truncate text-[10px]">
-                  {isStart ? fmtTime(o.scheduled_at) : "00:00"}
-                  {isStart && o.estimated_end_date && isEnd ? ` – ${fmtTime(o.estimated_end_date)}` : ""}
-                  {!isStart && <span className="opacity-50 ml-0.5">(cont.)</span>}
-                  {" · "}{o.internal_id ?? o.public_id}
-                </div>
-                {height > 28 && (
-                  <div className="opacity-70 text-[9px] truncate">
-                    {driverName(o) ?? "No driver"} · {vehiclePlate(o) ?? "No vehicle"}
-                  </div>
-                )}
-              </div>
-            )
-          })}
+          {/* Events area */}
+          <div className="flex-1 relative" style={{ height: GRID_H }}>
+            {/* Hour grid lines */}
+            {HOURS.map(h => (
+              <div key={h} className="absolute w-full border-t border-muted/30" style={{ top: (h - FIRST_HOUR) * PX_PER_HOUR }} />
+            ))}
+
+            {/* Trip cards — overflow-aware */}
+            {(() => {
+              if (layout.length === 0) return null
+              const MAX_SHOW = 3
+              const SLOT_N   = MAX_SHOW + 1
+              const shown    = layout.filter(x => x.col < MAX_SHOW)
+              const overflow = layout.filter(x => x.col >= MAX_SHOW)
+
+              const assigned = new Set<string>()
+              const ofClusters: { topPx: number; count: number; allTrips: Order[] }[] = []
+              overflow.forEach(({ item }) => {
+                if (assigned.has(item.uuid)) return
+                const cluster = layout.filter(x =>
+                  x.item._start < item._end && x.item._end > item._start
+                )
+                cluster.filter(x => x.col >= MAX_SHOW).forEach(x => assigned.add(x.item.uuid))
+                const clusterTopPx = Math.min(...cluster.map(x => {
+                  const s = new Date(x.item.scheduled_at!)
+                  return ((s.getHours() - FIRST_HOUR) + s.getMinutes() / 60) * PX_PER_HOUR
+                }))
+                ofClusters.push({
+                  topPx:    clusterTopPx,
+                  count:    cluster.filter(x => x.col >= MAX_SHOW).length,
+                  allTrips: cluster.map(x => x.item),
+                })
+              })
+
+              return [
+                ...shown.map(({ item: o, col, totalCols }) => {
+                  const hasOf    = totalCols > MAX_SHOW
+                  const effCols  = hasOf ? SLOT_N : totalCols
+                  const slotFrac = 1 / effCols
+                  const leftFrac = col / effCols
+                  const chip     = orderChip(o, hd, hv)
+                  const start    = new Date(o.scheduled_at!)
+                  const top      = ((start.getHours() - FIRST_HOUR) + start.getMinutes() / 60) * PX_PER_HOUR
+                  return (
+                    <div
+                      key={o.uuid}
+                      title={`${o.internal_id ?? o.public_id} — ${fmtTime(o.scheduled_at)}${o.estimated_end_date ? ` → ${fmtTime(o.estimated_end_date)}` : ""}`}
+                      className={`absolute overflow-hidden rounded px-1.5 py-1 text-[9px] font-medium cursor-default ${chip}`}
+                      style={{ top, height: 32, left: `${(leftFrac*100).toFixed(1)}%`, width: `${(slotFrac*100).toFixed(1)}%`, zIndex: col+1 }}
+                    >
+                      <div className="font-semibold truncate leading-tight">
+                        {fmtTime(o.scheduled_at!)} {o.internal_id ?? o.public_id}
+                      </div>
+                      <div className="opacity-70 text-[8px] truncate leading-tight mt-0.5">
+                        {driverName(o) ?? "No driver"} · {vehiclePlate(o) ?? "No vehicle"}
+                      </div>
+                    </div>
+                  )
+                }),
+                ...ofClusters.map(cluster => (
+                  <button
+                    key={`of-${cluster.topPx}`}
+                    title={`+${cluster.count} more — click to expand`}
+                    onClick={() => onSidebar({
+                      title: `${anchor.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} — ${cluster.count + MAX_SHOW} overlapping trips`,
+                      trips: cluster.allTrips,
+                      leaves: [],
+                    })}
+                    className="absolute flex items-center justify-center rounded border border-border bg-muted/70 text-[9px] font-semibold text-muted-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors cursor-pointer"
+                    style={{ top: cluster.topPx, height: 32, left: `${(MAX_SHOW/SLOT_N*100).toFixed(1)}%`, width: `${(1/SLOT_N*100).toFixed(1)}%`, zIndex: MAX_SHOW+1 }}
+                  >
+                    +{cluster.count}
+                  </button>
+                )),
+              ]
+            })()}
+          </div>
         </div>
+
       </div>
     </div>
   )
@@ -587,6 +1218,16 @@ function DayView({
 type CalView = "month" | "week" | "day"
 
 export default function CalendarPage() {
+  const { t } = useLang()
+  const tc = t.calendar
+  const LEGEND = LEGEND_CHIPS.map(({ key, chip }) => ({ chip, label: tc[key] }))
+  const STATUS_COLORS = makeStatusColors({
+    created:    tc.created,
+    dispatched: tc.assigned,
+    started:    "In Progress",
+    completed:  t.common.completed,
+    cancelled:  t.common.cancelled,
+  })
   const today = new Date()
 
   // Navigation
@@ -594,18 +1235,18 @@ export default function CalendarPage() {
   const [month,    setMonth]    = React.useState(today.getMonth())
   const [anchor,   setAnchor]   = React.useState<Date>(today)   // week/day anchor
   const [selected, setSelected] = React.useState<Date | null>(null)
-  const [calView,  setCalView]  = React.useState<CalView>("month")
+  const [calView,  setCalView]  = React.useState<CalView>("week")
 
   // Data
   const [orders,      setOrders]      = React.useState<Order[]>([])
   const [leaveEvents, setLeaveEvents] = React.useState<LeaveRequest[]>([])
+  const [allDrivers,  setAllDrivers]  = React.useState<Driver[]>([])
+  const [allVehicles, setAllVehicles] = React.useState<Vehicle[]>([])
   const [loading,     setLoading]     = React.useState(true)
   const [error,       setError]       = React.useState<string | null>(null)
 
-  // Sidebar
-  const [sidebarTab,     setSidebarTab]     = React.useState<"driver" | "vehicle">("driver")
-  const [assignedOpen,   setAssignedOpen]   = React.useState(true)
-  const [unassignedOpen, setUnassignedOpen] = React.useState(true)
+  // Sidebar removed — assignment filter replaces it
+  const [assignmentFilter, setAssignmentFilter] = React.useState<"all" | "assigned" | "unassigned">("all")
 
   // Category visibility filters
   const [showOrders,       setShowOrders]       = React.useState(true)
@@ -615,6 +1256,8 @@ export default function CalendarPage() {
   // Entity filters
   const [filterDriver,  setFilterDriver]  = React.useState("")
   const [filterVehicle, setFilterVehicle] = React.useState("")
+  const [filterFleet,   setFilterFleet]   = React.useState("")
+
 
   // ─── Data fetch ─────────────────────────────────────────────────────────────
 
@@ -625,15 +1268,19 @@ export default function CalendarPage() {
       // to capture multi-day trips/leaves that start before or end after the current month
       const from = new Date(y, m - 1, 1).toISOString().slice(0, 10)   // 1st of prev month
       const to   = new Date(y, m + 2, 1).toISOString().slice(0, 10)   // 1st of month+2 (exclusive)
-      const [ordersRes, driverRes, vehicleRes] = await Promise.allSettled([
+      const [ordersRes, driverRes, vehicleRes, allDriversRes, allVehiclesRes] = await Promise.allSettled([
         listOrders({ scheduled_at: from, end_date: to, limit: 500 }),
         listDriverLeave({ per_page: 500, sort: "-start_date" }),
         listVehicleUnavailability({ per_page: 500, sort: "-start_date" }),
+        listDrivers({ limit: 500 }),
+        listVehicles({ limit: 500 }),
       ])
       setOrders(ordersRes.status === "fulfilled" ? (ordersRes.value.data ?? []) : [])
       const dl = driverRes.status  === "fulfilled" ? (driverRes.value.data  ?? []) : []
       const vl = vehicleRes.status === "fulfilled" ? (vehicleRes.value.data ?? []) : []
       setLeaveEvents([...dl, ...vl])
+      setAllDrivers(allDriversRes.status  === "fulfilled" ? (allDriversRes.value.drivers  ?? []) : [])
+      setAllVehicles(allVehiclesRes.status === "fulfilled" ? (allVehiclesRes.value.vehicles ?? []) : [])
       if (ordersRes.status === "rejected") setError("Orders: " + (ordersRes.reason as Error).message)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load")
@@ -666,11 +1313,9 @@ export default function CalendarPage() {
     }
   }
 
-  // When clicking a day in month view → switch to day view on that date
-  function handleDayClick(date: Date) {
-    const isSel = !!selected && isSameDay(date, selected)
-    setSelected(isSel ? null : date)
-  }
+  // Sidebar state — opened by "+N more" in week/day views or day-cell click in month view
+  const [sidebarData, setSidebarData] = React.useState<SidebarData | null>(null)
+  function openSidebar(d: SidebarData) { setSidebarData(d) }
 
   // Title text for the calendar header
   function periodTitle() {
@@ -689,7 +1334,77 @@ export default function CalendarPage() {
   const hasDriver  = (o: Order) => !!(o.driver_name || o.driver_assigned_uuid || o.driver_assigned)
   const hasVehicle = (o: Order) => !!(o.vehicle_assigned?.plate_number || o.vehicle_assigned_uuid)
 
-  // ─── Entity filter options ────────────────────────────────────────────────────
+  // ─── Reverse-lookup maps: name/plate → UUID ────────────────────────────────
+  // Needed to cross-reference name-based filter state with UUID-keyed fleet maps.
+  // MUST be declared before the options lists that reference them.
+
+  const driverNameToUuid = React.useMemo(() => {
+    const map = new Map<string, string>()
+    allDrivers.forEach(d => map.set(d.name, d.uuid))
+    // Seed from orders too in case a driver appears there but not in allDrivers
+    orders.forEach(o => {
+      const name = driverName(o); const uuid = o.driver_assigned?.uuid
+      if (name && uuid) map.set(name, uuid)
+    })
+    return map
+  }, [allDrivers, orders])
+
+  const vehiclePlateToUuid = React.useMemo(() => {
+    const map = new Map<string, string>()
+    // Seed from vehicles list (plate_number → uuid)
+    allVehicles.forEach(v => map.set(v.plate_number, v.uuid))
+    // Seed from orders (plate from vehicle_assigned → uuid)
+    orders.forEach(o => {
+      const plate = vehiclePlate(o); const uuid = o.vehicle_assigned?.uuid
+      if (plate && uuid) map.set(plate, uuid)
+    })
+    // Seed from leave events: vehicle_name (the exact string in vehicleOptions) → uuid
+    // This is the critical mapping — vehicle leave events store vehicle_name (e.g.
+    // "Ford Transit AB12 CDE"), not bare plate numbers, so without this the fleet
+    // lookup silently returns undefined when a maintenance vehicle is selected.
+    leaveEvents.forEach(l => {
+      if (l.vehicle_uuid && l.vehicle_name) map.set(l.vehicle_name, l.vehicle_uuid)
+    })
+    return map
+  }, [allVehicles, orders, leaveEvents])
+
+  // ─── Fleet membership lookup maps ───────────────────────────────────────────
+  // Built from authoritative driver.fleets[] and vehicle.fleet_vehicles[] data.
+  // Keyed by entity UUID → Set of fleet names.
+
+  const driverFleetMap = React.useMemo(() => {
+    const map = new Map<string, Set<string>>()
+    allDrivers.forEach(d => {
+      d.fleets?.forEach(f => {
+        const s = map.get(d.uuid) ?? new Set<string>()
+        s.add(f.name); map.set(d.uuid, s)
+      })
+    })
+    return map
+  }, [allDrivers])
+
+  const vehicleFleetMap = React.useMemo(() => {
+    const map = new Map<string, Set<string>>()
+    allVehicles.forEach(v => {
+      v.fleet_vehicles?.forEach(fv => {
+        if (fv.fleet?.name) {
+          const s = map.get(v.uuid) ?? new Set<string>()
+          s.add(fv.fleet.name); map.set(v.uuid, s)
+        }
+      })
+    })
+    return map
+  }, [allVehicles])
+
+  // fleet name: new API nests it in o.fleet.name; legacy API uses flat o.fleet_name
+  const fleetName = React.useCallback(
+    (o: Order) => o.fleet?.name ?? o.fleet_name ?? null,
+    []
+  )
+
+  // ─── Dynamic context-aware filter option lists ──────────────────────────────
+  // Each list narrows based on the other two currently-active filters.
+  // Empty list → the corresponding select is disabled in the UI.
 
   const driverOptions = React.useMemo(() => {
     const fromOrders = orders.map(driverName).filter(Boolean) as string[]
@@ -697,8 +1412,24 @@ export default function CalendarPage() {
       .filter(l => l.unavailability_type !== "vehicle")
       .map(l => l.user?.name)
       .filter(Boolean) as string[]
-    return [...new Set([...fromOrders, ...fromLeave])].sort()
-  }, [orders, leaveEvents])
+    let all = [...new Set([...fromOrders, ...fromLeave])].sort()
+
+    // Narrow by active fleet filter: only drivers belonging to that fleet
+    if (filterFleet) {
+      all = all.filter(name => {
+        const uuid = driverNameToUuid.get(name)
+        return uuid ? (driverFleetMap.get(uuid)?.has(filterFleet) ?? false) : false
+      })
+    }
+    // Narrow by active vehicle filter: only drivers who share an order with that vehicle
+    if (filterVehicle) {
+      const driversForVehicle = new Set(
+        orders.filter(o => vehiclePlate(o) === filterVehicle).map(driverName).filter(Boolean) as string[]
+      )
+      all = all.filter(name => driversForVehicle.has(name))
+    }
+    return all
+  }, [orders, leaveEvents, filterFleet, filterVehicle, driverFleetMap, driverNameToUuid])
 
   const vehicleOptions = React.useMemo(() => {
     const fromOrders = orders.map(vehiclePlate).filter(Boolean) as string[]
@@ -706,24 +1437,120 @@ export default function CalendarPage() {
       .filter(l => l.unavailability_type === "vehicle")
       .map(l => l.vehicle_name)
       .filter(Boolean) as string[]
-    return [...new Set([...fromOrders, ...fromLeave])].sort()
-  }, [orders, leaveEvents])
+    let all = [...new Set([...fromOrders, ...fromLeave])].sort()
+
+    // Narrow by active fleet filter: only vehicles belonging to that fleet
+    if (filterFleet) {
+      all = all.filter(plate => {
+        const uuid = vehiclePlateToUuid.get(plate)
+        return uuid ? (vehicleFleetMap.get(uuid)?.has(filterFleet) ?? false) : false
+      })
+    }
+    // Narrow by active driver filter: only vehicles that share an order with that driver
+    if (filterDriver) {
+      const vehiclesForDriver = new Set(
+        orders.filter(o => driverName(o) === filterDriver).map(vehiclePlate).filter(Boolean) as string[]
+      )
+      all = all.filter(plate => vehiclesForDriver.has(plate))
+    }
+    return all
+  }, [orders, leaveEvents, filterFleet, filterDriver, vehicleFleetMap, vehiclePlateToUuid])
+
+  const fleetOptions = React.useMemo(() => {
+    const names = new Set<string>()
+    // From orders (direct fleet assignment)
+    orders.forEach(o => { const n = fleetName(o); if (n) names.add(n) })
+    // From drivers' fleet memberships
+    allDrivers.forEach(d => { d.fleets?.forEach(f => names.add(f.name)) })
+    // From vehicles' fleet memberships
+    allVehicles.forEach(v => {
+      v.fleet_vehicles?.forEach(fv => { if (fv.fleet?.name) names.add(fv.fleet.name) })
+    })
+    let all = [...names].sort()
+
+    // Narrow by active driver filter: only fleets that driver belongs to
+    if (filterDriver) {
+      const uuid = driverNameToUuid.get(filterDriver)
+      const driverFleets = uuid ? (driverFleetMap.get(uuid) ?? new Set<string>()) : new Set<string>()
+      all = all.filter(f => driverFleets.has(f))
+    }
+    // Narrow by active vehicle filter: only fleets that vehicle belongs to
+    if (filterVehicle) {
+      const uuid = vehiclePlateToUuid.get(filterVehicle)
+      const vehicleFleets = uuid ? (vehicleFleetMap.get(uuid) ?? new Set<string>()) : new Set<string>()
+      all = all.filter(f => vehicleFleets.has(f))
+    }
+    return all
+  }, [orders, allDrivers, allVehicles, filterDriver, filterVehicle, driverFleetMap, vehicleFleetMap, driverNameToUuid, vehiclePlateToUuid, fleetName])
+
+  // ─── Auto-clear orphaned filters ─────────────────────────────────────────────
+  // If a selected filter value is no longer available in its narrowed options,
+  // clear it so the user doesn't get stuck in an impossible combination.
+  React.useEffect(() => {
+    if (filterDriver  && driverOptions.length  > 0 && !driverOptions.includes(filterDriver))   setFilterDriver("")
+  }, [driverOptions,  filterDriver])
+  React.useEffect(() => {
+    if (filterVehicle && vehicleOptions.length > 0 && !vehicleOptions.includes(filterVehicle)) setFilterVehicle("")
+  }, [vehicleOptions, filterVehicle])
+  React.useEffect(() => {
+    if (filterFleet   && fleetOptions.length   > 0 && !fleetOptions.includes(filterFleet))     setFilterFleet("")
+  }, [fleetOptions,  filterFleet])
+
 
   // ─── Filtered data ────────────────────────────────────────────────────────────
 
-  // Orders filtered by entity selects (applies everywhere)
+  // Orders filtered by entity selects + assignment filter
   const filteredOrders = React.useMemo(() => orders.filter(o => {
     if (filterDriver  && driverName(o)   !== filterDriver)  return false
     if (filterVehicle && vehiclePlate(o) !== filterVehicle) return false
+    if (filterFleet) {
+      // Match: order directly assigned to fleet, OR driver belongs to fleet, OR vehicle belongs to fleet
+      const directFleet  = fleetName(o) === filterFleet
+      const driverFleets = driverFleetMap.get(o.driver_assigned?.uuid ?? "") ?? new Set()
+      const vehicleFleets = vehicleFleetMap.get(o.vehicle_assigned?.uuid ?? "") ?? new Set()
+      if (!directFleet && !driverFleets.has(filterFleet) && !vehicleFleets.has(filterFleet)) return false
+    }
+    if (assignmentFilter === "assigned"   && !(hasDriver(o) && hasVehicle(o))) return false
+    if (assignmentFilter === "unassigned" && (hasDriver(o)  || hasVehicle(o))) return false
     return true
-  }), [orders, filterDriver, filterVehicle])
+  }), [orders, filterDriver, filterVehicle, filterFleet, assignmentFilter, fleetName, driverFleetMap, vehicleFleetMap])
 
-  // Leave events filtered by entity selects (driver filter applies to driver leaves)
+  // Leave events filtered by entity selects:
+  //  • Driver filter only  → hide all vehicle/maintenance leaves (irrelevant to the driver)
+  //  • Vehicle filter only → hide all driver leaves (irrelevant to the vehicle)
+  //  • Both / neither      → apply each independently as before
+  //  • Fleet filter        → restrict by driver/vehicle fleet membership
   const filteredLeave = React.useMemo(() => leaveEvents.filter(l => {
-    if (filterDriver && l.unavailability_type !== "vehicle" && l.user?.name !== filterDriver) return false
-    if (filterVehicle && l.unavailability_type === "vehicle" && l.vehicle_name !== filterVehicle) return false
+    const isVehicle = l.unavailability_type === "vehicle"
+
+    // Apply fleet filter using driver/vehicle fleet membership lookups
+    if (filterFleet) {
+      if (isVehicle) {
+        const vehicleFleets = vehicleFleetMap.get(l.vehicle_uuid ?? "") ?? new Set()
+        if (!vehicleFleets.has(filterFleet)) return false
+      } else {
+        const driverFleets = driverFleetMap.get(l.user_uuid ?? "") ?? new Set()
+        if (!driverFleets.has(filterFleet)) return false
+      }
+    }
+
+    if (filterDriver && !filterVehicle) {
+      // Driver-centric view — suppress all vehicle/maintenance entries
+      if (isVehicle) return false
+      return l.user?.name === filterDriver
+    }
+
+    if (filterVehicle && !filterDriver) {
+      // Vehicle-centric view — suppress all driver leave entries
+      if (!isVehicle) return false
+      return l.vehicle_name === filterVehicle
+    }
+
+    // Both or neither — original independent matching
+    if (filterDriver  && !isVehicle && l.user?.name    !== filterDriver)  return false
+    if (filterVehicle &&  isVehicle && l.vehicle_name  !== filterVehicle) return false
     return true
-  }), [leaveEvents, filterDriver, filterVehicle])
+  }), [leaveEvents, filterDriver, filterVehicle, filterFleet, driverFleetMap, vehicleFleetMap])
 
   const cells = getCalendarDays(year, month)
 
@@ -740,14 +1567,8 @@ export default function CalendarPage() {
     })
   }
 
-  const selectedDayOrders = selected ? ordersForDay(selected) : []
-  const selectedDayLeave  = selected ? leaveForDay(selected)  : []
 
-  // Sidebar groupings (reflect entity filter)
-  const driverAssigned    = filteredOrders.filter(o =>  hasDriver(o))
-  const driverUnassigned  = filteredOrders.filter(o => !hasDriver(o))
-  const vehicleAssigned   = filteredOrders.filter(o =>  hasVehicle(o))
-  const vehicleUnassigned = filteredOrders.filter(o => !hasVehicle(o))
+
 
   // ─── Filter pill helper ──────────────────────────────────────────────────────
   function FilterPill({ label, active, dot, onClick }: { label: string; active: boolean; dot: string; onClick: () => void }) {
@@ -767,100 +1588,15 @@ export default function CalendarPage() {
     )
   }
 
-  // ─── Sidebar accordion section ───────────────────────────────────────────────
-  function SidebarSection({
-    title, dot, badgeCls, items, open, toggle, emptyMsg,
-  }: {
-    title: string; dot: string; badgeCls: string; items: Order[]
-    open: boolean; toggle: () => void; emptyMsg: string
-  }) {
-    return (
-      <div className={["flex flex-col min-h-0", open ? "flex-1" : "shrink-0"].join(" ")}>
-        <button
-          onClick={toggle}
-          className="flex w-full items-center gap-2 px-4 py-2.5 bg-muted/30 shrink-0 hover:bg-muted/50 transition-colors text-left border-t"
-        >
-          {open
-            ? <ChevronDown  className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
-          <span className={`h-2 w-2 rounded-full ${dot} shrink-0`} />
-          <span className="text-xs font-medium">{title}</span>
-          <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${badgeCls}`}>{items.length}</span>
-        </button>
-        {open && (
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            {items.length === 0
-              ? <p className="text-xs text-muted-foreground text-center py-6">{emptyMsg}</p>
-              : <div className="space-y-2 p-3">{items.map(o => <OrderCard key={o.uuid} order={o} />)}</div>
-            }
-          </div>
-        )}
-      </div>
-    )
-  }
-
   // ─── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex h-full flex-col gap-2 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
 
-      {/* ── Body: sidebar + calendar ── */}
-      <div className="flex flex-1 gap-4 min-h-0 flex-col lg:flex-row overflow-hidden">
+      {/* ── Calendar area (full width — sidebar removed) ── */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
 
-        {/* ── Left Sidebar ── */}
-        <div className="flex flex-col lg:w-80 xl:w-96 shrink-0 min-h-0 overflow-hidden rounded-xl border bg-card shadow-sm">
-
-          {/* Tab switcher — normal case */}
-          <div className="flex shrink-0 border-b">
-            {(["driver", "vehicle"] as const).map(tab => (
-              <button
-                key={tab}
-                onClick={() => setSidebarTab(tab)}
-                className={[
-                  "flex-1 py-2.5 text-xs font-semibold transition-colors",
-                  sidebarTab === tab
-                    ? "border-b-2 border-primary text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                ].join(" ")}
-              >
-                {tab === "driver" ? "Driver" : "Vehicle"}
-              </button>
-            ))}
-          </div>
-
-          {loading ? (
-            <div className="space-y-2 p-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="animate-pulse h-16 rounded-lg border bg-muted" />
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col min-h-0 overflow-hidden">
-              <SidebarSection
-                title="Assigned"
-                dot="bg-green-500"
-                badgeCls="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                items={sidebarTab === "driver" ? driverAssigned : vehicleAssigned}
-                open={assignedOpen}
-                toggle={() => setAssignedOpen(v => !v)}
-                emptyMsg={sidebarTab === "driver" ? "No assigned orders" : "No vehicle-assigned orders"}
-              />
-              <SidebarSection
-                title="Unassigned"
-                dot={sidebarTab === "driver" ? "bg-amber-500" : "bg-yellow-500"}
-                badgeCls={sidebarTab === "driver"
-                  ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-                  : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"}
-                items={sidebarTab === "driver" ? driverUnassigned : vehicleUnassigned}
-                open={unassignedOpen}
-                toggle={() => setUnassignedOpen(v => !v)}
-                emptyMsg={sidebarTab === "driver" ? "No unassigned orders" : "No vehicle-unassigned orders"}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* ── Calendar area ── */}
+        {/* ── Calendar ── */}
         <div className="flex flex-1 flex-col gap-3 min-w-0 overflow-hidden">
 
           {/* Calendar card */}
@@ -885,10 +1621,10 @@ export default function CalendarPage() {
                 <div className="flex rounded-md border overflow-hidden text-xs font-medium">
                   {(["month","week","day"] as CalView[]).map(v => (
                     <button key={v} onClick={() => setCalView(v)}
-                      className={["px-2.5 py-1 transition-colors capitalize",
+                      className={["px-2.5 py-1 transition-colors",
                         calView === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
                       ].join(" ")}>
-                      {v}
+                      {v === "month" ? tc.month : v === "week" ? tc.week : tc.day}
                     </button>
                   ))}
                 </div>
@@ -922,28 +1658,61 @@ export default function CalendarPage() {
                   <select
                     value={filterDriver}
                     onChange={e => setFilterDriver(e.target.value)}
-                    className="h-7 rounded-md border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    disabled={driverOptions.length === 0 && !filterDriver}
+                    title={driverOptions.length === 0 && !filterDriver ? "No drivers match the current filters" : undefined}
+                    className="h-7 rounded-md border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <option value="">All drivers</option>
+                    <option value="">{tc.allDrivers}{driverOptions.length === 0 && !filterDriver ? " (none)" : ""}</option>
                     {driverOptions.map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
                   <select
                     value={filterVehicle}
                     onChange={e => setFilterVehicle(e.target.value)}
-                    className="h-7 rounded-md border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    disabled={vehicleOptions.length === 0 && !filterVehicle}
+                    title={vehicleOptions.length === 0 && !filterVehicle ? "No vehicles match the current filters" : undefined}
+                    className="h-7 rounded-md border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <option value="">All vehicles</option>
+                    <option value="">{tc.allVehicles}{vehicleOptions.length === 0 && !filterVehicle ? " (none)" : ""}</option>
                     {vehicleOptions.map(v => <option key={v} value={v}>{v}</option>)}
                   </select>
+                  <select
+                    value={filterFleet}
+                    onChange={e => setFilterFleet(e.target.value)}
+                    disabled={fleetOptions.length === 0 && !filterFleet}
+                    title={fleetOptions.length === 0 && !filterFleet ? "No fleets match the current filters" : undefined}
+                    className="h-7 rounded-md border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <option value="">{t.common.fleet}{fleetOptions.length === 0 && !filterFleet ? " (none)" : ""}</option>
+                    {fleetOptions.map(f => <option key={f} value={f}>{f}</option>)}
+                  </select>
+                </div>
+
+
+                <div className="w-px h-5 bg-border self-center" />
+
+                {/* Assignment filter */}
+                <div className="flex items-center gap-0.5 rounded-full border bg-muted/30 p-0.5 shrink-0">
+                  {(["all", "assigned", "unassigned"] as const).map(v => (
+                    <button key={v} onClick={() => setAssignmentFilter(v)}
+                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize transition-all ${
+                        assignmentFilter === v
+                          ? v === "assigned"   ? "bg-green-500 text-white shadow-sm"
+                          : v === "unassigned" ? "bg-blue-500 text-white shadow-sm"
+                          : "bg-foreground text-background shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}>
+                      {v === "all" ? t.common.all : v === "assigned" ? tc.assigned : tc.unassigned}
+                    </button>
+                  ))}
                 </div>
 
                 <div className="w-px h-5 bg-border self-center" />
 
                 {/* Type visibility pills */}
                 <div className="flex items-center gap-1 shrink-0">
-                  <FilterPill label="Orders"      active={showOrders}       dot="bg-foreground"  onClick={() => setShowOrders(v => !v)} />
-                  <FilterPill label="Driver off"  active={showDriverLeave}  dot="bg-red-500"     onClick={() => setShowDriverLeave(v => !v)} />
-                  <FilterPill label="Veh. off"    active={showVehicleLeave} dot="bg-neutral-700" onClick={() => setShowVehicleLeave(v => !v)} />
+                  <FilterPill label={tc.orders}    active={showOrders}       dot="bg-foreground"  onClick={() => setShowOrders(v => !v)} />
+                  <FilterPill label={tc.driverOff}  active={showDriverLeave}  dot="bg-red-500"     onClick={() => setShowDriverLeave(v => !v)} />
+                  <FilterPill label={tc.vehicleOff} active={showVehicleLeave} dot="bg-neutral-700" onClick={() => setShowVehicleLeave(v => !v)} />
                 </div>
 
                 {error && <span className="text-[10px] text-red-500 self-center">{error}</span>}
@@ -960,18 +1729,21 @@ export default function CalendarPage() {
                 </div>
                 <div className="grid flex-1 grid-cols-7 grid-rows-6 overflow-hidden">
                   {cells.map((cell, i) => {
-                    const dayOrders = ordersForDay(cell.date)
-                    const dayLeave  = leaveForDay(cell.date)
+                    const dayOrds2  = ordersForDay(cell.date)
+                    const dayLeave2 = leaveForDay(cell.date)
                     const isToday   = isSameDay(cell.date, today)
-                    const isSel     = !!selected && isSameDay(cell.date, selected)
+                    const total     = dayOrds2.length + dayLeave2.length
                     return (
                       <div
                         key={i}
-                        onClick={() => handleDayClick(cell.date)}
+                        onClick={() => openSidebar({
+                          title: cell.date.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
+                          trips:  dayOrds2,
+                          leaves: dayLeave2,
+                        })}
                         className={[
                           "relative flex flex-col gap-0.5 border-b border-r p-1.5 cursor-pointer transition-colors min-h-[70px] overflow-hidden",
                           !cell.current ? "bg-muted/20" : "hover:bg-muted/30",
-                          isSel ? "ring-2 ring-inset ring-primary" : "",
                         ].join(" ")}
                       >
                         <span className={[
@@ -981,19 +1753,19 @@ export default function CalendarPage() {
                           {cell.date.getDate()}
                         </span>
                         <div className="flex flex-col gap-0.5 overflow-hidden">
-                          {loading ? null : dayOrders.slice(0, 2).map(o => (
+                          {loading ? null : dayOrds2.slice(0, 2).map(o => (
                             <div key={o.uuid} className={`truncate rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight ${orderChip(o, hasDriver, hasVehicle)}`}>
                               {fmtTime(o.scheduled_at)} {o.internal_id ?? o.public_id}
                             </div>
                           ))}
-                          {!loading && dayLeave.slice(0, 2).map(l => (
+                          {!loading && dayLeave2.slice(0, 1).map(l => (
                             <div key={l.uuid} className={`truncate rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight ${leaveChip(l)}`}>
                               {leaveLabel(l)}: {l.vehicle_name ?? l.user?.name ?? "—"}
                             </div>
                           ))}
-                          {(dayOrders.length + dayLeave.length) > 4 && (
-                            <div className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                              +{dayOrders.length + dayLeave.length - 4} more
+                          {!loading && total > 3 && (
+                            <div className="rounded px-1.5 py-0.5 text-[10px] text-primary font-medium">
+                              +{total - 3} more
                             </div>
                           )}
                         </div>
@@ -1012,6 +1784,7 @@ export default function CalendarPage() {
                 selected={selected} setSelected={setSelected}
                 hd={hasDriver} hv={hasVehicle}
                 showOrders={showOrders} showDriverLeave={showDriverLeave} showVehicleLeave={showVehicleLeave}
+                onSidebar={openSidebar}
               />
             )}
 
@@ -1022,41 +1795,21 @@ export default function CalendarPage() {
                 orders={filteredOrders} leaveEvents={filteredLeave}
                 hd={hasDriver} hv={hasVehicle}
                 showOrders={showOrders} showDriverLeave={showDriverLeave} showVehicleLeave={showVehicleLeave}
+                onSidebar={openSidebar}
               />
             )}
 
           </div>
 
-          {/* Selected day detail (month view only) */}
-          {calView === "month" && selected && (
-            <div className="shrink-0 overflow-hidden rounded-xl border bg-card shadow-sm">
-              <div className="border-b px-5 py-3">
-                <h3 className="text-sm font-semibold">
-                  {selected.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  {selectedDayOrders.length === 0 && selectedDayLeave.length === 0
-                    ? "No events"
-                    : [
-                        selectedDayOrders.length > 0 ? `${selectedDayOrders.length} order${selectedDayOrders.length > 1 ? "s" : ""}` : "",
-                        selectedDayLeave.length  > 0 ? `${selectedDayLeave.length} availability event${selectedDayLeave.length > 1 ? "s" : ""}` : "",
-                      ].filter(Boolean).join(" · ")
-                  }
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-3 p-4 max-h-72 overflow-y-auto">
-                {selectedDayOrders.map(o => (
-                  <div key={o.uuid} className="min-w-[220px] flex-1"><OrderCard order={o} /></div>
-                ))}
-                {selectedDayLeave.map(l => (
-                  <div key={l.uuid} className="min-w-[200px] flex-1"><LeaveCard leave={l} /></div>
-                ))}
-              </div>
-            </div>
-          )}
+
 
         </div>
       </div>
+
+      {/* ── Trip sidebar overlay ── */}
+      {sidebarData && (
+        <TripSidebar data={sidebarData} onClose={() => setSidebarData(null)} />
+      )}
     </div>
   )
 }

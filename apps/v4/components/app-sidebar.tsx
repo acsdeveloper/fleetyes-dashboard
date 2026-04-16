@@ -54,6 +54,16 @@ function IconImportHub() {
   )
 }
 
+function IconIssues() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 shrink-0">
+      <path d="M10 3 L18 16 L2 16 Z" fill="rgba(239,68,68,0.12)" stroke="#ef4444" strokeWidth="1.5" strokeLinejoin="round"/>
+      <path d="M10 8 L10 12" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round"/>
+      <circle cx="10" cy="14.5" r="0.75" fill="#ef4444"/>
+    </svg>
+  )
+}
+
 function IconCalendar() {
   return (
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 shrink-0">
@@ -275,7 +285,7 @@ function buildNav(t: NavTranslations): NavEntry[] {
   { label: t.nav.dashboard, href: "/", icon: IconDashboard, iconColor: "#496453", standalone: true },
   // 1 — Transport Management
   {
-    groupLabel: "Transport",
+    groupLabel: t.nav.groupTransport,
     groupColor: "#6366f1",
     groupIcon: IconTrips,
     items: [
@@ -283,6 +293,7 @@ function buildNav(t: NavTranslations): NavEntry[] {
       { label: t.nav.rota,              href: "/rota",               icon: IconRota,        iconColor: "#6366f1" },
       { label: t.nav.calendar,          href: "/calendar",           icon: IconCalendar,    iconColor: "#3b82f6" },
       { label: t.nav.maintenanceTrips,  href: "/maintenance-trips",  icon: IconMaintenance, iconColor: "#f59e0b" },
+      { label: t.nav.issues,            href: "/issues",             icon: IconIssues,      iconColor: "#ef4444" },
       { label: t.nav.importHub,         href: "/import-hub",         icon: IconImportHub,   iconColor: "#8b5cf6", hidden: true },
     ],
   },
@@ -294,30 +305,28 @@ function buildNav(t: NavTranslations): NavEntry[] {
   { label: t.nav.inventory,   href: "/inventory",   icon: IconInventory,   iconColor: "#14b8a6", standalone: true, hidden: true },
   // 5 — Expense Management
   {
-    groupLabel: "Expenses",
+    groupLabel: t.nav.groupExpenses,
     groupColor: "#f59e0b",
     groupIcon: IconTollExpenses,
     items: [
-      { label: t.nav.fuelTracking,       href: "/fuel-tracking", icon: IconFuelTracking, iconColor: "#22c55e" },
-      { label: t.nav.fuelReceipts,       href: "/fuel-receipts", icon: IconFuelReceipts, iconColor: "#10b981" },
-      { label: t.nav.parkingMonitoring,  href: "/parking",       icon: IconParking,      iconColor: "#3b82f6" },
-      { label: t.nav.tollExpenses,       href: "/toll-expenses", icon: IconTollExpenses, iconColor: "#f59e0b" },
-      { label: t.nav.tollReceipts,       href: "/toll-receipts", icon: IconTollReceipts, iconColor: "#eab308" },
+      { label: t.nav.fuel,             href: "/fuel",    icon: IconFuelTracking, iconColor: "#22c55e" },
+      { label: t.nav.toll,             href: "/toll",    icon: IconTollExpenses, iconColor: "#f59e0b" },
+      { label: t.nav.parkingMonitoring, href: "/parking", icon: IconParking,     iconColor: "#3b82f6" },
     ],
   },
   // 6 — People Management
   {
-    groupLabel: "People",
+    groupLabel: t.nav.groupPeople,
     groupColor: "#a855f7",
     groupIcon: IconOffShift,
     items: [
       { label: t.nav.holidays, href: "/holidays",  icon: IconHolidays, iconColor: "#f97316" },
-      { label: t.nav.offShift,  href: "/off-shift", icon: IconOffShift, iconColor: "#a855f7" },
+      { label: t.nav.offShift, href: "/off-shift", icon: IconOffShift, iconColor: "#a855f7" },
     ],
   },
   // 7 — Settings
   {
-    groupLabel: "Settings",
+    groupLabel: t.nav.groupSettings,
     groupColor: "#6b7280",
     groupIcon: IconSettings,
     items: [
@@ -342,16 +351,54 @@ export function AppSidebar() {
   const [collapsed, setCollapsed]     = React.useState(false)
   const [mobileOpen, setMobileOpen]   = React.useState(false)
 
-  // Which groups are expanded — default all open
-  const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({
-    "Transport": true,
-    "Expenses":  false,
-    "People":    true,
-    "Settings":  false,
-  })
+  // ── Group open state ──────────────────────────────────────────────────────
+  // Strategy:
+  //   • On mount, restore from localStorage (if present), falling back to defaults.
+  //   • When the active pathname is inside a group, force that group open.
+  //   • User explicit clicks are persisted immediately to localStorage.
 
-  const toggleGroup = (label: string) =>
-    setOpenGroups(prev => ({ ...prev, [label]: !prev[label] }))
+  const STORAGE_KEY = "sidebar-open-groups"
+
+  // Defaults: Transport open, rest closed
+  const defaultOpen: Record<string, boolean> = { "1": true, "5": false, "6": false, "7": false }
+
+  const readStored = (): Record<string, boolean> => {
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null
+      return raw ? { ...defaultOpen, ...JSON.parse(raw) } : defaultOpen
+    } catch { return defaultOpen }
+  }
+
+  const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>(readStored)
+
+  // Whenever pathname changes: ensure the group containing the active route is open.
+  // We never force-close other groups — only the user can do that.
+  React.useEffect(() => {
+    NAV.forEach((entry, idx) => {
+      if (isStandalone(entry)) return
+      const group = entry as NavGroup
+      const groupKey = String(idx)
+      const anyActive = group.items.some(i =>
+        i.href === "/" ? pathname === "/" : pathname === i.href || pathname.startsWith(i.href + "/")
+      )
+      if (anyActive) {
+        setOpenGroups(prev => {
+          if (prev[groupKey]) return prev   // already open, no-op
+          const next = { ...prev, [groupKey]: true }
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch {}
+          return next
+        })
+      }
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname])
+
+  const toggleGroup = (key: string) =>
+    setOpenGroups(prev => {
+      const next = { ...prev, [key]: !prev[key] }
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch {}
+      return next
+    })
 
   // Close mobile on route change
   React.useEffect(() => { setMobileOpen(false) }, [pathname])
@@ -456,11 +503,13 @@ export function AppSidebar() {
 
             // ── Group ──
             const group = entry as NavGroup
-            const isOpen = openGroups[group.groupLabel] ?? false
+            // Derive stable key from group index so it's language-agnostic
+            const groupKey = String(idx)
+            const isOpen = openGroups[groupKey] ?? (idx <= 1)
             const anyActive = group.items.some(i => isActive(i.href))
 
             return (
-              <div key={group.groupLabel}>
+              <div key={groupKey}>
                 {/* Group header button */}
                 {sidebarCollapsed ? (
                   // In collapsed mode show a coloured dot as separator
@@ -469,7 +518,7 @@ export function AppSidebar() {
                   </div>
                 ) : (
                   <button
-                    onClick={() => toggleGroup(group.groupLabel)}
+                    onClick={() => toggleGroup(groupKey)}
                     className={cn(
                       "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm font-bold transition-colors",
                       anyActive ? "text-foreground" : "text-muted-foreground/70 hover:text-foreground"

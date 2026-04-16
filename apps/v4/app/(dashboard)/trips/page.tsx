@@ -3,13 +3,17 @@
 import { PageHeader } from "@/components/page-header"
 import * as React from "react"
 import * as ReactDOM from "react-dom"
+import * as XLSX from "xlsx"
 import {
   MoreHorizontal, Search, Download,
   X, Loader2, AlertCircle, Send, Trash2, UserCheck, Plus, ChevronDown,
   RefreshCw, Upload, HelpCircle, CheckCircle2, FileText,
-  ChevronRight as ArrowRight, XCircle,
+  ChevronRight as ArrowRight, XCircle, CalendarIcon,
 } from "lucide-react"
+import { DayPicker } from "react-day-picker"
+import "react-day-picker/style.css"
 import { useLang } from "@/components/lang-context"
+import { useConfirm } from "@/components/confirm-dialog"
 
 import {
   listOrders, createOrder, updateOrder, deleteOrder, dispatchOrder, getOrder,
@@ -20,9 +24,33 @@ import { listFleets, type Fleet } from "@/lib/fleets-api"
 import { listPlaces, type Place } from "@/lib/places-api"
 import { listVehicles, type Vehicle } from "@/lib/vehicles-api"
 import { dedupBy } from "@/lib/utils"
+
+// ── Lightweight sessionStorage cache (2min TTL) ───────────────────────────
+// Drivers, fleets, and vehicles change very rarely. Caching them in
+// sessionStorage means repeat page visits are instant (no API calls).
+const CACHE_TTL_MS = 2 * 60 * 1000  // 2 minutes
+
+function cacheGet<T>(key: string): T | null {
+  try {
+    const raw = sessionStorage.getItem(key)
+    if (!raw) return null
+    const { data, ts } = JSON.parse(raw) as { data: T; ts: number }
+    if (Date.now() - ts > CACHE_TTL_MS) { sessionStorage.removeItem(key); return null }
+    return data
+  } catch { return null }
+}
+
+function cacheSet<T>(key: string, data: T) {
+  try { sessionStorage.setItem(key, JSON.stringify({ data, ts: Date.now() })) } catch { /* quota exceeded — ignore */ }
+}
 import { getDriverAvailability, upsertRota, getRotaEntry, type RotaEntry } from "@/lib/rota-store"
-import { ontrackFetch } from "@/lib/ontrack-api"
+import { ontrackFetch, OnTrackApiError } from "@/lib/ontrack-api"
 import { prospectiveComplianceCheck } from "@/lib/compliance-engine"
+import {
+  getShiftAssignmentData,
+  initiateAsyncAllocation,
+  applyAllocations,
+} from "@/lib/auto-allocation-api"
 
 import { AgGridReact } from "ag-grid-react"
 import {
@@ -33,7 +61,7 @@ import {
 
 ModuleRegistry.registerModules([AllCommunityModule])
 
-// ─── AG Grid themes (light + dark) ────────────────────────────────────────────
+// â”€â”€â”€ AG Grid themes (light + dark) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Use the JS Theming API so font, colors, and spacing are all in one place
 // and automatically co-ordinate with the app's Montserrat / design tokens.
 
@@ -81,7 +109,7 @@ const darkTheme = themeQuartz.withParams({
   selectedRowBackgroundColor: "#1e3a5f",
 })
 
-// ─── Status Config ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Status Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Inventory-demo style: translucent bg + coloured border (matches StatusCellRenderer.module.css)
 const statusStyles: Record<OrderStatus, { bg: string; border: string; text: string; dot: string }> = {
@@ -94,7 +122,7 @@ const statusStyles: Record<OrderStatus, { bg: string; border: string; text: stri
 
 const ALL_STATUSES: OrderStatus[] = ["created", "dispatched", "started", "completed", "canceled"]
 
-// ─── Helper ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function fleetLabel(order: Order): string {
   if (order.fleet?.name) return order.fleet.name
@@ -134,22 +162,31 @@ function localDateStr(d: Date = new Date()): string {
   return `${y}-${m}-${day}`
 }
 
-// ─── Place Search Combobox ────────────────────────────────────────────────────
+// â”€â”€â”€ Place Search Combobox â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function PlaceSearchSelect({
   label,
   value,
+  selectedName: selectedNameProp = "",
   onChange,
 }: {
   label: string
   value: string   // uuid
+  selectedName?: string
   onChange: (uuid: string, name: string) => void
 }) {
-  const [query, setQuery] = React.useState("")
-  const [results, setResults] = React.useState<Place[]>([])
-  const [open, setOpen] = React.useState(false)
-  const [selectedName, setSelectedName] = React.useState("")
+  const [query,       setQuery]       = React.useState("")
+  const [results,     setResults]     = React.useState<Place[]>([])
+  const [open,        setOpen]        = React.useState(false)
+  // Single source of truth for the display label — avoids split-brain between
+  // internalName + selectedNameProp that caused UUID to show after selection.
+  const [displayName, setDisplayName] = React.useState(selectedNameProp)
   const ref = React.useRef<HTMLDivElement>(null)
+
+  // Sync displayName whenever the prop changes (edit pre-populate arrives async)
+  React.useEffect(() => {
+    if (selectedNameProp) setDisplayName(selectedNameProp)
+  }, [selectedNameProp])
 
   // Close on outside click
   React.useEffect(() => {
@@ -172,10 +209,11 @@ function PlaceSearchSelect({
     return () => clearTimeout(t)
   }, [query])
 
-  const displayValue = selectedName || (value ? value.slice(0, 12) + "…" : "")
+  const displayValue = displayName || (value ? value.slice(0, 12) + "…" : "")
 
   return (
-    <div className="relative">
+    // ref must be on the outer div for outside-click detection to work
+    <div ref={ref} className="relative">
       <label className="mb-1 block text-xs font-medium text-muted-foreground">{label}</label>
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -189,7 +227,12 @@ function PlaceSearchSelect({
         />
       </div>
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-full rounded-xl border bg-card shadow-lg">
+        // stopPropagation prevents the drawer overlay's onClick from closing the drawer
+        // when the user is interacting with the dropdown
+        <div
+          className="absolute left-0 top-full z-50 mt-1 w-full rounded-xl border bg-card shadow-lg"
+          onMouseDown={e => e.stopPropagation()}
+        >
           <div className="max-h-48 overflow-y-auto py-1">
             {results.length === 0 && (
               <p className="px-3 py-2 text-xs text-muted-foreground">
@@ -200,15 +243,17 @@ function PlaceSearchSelect({
               <button
                 key={p.uuid}
                 type="button"
+                onMouseDown={e => e.stopPropagation()}
                 onClick={() => {
-                  onChange(p.uuid, p.name)
-                  setSelectedName(p.name)
+                  const name = p.name || p.code || p.address || p.uuid
+                  onChange(p.uuid, name)
+                  setDisplayName(name)  // update immediately — no wait for prop round-trip
                   setOpen(false)
                   setQuery("")
                 }}
                 className="flex w-full flex-col px-3 py-2 text-left text-xs transition-colors hover:bg-muted"
               >
-                <span className="font-medium">{p.name}</span>
+                <span className="font-medium">{p.name || p.code}</span>
                 {(p.code || p.address) && (
                   <span className="text-muted-foreground truncate">
                     {[p.code, p.address].filter(Boolean).join(" · ")}
@@ -223,7 +268,106 @@ function PlaceSearchSelect({
   )
 }
 
-// ─── Assign Driver Dropdown ───────────────────────────────────────────────────
+// ─── Date + Time Picker ───────────────────────────────────────────────────────
+// Calendar popover (react-day-picker v9) + time input, side by side.
+// value / onChange use "YYYY-MM-DDTHH:MM" strings (same as datetime-local).
+
+function DateTimePicker({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: string   // "YYYY-MM-DDTHH:MM" or ""
+  onChange: (val: string) => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  const ref = React.useRef<HTMLDivElement>(null)
+
+  // Close on outside click
+  React.useEffect(() => {
+    if (!open) return
+    const h = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", h)
+    return () => document.removeEventListener("mousedown", h)
+  }, [open])
+
+  const datePart = value?.slice(0, 10) ?? ""
+  const timePart = value?.slice(11, 16) ?? "09:00"
+  const selected  = datePart ? new Date(datePart + "T00:00:00") : undefined
+
+  const displayDate = selected
+    ? selected.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+    : "Pick a date"
+
+  const handleDayClick = (day: Date) => {
+    const y = day.getFullYear()
+    const m = String(day.getMonth() + 1).padStart(2, "0")
+    const d = String(day.getDate()).padStart(2, "0")
+    onChange(`${y}-${m}-${d}T${timePart}`)
+    setOpen(false)
+  }
+
+  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const t = e.target.value || "00:00"
+    if (datePart) onChange(`${datePart}T${t}`)
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <label className="mb-1 block text-xs font-medium text-muted-foreground">{label}</label>
+      <div className="flex gap-2">
+        {/* Date button */}
+        <button
+          type="button"
+          onClick={() => setOpen(v => !v)}
+          className="inline-flex h-9 flex-1 items-center gap-2 rounded-lg border bg-background px-3 text-sm text-left transition-colors hover:bg-muted"
+        >
+          <CalendarIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <span className={datePart ? "text-foreground" : "text-muted-foreground"}>{displayDate}</span>
+        </button>
+        {/* Time input */}
+        <input
+          type="time"
+          value={timePart}
+          onChange={handleTimeChange}
+          className="h-9 w-[90px] shrink-0 rounded-lg border bg-background px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+        />
+      </div>
+
+      {/* Calendar popover */}
+      {open && (
+        <div className="absolute left-0 top-full z-50 mt-1 rounded-xl border bg-card shadow-xl">
+          <DayPicker
+            mode="single"
+            selected={selected}
+            onSelect={(day) => day && handleDayClick(day)}
+            classNames={{
+              root: "p-3",
+              month_caption: "flex justify-center items-center mb-2 text-sm font-semibold",
+              nav: "flex items-center justify-between mb-1",
+              button_previous: "inline-flex h-7 w-7 items-center justify-center rounded-lg border text-muted-foreground hover:bg-muted",
+              button_next: "inline-flex h-7 w-7 items-center justify-center rounded-lg border text-muted-foreground hover:bg-muted",
+              weekdays: "flex",
+              weekday: "w-8 text-center text-[11px] font-medium text-muted-foreground py-1",
+              weeks: "flex flex-col gap-0.5",
+              week: "flex",
+              day: "w-8 h-8 flex items-center justify-center text-sm rounded-lg hover:bg-muted cursor-pointer transition-colors",
+              selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
+              today: "font-bold text-primary",
+              outside: "text-muted-foreground opacity-40",
+              disabled: "opacity-30 cursor-not-allowed",
+              chevron: "fill-current",
+            }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+// â”€â”€â”€ Assign Driver Dropdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function AssignDriverDropdown({
   order,
@@ -283,7 +427,7 @@ function AssignDriverDropdown({
     setLoading(true)
     setOpen(false)
     try {
-      // ── Prospective compliance check ──
+      // â”€â”€ Prospective compliance check â”€â”€
       const dropDate = order.scheduled_at?.slice(0, 10) ?? localDateStr()
       const tripIndex = new Map<string, Order>()
       allOrders.forEach(o => tripIndex.set(o.uuid, o))
@@ -293,7 +437,7 @@ function AssignDriverDropdown({
         return
       }
 
-      // ── Write trip_data to rota store (synchronous, before async API call) ──
+      // â”€â”€ Write trip_data to rota store (synchronous, before async API call) â”€â”€
       // This ensures the batch compliance check can find this trip even if
       // the API hasn't propagated the assignment yet.
       const existing = getRotaEntry(driver.uuid, dropDate)
@@ -421,7 +565,7 @@ function AssignDriverDropdown({
                     </span>
                     <span className="flex-1 truncate font-medium">{d.name}</span>
                     {hasPrefConflict && !isBlocked && (
-                      <span title="Outside preference window" className="text-amber-500">⚠️</span>
+                      <span title="Outside preference window" className="text-amber-500">⚠ï¸</span>
                     )}
                     {availBadge(d.uuid)}
                   </button>
@@ -440,7 +584,7 @@ function AssignDriverDropdown({
   )
 }
 
-// ─── Assign Vehicle (Truck) Dropdown ─────────────────────────────────────────
+// â”€â”€â”€ Assign Vehicle (Truck) Dropdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function AssignVehicleDropdown({
   order,
@@ -530,7 +674,7 @@ function AssignVehicleDropdown({
   )
 }
 
-// ─── Filter Panel ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Filter Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type Filters = {
   status: string
@@ -657,45 +801,284 @@ function FilterPanel({
   )
 }
 
+// ─── Relay XLS Export ─────────────────────────────────────────────────────
+//
+// Template-based approach: fetch the actual BulkAssign.xls from /templates/,
+// parse it, write ONLY the Driver 1 column (col 6) for matching Block IDs,
+// and download. Every other cell/format/validation in the template is
+// preserved exactly as Relay expects it.
+//
+// Sheet 1 “Bulk Assignment Upcoming” structure:
+//   Row 0  — Title banner
+//   Row 1  — Instructions
+//   Row 2  — Empty
+//   Row 3  — Column group headers (Block ID, Trip ID, ... Driver(s), Tractor, Trailer)
+//   Row 4  — Sub-column headers (Driver 1, Driver 2, Vehicle Type, Plate, Country, ...)
+//   Row 5+ — Data: one block-header row per block, followed by its detail rows
+//
+// Sheet 2 “hidden” — sorted list of driver names for the dropdown validation.
+
+async function exportRelayXls(orders: Order[], drivers: Driver[]) {
+  // ── Build Block ID → driver name lookup from FleetYes data ──────────────
+  const blockDriver = new Map<string, string>()
+  for (const o of orders) {
+    const blockId = o.public_id ?? o.internal_id ?? o.uuid
+    const name    = o.driver_assigned?.name ?? o.driver_name ?? ""
+    if (blockId && name && !blockDriver.has(blockId)) {
+      blockDriver.set(blockId, name)
+    }
+  }
+  // Merge in extra assignments from all orders (not just filtered)
+  // — no additional source here; blockDriver already covers filtered set.
+
+  // ── Fetch the BulkAssign.xls template exactly as Relay needs it ─────────
+  let templateBuf: ArrayBuffer
+  try {
+    const res = await fetch("/templates/BulkAssign.xls")
+    if (!res.ok) throw new Error(`Template fetch failed: HTTP ${res.status}`)
+    templateBuf = await res.arrayBuffer()
+  } catch (err) {
+    alert(`Could not load the Relay template file.\n\n${err instanceof Error ? err.message : String(err)}\n\nMake sure BulkAssign.xls is present in /public/templates/.`)
+    return
+  }
+
+  const wb = XLSX.read(templateBuf, { type: "array" })
+  const sheetName = wb.SheetNames[0]           // "Bulk Assignment Upcoming"
+  const ws = wb.Sheets[sheetName]
+
+  if (!ws) {
+    alert("Template is missing the expected sheet.")
+    return
+  }
+
+  // ── Collect driver names from Sheet 2 "hidden" for exact-match preference ─
+  const hiddenSheet = wb.Sheets[wb.SheetNames[1]]
+  const knownDriverNames = new Set<string>()
+  if (hiddenSheet) {
+    const hiddenData = XLSX.utils.sheet_to_json<string[]>(hiddenSheet, { header: 1 }) as string[][]
+    for (const row of hiddenData) {
+      if (row[0]) knownDriverNames.add(String(row[0]).trim())
+    }
+  }
+
+  // ── Fuzzy match: map each FleetYes driver name to the closest known name ──
+  // Priority: exact → case-insensitive exact → kept as-is if not in known list
+  const normalize = (s: string) => s.trim().toLowerCase()
+  const matchDriver = (name: string): string => {
+    if (!name) return ""
+    if (knownDriverNames.has(name)) return name                       // exact
+    // Case-insensitive exact
+    for (const known of knownDriverNames) {
+      if (normalize(known) === normalize(name)) return known
+    }
+    // Not in the known list — return as-is (Relay will validate, but at least we tried)
+    return name
+  }
+
+  // ── Iterate all data rows (rows 5+ i.e. 0-indexed row 4+) ─────────────────
+  // For each row where col A (index 0) matches a block ID we know about,
+  // write the matched driver name into col G (index 6, "Driver 1").
+  const range = XLSX.utils.decode_range(ws["!ref"] ?? "A1")
+  const DATA_START_ROW = 4   // 0-indexed: rows 0–3 are headers, row 4 is first data row
+
+  for (let r = DATA_START_ROW; r <= range.e.r; r++) {
+    const blockCell = ws[XLSX.utils.encode_cell({ r, c: 0 })]
+    if (!blockCell) continue
+    const blockId = String(blockCell.v ?? "").trim()
+    if (!blockId) continue
+
+    const driverName = blockDriver.get(blockId)
+    if (!driverName) continue   // no FleetYes assignment for this block → leave blank
+
+    const matched = matchDriver(driverName)
+    const cellAddr = XLSX.utils.encode_cell({ r, c: 6 })   // col G = Driver 1
+
+    // Write or overwrite the Driver 1 cell, keeping type as string ("s")
+    ws[cellAddr] = { t: "s", v: matched, w: matched }
+  }
+
+  // ── Also add any extra drivers from the full driver list to Sheet 2 ───────
+  // Only add drivers not already in the hidden list (don't remove or reorder)
+  if (hiddenSheet) {
+    const extraDrivers = drivers
+      .map(d => d.name?.trim() ?? "")
+      .filter(n => n && !knownDriverNames.has(n))
+    const hiddenRange = XLSX.utils.decode_range(hiddenSheet["!ref"] ?? "A1")
+    let nextRow = hiddenRange.e.r + 1
+    for (const name of extraDrivers) {
+      const addr = XLSX.utils.encode_cell({ r: nextRow, c: 0 })
+      hiddenSheet[addr] = { t: "s", v: name, w: name }
+      nextRow++
+    }
+    if (extraDrivers.length > 0) {
+      hiddenSheet["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: nextRow - 1, c: 0 } })
+    }
+  }
+
+  // ── Download ───────────────────────────────────────────────────────────────
+  const today   = new Date()
+  const dateStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`
+  XLSX.writeFile(wb, `BulkAssign_${dateStr}.xls`, { bookType: "xls" })
+}
+
+
 // ─── CSV Import Wizard ───────────────────────────────────────────────────
 
-type ImportStep = "upload" | "creating-places" | "importing" | "done" | "error"
+type ImportStep = "upload" | "uploading-file" | "creating-places" | "importing" | "done" | "error"
 
 function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const { t } = useLang()
+  const confirm = useConfirm()
+  const c = t.common
   const [step, setStep] = React.useState<ImportStep>("upload")
   const [file, setFile] = React.useState<File | null>(null)
   const [result, setResult] = React.useState<{ created: number; updated: number; errors: {row:number;message:string}[]; failed_rows_file?: string } | null>(null)
   const [placeResult, setPlaceResult] = React.useState<{ created: number; errors: {row:number;message:string}[] } | null>(null)
-  const [errMsg, setErrMsg] = React.useState("")
+  const [errInfo, setErrInfo] = React.useState<{
+    step: string
+    message: string
+    status?: number
+    body?: unknown
+    hint?: string
+  } | null>(null)
+  const [copied, setCopied] = React.useState(false)
   const fileRef = React.useRef<HTMLInputElement>(null)
+  // Track the current step name for error attribution (ref so catch can read latest value)
+  const stepRef = React.useRef<ImportStep>("upload")
+
+  // ─── Generate a downloadable error-log CSV from the errors array ───────────
+  const downloadErrorCsv = (
+    errors: { row: number; message: string }[],
+    filename = "trips-import-errors.csv"
+  ) => {
+    const header = "Row,Error Message"
+    const rows = errors.map(e => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const raw = e as any
+      const rowNum = e.row ?? raw.row_number ?? raw.line ?? "?"
+      const msg = (e.message ?? raw.error ?? raw.msg ?? raw.description ?? JSON.stringify(e)) as string
+      return `${rowNum},"${msg.replace(/"/g, '""')}"`
+    })
+    const csv = [header, ...rows].join("\n")
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const runImport = async () => {
     if (!file) return
+    setErrInfo(null)
+
+    const setS = (s: ImportStep) => { setStep(s); stepRef.current = s }
+
     try {
-      // Step 1 — create missing places
-      setStep("creating-places")
-      const fd1 = new FormData()
-      fd1.append("file", file)
-      const pr = await ontrackFetch<{ created: number; errors: {row:number;message:string}[] }>(
-        "/orders/process-import-create-missing-places",
-        { method: "POST", body: fd1 }
+      // ── Step 1: Upload file → get file UUID ───────────────────────────────
+      setS("uploading-file")
+      const fd = new FormData()
+      fd.append("file", file)
+      const uploaded = await ontrackFetch<{ file: { uuid: string } }>(
+        "/files/upload",
+        { method: "POST", body: fd }
       )
+      const fileUuid = uploaded.file?.uuid
+      if (!fileUuid) throw new Error("File upload succeeded but returned no UUID")
+
+      // ── Step 2: Create missing places ─────────────────────────────────────
+      setS("creating-places")
+      let pr: { created: number; skipped?: number; errors: {row:number;message:string}[] } = { created: 0, errors: [] }
+      try {
+        pr = await ontrackFetch<typeof pr>(
+          "/orders/process-import-create-missing-places",
+          { method: "POST", body: JSON.stringify({ files: [fileUuid] }) }
+        )
+      } catch (placeErr) {
+        // Non-fatal: log but continue to order import
+        console.warn("[ImportWizard] place-creation step error (continuing):", placeErr)
+        pr = { created: 0, errors: [{ row: 0, message: placeErr instanceof Error ? placeErr.message : String(placeErr) }] }
+      }
       setPlaceResult(pr)
 
-      // Step 2 — import orders
-      setStep("importing")
-      const fd2 = new FormData()
-      fd2.append("file", file)
-      const ir = await ontrackFetch<{ created: number; updated: number; errors: {row:number;message:string}[]; failed_rows_file?: string }>(
-        "/orders/process-import-orders",
-        { method: "POST", body: fd2 }
-      )
+      // ── Step 3: Import orders ─────────────────────────────────────────────
+      // The API processes every row and returns { created, updated, errors[], failed_rows_file? }
+      // even when some rows fail — this is NOT a hard error.
+      setS("importing")
+      let ir: { created: number; updated: number; errors: {row:number;message:string}[]; failed_rows_file?: string } = { created: 0, updated: 0, errors: [] }
+      try {
+        ir = await ontrackFetch<typeof ir>(
+          "/orders/process-import-orders",
+          { method: "POST", body: JSON.stringify({ files: [fileUuid] }) }
+        )
+      } catch (importErr) {
+        // If the server threw a hard error but we already have place results,
+        // treat it as a full-failure import (0 created, all rows failed) and
+        // still land on the "done" screen so the user sees what went wrong.
+        const msg = importErr instanceof Error ? importErr.message : String(importErr)
+        const isApiError = importErr instanceof OnTrackApiError
+        const body = isApiError ? importErr.body : undefined
+
+        // Try to extract per-row errors from the API body (422 validation responses)
+        let rowErrors: { row: number; message: string }[] = []
+        if (
+          body && typeof body === "object" && body !== null &&
+          "errors" in body && Array.isArray((body as { errors: unknown }).errors)
+        ) {
+          rowErrors = (body as { errors: { row?: number; message?: string }[] }).errors.map((e, i) => ({
+            row: e.row ?? i + 1,
+            message: e.message ?? JSON.stringify(e),
+          }))
+        } else {
+          rowErrors = [{ row: 0, message: msg }]
+        }
+        ir = { created: 0, updated: 0, errors: rowErrors }
+      }
+
       setResult(ir)
-      setStep("done")
+      setS("done")
+      if (ir.created > 0 || ir.updated > 0) onDone()
     } catch (e: unknown) {
-      setErrMsg(e instanceof Error ? e.message : "Import failed")
-      setStep("error")
+      // Only hard infrastructure errors (upload failure, auth) land here
+      const isApiError = e instanceof OnTrackApiError
+      const failedStep =
+        stepRef.current === "uploading-file"   ? "Step 1 — Upload file" :
+        stepRef.current === "creating-places"  ? "Step 2 — Create missing places" :
+                                                 "Step 3 — Import orders"
+
+      let hint: string | undefined
+      if (isApiError) {
+        if (e.status === 401 || e.status === 403) hint = "Your session may have expired. Try logging out and back in."
+        else if (e.status === 422) hint = "The file structure does not match the expected format. Ensure column headers are exactly as listed above (lowercase, underscored)."
+        else if (e.status === 400) hint = "The request was rejected. Check that a valid file was selected and the column names are correct."
+        else if (e.status >= 500) hint = "A server error occurred. This is not a problem with your file — please try again in a moment."
+      }
+
+      setErrInfo({
+        step: failedStep,
+        message: e instanceof Error ? e.message : "Unknown error",
+        status: isApiError ? e.status : undefined,
+        body: isApiError ? e.body : undefined,
+        hint,
+      })
+      setS("error")
     }
+  }
+
+  const copyErrorDetails = () => {
+    if (!errInfo) return
+    const text = [
+      `Import failed at: ${errInfo.step}`,
+      `File: ${file?.name ?? "unknown"}`,
+      errInfo.status ? `HTTP Status: ${errInfo.status}` : null,
+      `Error: ${errInfo.message}`,
+      errInfo.body ? `\nAPI Response:\n${JSON.stringify(errInfo.body, null, 2)}` : null,
+    ].filter(Boolean).join("\n")
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
   }
 
   return (
@@ -705,7 +1088,7 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
         <div className="flex items-center justify-between border-b px-5 py-4">
           <div>
             <h2 className="font-bold text-base">Import Trips</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Upload an Excel or CSV file to bulk-create trips</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Upload a Trips Sheet (.csv / .xlsx) to bulk-create trips</p>
           </div>
           <button onClick={onClose} className="rounded-lg border p-1.5 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
         </div>
@@ -716,16 +1099,34 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
           {step === "upload" && (
             <>
               <div className="rounded-xl border bg-muted/30 p-4">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Required columns</p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                  {[["block_id","Groups rows into one trip"],["driver_name","Matched to existing driver"],["plate_number","Matched to vehicle"],["scheduled_at","Date/time of pickup"],["estimated_end_date","Expected end date/time"],["pickup_code","Place code for pickup"],["dropoff_code","Place code for dropoff"],["fleet_name","Fleet assignment"]].map(([col,desc]) => (
-                    <div key={col}>
-                      <span className="font-mono font-medium">{col}</span>
-                      <span className="ml-1 text-muted-foreground">{desc}</span>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Required columns — exact field names the API expects</p>
+                <div className="grid grid-cols-1 gap-y-1.5 text-xs">
+                  {([
+                    ["block_id",           "required", "Groups rows into one trip (e.g. TK-HVHSNR4MS)"],
+                    ["fleet_name",         "required", "Fleet / carrier name (e.g. AZFNR)"],
+                    ["driver_name",        "required", "Driver full name — fuzzy-matched against existing drivers"],
+                    ["plate_number",       "required", "Vehicle plate number — fuzzy-matched"],
+                    ["scheduled_at",       "required", "Pickup date/time (UTC, e.g. 2026-03-21 20:30)"],
+                    ["estimated_end_date", "required", "Estimated completion date/time (UTC)"],
+                    ["pickup_code",        "required", "Place code for pickup location"],
+                    ["dropoff_code",       "required", "Place code for drop-off location"],
+                  ] as [string, string, string][]).map(([col, badge, desc]) => (
+                    <div key={col} className="flex items-start gap-2">
+                      <span className="font-mono font-medium shrink-0 w-40">{col}</span>
+                      <span className={`shrink-0 rounded px-1 py-0.5 text-[10px] font-semibold leading-none ${
+                        badge === "required"
+                          ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+                          : "bg-muted text-muted-foreground"
+                      }`}>{badge}</span>
+                      <span className="text-muted-foreground">{desc}</span>
                     </div>
                   ))}
                 </div>
+                <p className="mt-3 text-[11px] text-muted-foreground border-t pt-2">
+                  Column names must be <span className="font-mono font-semibold">exact</span> (lowercase, underscores). Rows sharing the same <span className="font-mono">block_id</span> are grouped into one trip.
+                </p>
               </div>
+
 
               {/* Drop zone */}
               <div
@@ -745,11 +1146,15 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
           )}
 
           {/* Progress */}
-          {(step === "creating-places" || step === "importing") && (
+          {(step === "uploading-file" || step === "creating-places" || step === "importing") && (
             <div className="flex flex-col items-center gap-4 py-10">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <div className="text-center">
-                <p className="font-medium">{step === "creating-places" ? "Step 1 / 2 — Creating missing places…" : "Step 2 / 2 — Importing trips…"}</p>
+                <p className="font-medium">
+                  {step === "uploading-file"  && "Step 1 / 3 — Uploading file…"}
+                  {step === "creating-places" && "Step 2 / 3 — Creating missing places…"}
+                  {step === "importing"       && "Step 3 / 3 — Importing trips…"}
+                </p>
                 <p className="text-xs text-muted-foreground mt-1">This may take a moment for large files</p>
               </div>
               {placeResult && step === "importing" && (
@@ -763,6 +1168,7 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
           {/* Done */}
           {step === "done" && result && (
             <div className="flex flex-col gap-4">
+              {/* Success summary */}
               <div className="flex items-center gap-3 rounded-xl bg-green-50 dark:bg-green-950/20 p-4">
                 <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400 shrink-0" />
                 <div>
@@ -773,32 +1179,108 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
                   </p>
                 </div>
               </div>
-              {result.errors.length > 0 && (
+
+              {/* Row-level errors — always offer downloadable log */}
+              {(result.errors?.length ?? 0) > 0 && (
                 <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-4">
-                  <p className="mb-2 text-xs font-semibold text-amber-700 dark:text-amber-400">{result.errors.length} rows had errors</p>
-                  <div className="space-y-1 max-h-40 overflow-y-auto">
-                    {result.errors.map((e, i) => (
-                      <p key={i} className="text-xs text-amber-600 dark:text-amber-400">Row {e.row}: {e.message}</p>
-                    ))}
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                      ⚠ {result.errors!.length} row{result.errors!.length !== 1 ? "s" : ""} failed to import
+                    </p>
+                    {/* Download button — prefer server-provided file, fall back to client-generated CSV */}
+                    <button
+                      onClick={() =>
+                        result.failed_rows_file
+                          ? (() => { const a = document.createElement("a"); a.href = result.failed_rows_file!; a.download = "trips-import-errors.csv"; a.click() })()
+                          : downloadErrorCsv(result.errors!)
+                      }
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-amber-900/20 px-2.5 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300 transition-colors hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                    >
+                      <Download className="h-3 w-3" />
+                      Download error log
+                    </button>
                   </div>
-                  {result.failed_rows_file && (
-                    <a href={result.failed_rows_file} className="mt-2 inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400 underline" target="_blank" rel="noreferrer">
-                      <FileText className="h-3 w-3" /> Download error log
-                    </a>
-                  )}
+                  {/* Inline preview — first 8 rows */}
+                  <div className="space-y-1 max-h-44 overflow-y-auto rounded-lg border border-amber-200 dark:border-amber-700 bg-white/60 dark:bg-black/20 p-2">
+                    {result.errors!.slice(0, 8).map((e, i) => (
+                      <div key={i} className="flex gap-2 text-xs">
+                        <span className="shrink-0 font-mono font-medium text-amber-600 dark:text-amber-400 w-14">Row {e.row}</span>
+                        <span className="text-amber-700 dark:text-amber-300 break-words">{e.message}</span>
+                      </div>
+                    ))}
+                    {result.errors!.length > 8 && (
+                      <p className="text-[11px] text-amber-500 dark:text-amber-500 text-center pt-1 border-t border-amber-200 dark:border-amber-700">
+                        …and {result.errors!.length - 8} more — download the full log above
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* Error */}
-          {step === "error" && (
-            <div className="flex items-center gap-3 rounded-xl bg-red-50 dark:bg-red-950/20 p-4">
-              <XCircle className="h-6 w-6 text-red-500 shrink-0" />
-              <div>
-                <p className="font-medium text-red-700 dark:text-red-400">Import failed</p>
-                <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">{errMsg}</p>
+          {/* Error — rich diagnostics */}
+          {step === "error" && errInfo && (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-start gap-3 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 p-4">
+                <XCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-red-700 dark:text-red-400">Import failed</p>
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+                    Failed at: <span className="font-medium">{errInfo.step}</span>
+                    {errInfo.status && <span className="ml-2 font-mono">HTTP {errInfo.status}</span>}
+                  </p>
+                </div>
               </div>
+
+              <div className="rounded-lg border bg-muted/40 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Error message</p>
+                <p className="text-sm font-medium break-words">{errInfo.message}</p>
+              </div>
+
+              {errInfo.hint && (
+                <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 px-3 py-2.5 flex gap-2">
+                  <span className="text-amber-500 shrink-0">💡</span>
+                  <p className="text-xs text-amber-700 dark:text-amber-400">{errInfo.hint}</p>
+                </div>
+              )}
+
+              {errInfo.body &&
+               typeof errInfo.body === "object" &&
+               errInfo.body !== null &&
+               "errors" in errInfo.body &&
+               typeof (errInfo.body as Record<string, unknown>).errors === "object" &&
+               (errInfo.body as Record<string, unknown>).errors !== null ? (
+                <div className="rounded-lg border bg-muted/40 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Validation errors</p>
+                  <div className="space-y-1">
+                    {Object.entries((errInfo.body as Record<string, unknown>).errors as Record<string, unknown>).map(([field, msgs]) => (
+                      <div key={field} className="text-xs">
+                        <span className="font-mono font-medium">{field}:</span>{" "}
+                        <span className="text-muted-foreground">{Array.isArray(msgs) ? msgs.join(", ") : String(msgs)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {errInfo.body ? (
+                <div className="rounded-lg border bg-muted/40 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">API response</p>
+                  <pre className="text-[11px] text-muted-foreground overflow-x-auto max-h-28 whitespace-pre-wrap break-all">
+                    {JSON.stringify(errInfo.body, null, 2)}
+                  </pre>
+                </div>
+              ) : null}
+
+
+              <button
+                onClick={copyErrorDetails}
+                className="flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs text-muted-foreground hover:bg-muted transition-colors"
+              >
+                {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500" /> : <FileText className="h-3.5 w-3.5" />}
+                {copied ? "Copied!" : "Copy error details to clipboard"}
+              </button>
             </div>
           )}
         </div>
@@ -806,7 +1288,7 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
         <div className="flex gap-2 border-t p-4">
           {step === "upload" && (
             <>
-              <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">Cancel</button>
+              <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">{c.cancel}</button>
               <button onClick={runImport} disabled={!file}
                 className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
                 Start Import
@@ -821,7 +1303,7 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
           )}
           {step === "error" && (
             <>
-              <button onClick={() => setStep("upload")} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">Try Again</button>
+              <button onClick={() => { setStep("upload"); setErrInfo(null) }} className="flex-1 rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">Try Again</button>
               <button onClick={onClose} className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-muted">Close</button>
             </>
           )}
@@ -831,48 +1313,48 @@ function ImportWizard({ onClose, onDone }: { onClose: () => void; onDone: () => 
   )
 }
 
-// ─── Help Walkthrough ───────────────────────────────────────────────────────
+// â”€â”€â”€ Help Walkthrough â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const HELP_STEPS = [
   {
     id: "summary-cards",
     title: "Summary Cards",
-    icon: "📊",
+    icon: "ðŸ“Š",
     target: "[data-help='summary-cards']",
     description: "At-a-glance metrics derived from the loaded batch: total trips, how many are unassigned (amber alert), today's scheduled trips, and counts by status. Updates instantly as you change status filters.",
   },
   {
     id: "search",
     title: "Search & Filters",
-    icon: "🔍",
+    icon: "ðŸ”",
     target: "[data-help='toolbar']",
-    description: "Type anything to instantly filter across all columns. Use the Status dropdown for a server-side refetch by status. Refresh ↺ reloads from the API. Import uploads a CSV/Excel batch. Export downloads the current view.",
+    description: "Type anything to instantly filter across all columns. Use the Status dropdown for a server-side refetch by status. Refresh â†º reloads from the API. Import uploads a CSV/Excel batch. Export downloads the current view.",
   },
   {
     id: "new-trip",
     title: "New Trip",
-    icon: "➕",
+    icon: "âž•",
     target: "[data-help='toolbar']",
     description: "Click New Trip to open the slide-over. Choose fleet, driver and pickup/dropoff from live Places search. Set scheduled dates and save — the grid refreshes automatically.",
   },
   {
     id: "grid",
     title: "Trips Grid",
-    icon: "📋",
+    icon: "ðŸ“‹",
     target: "[data-help='grid']",
-    description: "AG Grid with 15 rows per page. Click any column header to sort. Drag headers to reorder columns. Resize columns by dragging the edge. Use the ☰ menu icon in each header to open column-level filters.",
+    description: "AG Grid with 15 rows per page. Click any column header to sort. Drag headers to reorder columns. Resize columns by dragging the edge. Use the â˜° menu icon in each header to open column-level filters.",
   },
   {
     id: "status",
     title: "Status Badges",
-    icon: "🏷️",
+    icon: "ðŸ·ï¸",
     target: "[data-help='grid']",
     description: "Each trip shows a colour-coded status pill: Created (amber) → Dispatched (violet) → Started (sky) → Completed (emerald). Canceled shows in rose. Statuses are updated in real-time via the API.",
   },
   {
     id: "pagination",
     title: "Pagination",
-    icon: "📄",
+    icon: "ðŸ“„",
     target: "[data-help='grid']",
     description: "15 rows per page by default — use the page-size selector to switch to 30, 50 or 100. Navigate pages with the arrows. The total count shown in the top bar reflects the full API result.",
   },
@@ -997,20 +1479,26 @@ function HelpWalkthrough({ onClose }: { onClose: () => void }) {
   )
 }
 
-// ─── New Trip Form ────────────────────────────────────────────────────────────
+// â”€â”€â”€ New Trip Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function NewTripDrawer({
+  order,
   drivers,
   fleets,
+  vehicles,
   onClose,
-  onCreated,
+  onSaved,
 }: {
-  drivers: Driver[]
-  fleets: Fleet[]
-  onClose: () => void
-  onCreated: () => void
+  order:     Order | null
+  drivers:   Driver[]
+  fleets:    Fleet[]
+  vehicles:  Vehicle[]
+  onClose:   () => void
+  onSaved:   () => void
 }) {
-  const [vehicles, setVehicles] = React.useState<Vehicle[]>([])
+  const { t } = useLang()
+  const c = t.common
+  const isEdit = !!order
   const [form, setForm] = React.useState<CreateOrderPayload>({
     status: "created",
     pod_required: false,
@@ -1019,12 +1507,42 @@ function NewTripDrawer({
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  // Load vehicles once
+  // Pre-populate form when editing an existing order
   React.useEffect(() => {
-    listVehicles().then((r) =>
-      setVehicles(dedupBy(r.vehicles ?? [], "uuid"))
-    ).catch(() => {})
-  }, [])
+    if (order) {
+      // The API payload can be in either the nested format the server returns:
+      //   { pickup: { uuid, public_id, name }, dropoff: { uuid, public_id, name } }
+      // or the flat format the form writes on create:
+      //   { pickup_uuid, pickup_name, dropoff_uuid, dropoff_name }
+      // Normalise into the flat format that PlaceSearchSelect reads.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const raw = (order.payload ?? {}) as Record<string, any>
+      const normalizedPayload = {
+        ...raw,
+        pickup_uuid:   raw.pickup_uuid  ?? raw.pickup?.uuid  ?? raw.pickup?.public_id  ?? undefined,
+        pickup_name:   raw.pickup_name  ?? raw.pickup?.name  ?? undefined,
+        dropoff_uuid:  raw.dropoff_uuid ?? raw.dropoff?.uuid ?? raw.dropoff?.public_id ?? undefined,
+        dropoff_name:  raw.dropoff_name ?? raw.dropoff?.name ?? undefined,
+      }
+      setForm({
+        status:                order.status,
+        pod_required:          false,
+        dispatched:            false,
+        internal_id:           order.internal_id ?? undefined,
+        type:                  order.type ?? undefined,
+        fleet_uuid:            order.fleet_uuid ?? undefined,
+        driver_assigned_uuid:  order.driver_assigned_uuid ?? undefined,
+        vehicle_assigned_uuid: order.vehicle_assigned?.uuid ?? undefined,
+        scheduled_at:          order.scheduled_at ?? undefined,
+        estimated_end_date:    order.estimated_end_date ?? undefined,
+        notes:                 order.notes ?? undefined,
+        payload:               normalizedPayload,
+      } as CreateOrderPayload)
+    } else {
+      setForm({ status: "created", pod_required: false, dispatched: false })
+    }
+    setError(null)
+  }, [order])
 
   const set = <K extends keyof CreateOrderPayload>(k: K, v: CreateOrderPayload[K]) =>
     setForm((f) => ({ ...f, [k]: v }))
@@ -1034,11 +1552,15 @@ function NewTripDrawer({
     setSubmitting(true)
     setError(null)
     try {
-      await createOrder(form)
-      onCreated()
+      if (isEdit && order) {
+        await updateOrder(order.uuid, form as Parameters<typeof updateOrder>[1])
+      } else {
+        await createOrder(form)
+      }
+      onSaved()
       onClose()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to create trip")
+      setError(err instanceof Error ? err.message : isEdit ? "Failed to update trip" : "Failed to create trip")
     } finally {
       setSubmitting(false)
     }
@@ -1054,8 +1576,8 @@ function NewTripDrawer({
         {/* Header */}
         <div className="flex items-center justify-between border-b px-5 py-4">
           <div>
-            <h2 className="font-bold text-base">New Trip</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Fill in the details to create a new order</p>
+            <h2 className="font-bold text-base">{isEdit ? "Edit Trip" : "New Trip"}</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">{isEdit ? "Update the trip details below" : "Fill in the details to create a new order"}</p>
           </div>
           <button
             onClick={onClose}
@@ -1072,7 +1594,7 @@ function NewTripDrawer({
             {/* Internal ID & Type */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">Internal ID</label>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Block ID</label>
                 <input
                   type="text"
                   placeholder="ORD-001"
@@ -1149,39 +1671,33 @@ function NewTripDrawer({
               <PlaceSearchSelect
                 label="Pickup"
                 value={(form.payload as { pickup_uuid?: string })?.pickup_uuid ?? ""}
-                onChange={(uuid) =>
-                  setForm((f) => ({ ...f, payload: { ...f.payload, pickup_uuid: uuid } }))
+                selectedName={(form.payload as { pickup_name?: string })?.pickup_name ?? ""}
+                onChange={(uuid, name) =>
+                  setForm((f) => ({ ...f, payload: { ...f.payload, pickup_uuid: uuid, pickup_name: name } }))
                 }
               />
               <PlaceSearchSelect
                 label="Dropoff"
                 value={(form.payload as { dropoff_uuid?: string })?.dropoff_uuid ?? ""}
-                onChange={(uuid) =>
-                  setForm((f) => ({ ...f, payload: { ...f.payload, dropoff_uuid: uuid } }))
+                selectedName={(form.payload as { dropoff_name?: string })?.dropoff_name ?? ""}
+                onChange={(uuid, name) =>
+                  setForm((f) => ({ ...f, payload: { ...f.payload, dropoff_uuid: uuid, dropoff_name: name } }))
                 }
               />
             </div>
 
             {/* Dates */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">Scheduled At</label>
-                <input
-                  type="datetime-local"
-                  value={form.scheduled_at?.slice(0, 16) ?? ""}
-                  onChange={(e) => set("scheduled_at", e.target.value || null as never)}
-                  className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">Est. End Date</label>
-                <input
-                  type="datetime-local"
-                  value={form.estimated_end_date?.slice(0, 16) ?? ""}
-                  onChange={(e) => set("estimated_end_date", e.target.value || null as never)}
-                  className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-                />
-              </div>
+            <div className="flex flex-col gap-3">
+              <DateTimePicker
+                label="Scheduled At"
+                value={form.scheduled_at?.slice(0, 16) ?? ""}
+                onChange={(v) => set("scheduled_at", v || null as never)}
+              />
+              <DateTimePicker
+                label="Est. End Date"
+                value={form.estimated_end_date?.slice(0, 16) ?? ""}
+                onChange={(v) => set("estimated_end_date", v || null as never)}
+              />
             </div>
 
             {/* Notes */}
@@ -1212,15 +1728,15 @@ function NewTripDrawer({
               onClick={onClose}
               className="inline-flex h-10 flex-1 items-center justify-center rounded-xl border text-sm font-medium transition-colors hover:bg-muted"
             >
-              Cancel
+              {c.cancel}
             </button>
             <button
               type="submit"
               disabled={submitting}
               className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
             >
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              {submitting ? "Creating…" : "Create Trip"}
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isEdit ? null : <Plus className="h-4 w-4" />}
+              {submitting ? (isEdit ? c.saving : c.creating) : isEdit ? c.save : c.createRecord}
             </button>
           </div>
         </form>
@@ -1229,7 +1745,7 @@ function NewTripDrawer({
   )
 }
 
-// ─── AG Grid custom cell renderers ──────────────────────────────────────────────────────
+// â”€â”€â”€ AG Grid custom cell renderers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function StatusCellRenderer({ data, value, context }: ICellRendererParams<Order, OrderStatus> & { context: RowCallbacks }) {
   const canDispatch = data?.status === "created" && !!data?.driver_assigned_uuid
@@ -1288,6 +1804,176 @@ function VehicleCellRenderer({ data, context }: ICellRendererParams<Order> & { c
   return <span className="font-mono text-xs">{plate}</span>
 }
 
+// â”€â”€â”€ Auto-Allocate Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+type AllocStep = "idle" | "fetching" | "running" | "applying" | "done" | "error"
+
+function AutoAllocateModal({ open, onClose, onDone }: {
+  open: boolean; onClose: () => void; onDone: () => void
+}) {
+  const { t } = useLang()
+  const c = t.common
+  const today = () => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+  }
+  const [from,    setFrom]    = React.useState(today)
+  const [to,      setTo]      = React.useState(today)
+  const [step,    setStep]    = React.useState<AllocStep>("idle")
+  const [result,  setResult]  = React.useState<{ updated: number; unassigned: number } | null>(null)
+  const [errMsg,  setErrMsg]  = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (!open) { setStep("idle"); setResult(null); setErrMsg(null) }
+  }, [open])
+
+  const runAllocation = async () => {
+    if (!from || !to) { setErrMsg("Please select a date range."); return }
+    if (from > to) { setErrMsg("End date must be on or after start date."); return }
+    setErrMsg(null)
+    try {
+      // Step 1: Fetch input data
+      setStep("fetching")
+      const data = await getShiftAssignmentData({ start_date: from, end_date: to })
+
+      // Step 2: Run the allocation engine
+      setStep("running")
+      const payload = await initiateAsyncAllocation(data)
+
+      // Step 3: Apply results to Ontrack
+      setStep("applying")
+      const applied = await applyAllocations(payload)
+
+      setResult({
+        updated:    applied.data?.updated_orders    ?? 0,
+        unassigned: applied.data?.unassigned_orders ?? 0,
+      })
+      setStep("done")
+    } catch (e) {
+      setErrMsg(e instanceof Error ? e.message : "Allocation failed")
+      setStep("error")
+    }
+  }
+
+  if (!open) return null
+
+  const STEPS_LABELS: Record<AllocStep, string> = {
+    idle:     "Ready",
+    fetching: "Step 1 of 3 — Fetching shift data\u2026",
+    running:  "Step 2 of 3 — Running allocation engine\u2026",
+    applying: "Step 3 of 3 — Applying assignments\u2026",
+    done:     "Done!",
+    error:    "Failed",
+  }
+
+  const isRunning = step === "fetching" || step === "running" || step === "applying"
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={isRunning ? undefined : onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-sm rounded-2xl border bg-background shadow-2xl">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b px-5 py-4">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
+                <svg className="h-4 w-4 text-violet-600 dark:text-violet-400" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </span>
+              <h2 className="text-sm font-bold">Auto-Allocate Trips</h2>
+            </div>
+            {!isRunning && (
+              <button onClick={onClose} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+            )}
+          </div>
+
+          <div className="px-5 py-4 space-y-4">
+            {/* Date range */}
+            {(step === "idle" || step === "error") && (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Select the date range to auto-assign drivers to unallocated trips. The engine respects shift preferences, availability, and compliance rules.
+                </p>
+                {errMsg && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">
+                    {errMsg}
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">From</label>
+                    <input type="date" value={from} onChange={e => setFrom(e.target.value)} max={to}
+                      className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">To</label>
+                    <input type="date" value={to} onChange={e => setTo(e.target.value)} min={from}
+                      className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Progress */}
+            {isRunning && (
+              <div className="flex flex-col items-center gap-3 py-4">
+                <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+                <p className="text-sm font-medium">{STEPS_LABELS[step]}</p>
+                <div className="w-full rounded-full bg-muted h-1.5">
+                  <div
+                    className="h-1.5 rounded-full bg-violet-500 transition-all duration-500"
+                    style={{ width: step === "fetching" ? "30%" : step === "running" ? "65%" : "90%" }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">Do not close this window</p>
+              </div>
+            )}
+
+            {/* Result */}
+            {step === "done" && result && (
+              <div className="flex flex-col items-center gap-3 py-2">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+                  <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <p className="text-sm font-bold">Allocation Complete</p>
+                <div className="w-full rounded-xl border bg-muted/40 p-3 text-center space-y-1">
+                  <p className="text-2xl font-bold tabular-nums">{result.updated}</p>
+                  <p className="text-xs text-muted-foreground">trips assigned</p>
+                  {result.unassigned > 0 && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">⚠ {result.unassigned} trips could not be assigned</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-end gap-2 border-t px-5 py-3">
+            {step === "done" ? (
+              <button onClick={() => { onDone(); onClose() }}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
+                <RefreshCw className="h-3.5 w-3.5" /> Refresh Trips
+              </button>
+            ) : step === "idle" || step === "error" ? (
+              <>
+                <button onClick={onClose} className="h-9 rounded-lg border bg-background px-4 text-sm text-muted-foreground hover:bg-muted">{c.cancel}</button>
+                <button onClick={runAllocation}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-violet-600 px-4 text-sm font-semibold text-white hover:bg-violet-700">
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Run Allocation
+                </button>
+              </>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 type LegData = {
   legIndex: number
   vrId:     string    // waypoint public_id or generated
@@ -1329,21 +2015,23 @@ function buildLegs(order: Order): LegData[] {
   }))
 }
 
-// ─── Page component uses a stable context passed into AG Grid cell renderers ──
+// â”€â”€â”€ Page component uses a stable context passed into AG Grid cell renderers â”€â”€
 type RowCallbacks = {
   onDelete:          (o: Order) => void
   onDispatch:        (o: Order) => void
   onAssigned:        (o: Order, driverUuid: string) => void
   onVehicleAssigned: (o: Order, vehicleUuid: string) => void
+  onEdit:            (o: Order) => void
   drivers:           Driver[]
   vehicles:          Vehicle[]
   allOrders:         Order[]
 }
 
-// ─── Page ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function TripsPage() {
   const { t } = useLang()
+  const confirm = useConfirm()
   const c = t.common
   const [orders, setOrders] = React.useState<Order[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -1353,6 +2041,7 @@ export default function TripsPage() {
   const [total, setTotal] = React.useState(0)
   const [search, setSearch] = React.useState("")
   const [showNewTrip, setShowNewTrip] = React.useState(false)
+  const [editOrder,   setEditOrder]   = React.useState<Order | null>(null)
   const [drivers, setDrivers] = React.useState<Driver[]>([])
   const [vehicles, setVehicles] = React.useState<Vehicle[]>([])
   const [fleets, setFleets] = React.useState<Fleet[]>([])
@@ -1367,6 +2056,7 @@ export default function TripsPage() {
   // Stable ref — always up-to-date, doesn't cause gridContext to recreate
   const expandedRowsRef = React.useRef<Set<string>>(new Set())
   const [searchFocused, setSearchFocused] = React.useState(false)
+  const [showAllocate, setShowAllocate] = React.useState(false)
 
   // Detect dark mode reactively — declared here so detailCellRendererParams can use it
   const [isDark, setIsDark] = React.useState(() =>
@@ -1428,7 +2118,7 @@ export default function TripsPage() {
     try {
       const res = await listOrders({
         page,
-        limit: 200,
+        limit: 75,
         sort: "created_at:desc",
         ...(opts?.from ? { scheduled_at: opts.from } : {}),
         ...(opts?.to   ? { end_date: opts.to }        : {}),
@@ -1449,13 +2139,52 @@ export default function TripsPage() {
     if (tab === "current") fetchOrders()
   }, [fetchOrders, tab])
 
+  // ── Mount: parallel fetch with sessionStorage cache (2min TTL) ─────────────
+  // Hits cache first; only calls the API if cache is stale/absent.
+  // Each resolves independently so a slow endpoint doesn’t block the others.
   React.useEffect(() => {
-    listDrivers().then((r) => {
-      const eligible = (r.drivers ?? []).filter((d) => (d.status as string) !== "pending")
-      setDrivers(dedupBy(dedupBy(eligible, "uuid"), (d) => `${d.name}|${d.phone ?? ""}`))
-    }).catch(() => {})
-    listFleets().then((r) => setFleets(dedupBy(r.fleets ?? [], "uuid"))).catch(() => {})
-    listVehicles().then((r) => setVehicles(dedupBy(r.vehicles ?? [], "uuid"))).catch(() => {})
+    const cachedDrivers  = cacheGet<Driver[]>("trips_drivers")
+    const cachedFleets   = cacheGet<Fleet[]>("trips_fleets")
+    const cachedVehicles = cacheGet<Vehicle[]>("trips_vehicles")
+
+    const fetchDrivers = cachedDrivers
+      ? Promise.resolve(cachedDrivers)
+      : listDrivers().then(r => {
+          const eligible = (r.drivers ?? []).filter((d) => (d.status as string) !== "pending")
+          const deduped  = dedupBy(dedupBy(eligible, "uuid"), (d) => `${d.name}|${d.phone ?? ""}`)
+          cacheSet("trips_drivers", deduped)
+          return deduped
+        })
+
+    const fetchFleets = cachedFleets
+      ? Promise.resolve(cachedFleets)
+      : listFleets().then(r => {
+          const deduped = dedupBy(r.fleets ?? [], "uuid")
+          cacheSet("trips_fleets", deduped)
+          return deduped
+        })
+
+    const fetchVehicles = cachedVehicles
+      ? Promise.resolve(cachedVehicles)
+      : listVehicles().then(r => {
+          const deduped = dedupBy(r.vehicles ?? [], "uuid")
+          cacheSet("trips_vehicles", deduped)
+          return deduped
+        })
+
+    // Apply cached data immediately — no waiting needed
+    if (cachedDrivers)  setDrivers(cachedDrivers)
+    if (cachedFleets)   setFleets(cachedFleets)
+    if (cachedVehicles) setVehicles(cachedVehicles)
+
+    // Resolve any uncached fetches in parallel
+    Promise.allSettled([fetchDrivers, fetchFleets, fetchVehicles]).then(
+      ([dRes, fRes, vRes]) => {
+        if (dRes.status === "fulfilled") setDrivers(dRes.value)
+        if (fRes.status === "fulfilled") setFleets(fRes.value)
+        if (vRes.status === "fulfilled") setVehicles(vRes.value)
+      }
+    )
   }, [])
 
   React.useEffect(() => {
@@ -1466,7 +2195,11 @@ export default function TripsPage() {
 
   // Actions
   const handleDelete = React.useCallback(async (order: Order) => {
-    if (!confirm(`Delete trip ${order.public_id}? This cannot be undone.`)) return
+    const ok = await confirm({
+      title: `Delete trip ${order.public_id}`,
+      description: "This action is permanent and cannot be undone.",
+    })
+    if (!ok) return
     try {
       await deleteOrder(order.uuid)
       setOrders((prev) => prev.filter((o) => o.uuid !== order.uuid))
@@ -1525,7 +2258,11 @@ export default function TripsPage() {
     if (!api) return
     const selected = api.getSelectedRows() as Order[]
     if (selected.length === 0) return
-    if (!confirm(`Delete ${selected.length} trip${selected.length > 1 ? "s" : ""}? This cannot be undone.`)) return
+    const ok = await confirm({
+      title: `Delete ${selected.length} trip${selected.length > 1 ? "s" : ""}`,
+      description: "This action is permanent and cannot be undone.",
+    })
+    if (!ok) return
     for (const order of selected) {
       try {
         await deleteOrder(order.uuid)
@@ -1562,10 +2299,11 @@ export default function TripsPage() {
     onDispatch:        handleDispatch,
     onAssigned:        handleDriverAssigned,
     onVehicleAssigned: handleVehicleAssigned,
+    onEdit:            (o: Order) => { setEditOrder(o); setShowNewTrip(true) },
     drivers,
     vehicles,
     allOrders: orders,
-    expandedRowsRef, // stable ref, not reactive state
+    expandedRowsRef,
     toggleRow,
   }), [handleDelete, handleDispatch, handleDriverAssigned, handleVehicleAssigned, drivers, vehicles, toggleRow, orders])
 
@@ -1581,8 +2319,38 @@ export default function TripsPage() {
 
   // Column definitions
   const colDefs = React.useMemo<ColDef<Order>[]>(() => [
+    // ─── Edit action column ───────────────────────────────────────────────────
     {
-      headerName: "Public ID",
+      colId: "_edit",
+      headerName: "",
+      width: 40,
+      minWidth: 40,
+      maxWidth: 40,
+      sortable: false,
+      filter: false,
+      resizable: false,
+      pinned: "left" as const,
+      suppressMovable: true,
+      cellRenderer: ({ data, context }: ICellRendererParams<Order> & { context: RowCallbacks }) => {
+        if (!data) return null
+        return (
+          <button
+            onMouseDown={e => e.stopPropagation()}
+            onClick={e => { e.stopPropagation(); context.onEdit(data) }}
+            title="Edit trip"
+            className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z" />
+            </svg>
+          </button>
+        )
+      },
+    },
+    // ─── Data columns ──────────────────────────────────────────────────────────
+    {
+      headerName: "Block ID",
       field: "public_id",
       filter: "agTextColumnFilter",
       width: 140,
@@ -1591,21 +2359,21 @@ export default function TripsPage() {
       ),
     },
     {
-      headerName: "Internal ID",
-      field: "internal_id",
+      headerName: "Trip ID",
+      field: "trip_id",
       filter: "agTextColumnFilter",
-      width: 110,
+      width: 120,
       cellRenderer: ({ value }: ICellRendererParams) => value ?? <span className="text-muted-foreground">—</span>,
     },
     {
-      headerName: c.status,
+      headerName: "Trip Status",
       field: "status",
       filter: "agTextColumnFilter",
       width: 180,
       cellRenderer: StatusCellRenderer,
     },
     {
-      headerName: c.driver,
+      headerName: "Driver",
       field: "driver_assigned",
       filter: "agTextColumnFilter",
       filterValueGetter: ({ data }) =>
@@ -1615,7 +2383,7 @@ export default function TripsPage() {
       cellRenderer: DriverCellRenderer,
     },
     {
-      headerName: c.vehicle,
+      headerName: "Tractor",
       valueGetter: ({ data }) => data?.vehicle_assigned?.plate_number ?? data?.vehicle_assigned?.name ?? "",
       filter: "agTextColumnFilter",
       width: 140,
@@ -1623,7 +2391,7 @@ export default function TripsPage() {
       cellRenderer: VehicleCellRenderer,
     },
     {
-      headerName: c.route,
+      headerName: "Facility Sequence",
       colId: "_route",
       autoHeight: true,
       flex: 2,
@@ -1717,17 +2485,17 @@ export default function TripsPage() {
       },
     },
     {
-      headerName: "Scheduled",
+      headerName: "Scheduled At",
       field: "scheduled_at",
       filter: "agDateColumnFilter",
-      width: 132,
+      width: 140,
       sort: "desc",
       cellRenderer: ({ value }: ICellRendererParams) => (
         <span className="text-xs text-muted-foreground">{formatDate(value)}</span>
       ),
     },
     {
-      headerName: "Est. End",
+      headerName: "Est. End Time",
       field: "estimated_end_date",
       filter: "agDateColumnFilter",
       width: 148,
@@ -1748,7 +2516,7 @@ export default function TripsPage() {
       },
     },
     {
-      headerName: c.fleet,
+      headerName: "Fleet",
       valueGetter: ({ data }) => data ? fleetLabel(data) : "",
       filter: "agTextColumnFilter",
       width: 110,
@@ -1793,7 +2561,7 @@ export default function TripsPage() {
 
     <div className="flex flex-1 flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
 
-      {/* ── Summary Cards (hidden by default, toggled by Stats button in toolbar) ─── */}
+      {/* â”€â”€ Summary Cards (hidden by default, toggled by Stats button in toolbar) â”€â”€â”€ */}
       {showCards && (() => {
         const todayStr   = new Date().toDateString()
         const unassigned = orders.filter(o => !o.driver_assigned_uuid).length
@@ -1835,10 +2603,10 @@ export default function TripsPage() {
         )
       })()}
 
-      {/* ── Toolbar ─────────────────────────────────────────────────────────── */}
+      {/* â”€â”€ Toolbar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div data-help="toolbar" className="flex flex-col gap-2">
 
-        {/* Single row: [Tabs + date range?] ···spacer··· [Delete?] [🔍] [toggles] │ [utils] │ [New Trip] [?] */}
+        {/* Single row: [Tabs + date range?] ···spacer··· [Delete?] [ðŸ”] [toggles] â”‚ [utils] â”‚ [New Trip] [?] */}
         <div className="flex items-center gap-2">
 
           {/* LEFT: Tabs */}
@@ -1999,16 +2767,35 @@ export default function TripsPage() {
           >
             <Download className="h-3.5 w-3.5" />
           </button>
+          <button
+            onClick={() => exportRelayXls(filteredOrders, drivers)}
+            title="Export Relay XLS (BulkAssign format)"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 dark:border-emerald-700/60 dark:bg-emerald-900/20 dark:text-emerald-300 dark:hover:bg-emerald-900/40"
+          >
+            <Download className="h-3 w-3" />
+            Relay
+          </button>
 
           {/* Separator */}
           <span className="h-6 w-px bg-border" />
 
           {/* Primary CTA */}
           <button
-            onClick={() => setShowNewTrip(true)}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+            onClick={() => { setEditOrder(null); setShowNewTrip(true) }}
+            className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
           >
-            <Plus className="h-3.5 w-3.5" /> {c.addNew}
+            {c.addNew}
+          </button>
+
+          {/* Auto-Allocate */}
+          <button
+            onClick={() => setShowAllocate(true)}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-violet-300 bg-violet-50 px-3 text-sm font-semibold text-violet-700 shadow-sm transition-colors hover:bg-violet-100 dark:border-violet-700/60 dark:bg-violet-900/20 dark:text-violet-300 dark:hover:bg-violet-900/40"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Auto-Allocate
           </button>
 
           {/* Help — icon only */}
@@ -2085,12 +2872,19 @@ export default function TripsPage() {
       {/* New Trip Drawer */}
       {showNewTrip && (
         <NewTripDrawer
+          order={editOrder}
           drivers={drivers}
           fleets={fleets}
-          onClose={() => setShowNewTrip(false)}
-          onCreated={() => fetchOrders()}
+          vehicles={vehicles}
+          onClose={() => { setShowNewTrip(false); setEditOrder(null) }}
+          onSaved={() => fetchOrders()}
         />
       )}
+      <AutoAllocateModal
+        open={showAllocate}
+        onClose={() => setShowAllocate(false)}
+        onDone={() => fetchOrders()}
+      />
     </div>
   )
 }

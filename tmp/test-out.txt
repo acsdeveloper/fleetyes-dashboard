@@ -1,0 +1,6 @@
+﻿--- Step 0: Login ---
+Token obtained: 4649|CBBPmaz5Toj5PGe...
+
+--- Step 1: Upload file via /files/upload ---
+Upload status: 200
+Upload response: {"file":{"company_uuid":"ac5006be-238e-4928-b622-7454871b98bb","uploader_uuid":"38ce602c-70bd-497a-832d-66139d1057d4","original_filename":"test-import.csv","content_type":"text\/plain","disk":"s3","path":"uploads\/bLZ5QxmJM.csv","bucket":"fleetyes","type":null,"file_size":188,"uuid":"29fc6d96-a42e-45e2-93ed-0818d0c15cb8","public_id":"file_vlNhpuH","slug":"test-importcsv-3","updated_at":"2026-04-04T12:09:28.000000Z","created_at":"2026-04-04T12:09:28.000000Z","url":"https:\/\/fleetyes.s3.amazonaws.com\/uploads\/bLZ5QxmJM.csv?X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAV2PNFCOJ4OJTCB6N%2F20260404%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260404T120929Z&X-Amz-SignedHeaders=host&X-Amz-Expires=1800&X-Amz-Signature=a1931dc0f82e1b5d5daa453eb2730ff6b84302e5bbd2eeb29b2386d1a2f5d198","hash_name":"bLZ5QxmJM.csv"}}

@@ -1,0 +1,165 @@
+/**
+ * Weekly Rest Logic — EC 561/2006 Article 8.6
+ *
+ * Pure function — no API or UI dependencies.
+ *
+ * Every driver must take at least one unbroken rest period per 7-day period:
+ *   Regular weekly rest:  ≥ 45h  → compliant
+ *   Reduced weekly rest:  ≥ 24h  → warning (compensation required within 3 weeks)
+ *   No weekly rest:       < 24h  → violation
+ *
+ * Implementation strategy:
+ *   - Sort all trips by startTime
+ *   - Collect all rest gap candidates:
+ *       a) Gaps between consecutive trips (trip[i].endTime → trip[i+1].startTime)
+ *       b) Pre-week gap: last prior-week trip end → first this-week trip start
+ *          (only when lastPriorEnd is known; omitted otherwise to avoid false positives)
+ *       c) Post-week gap: last this-week trip end → end of the week period
+ *          (captures drivers who rest all of Friday/Saturday after a Monday trip)
+ *   - The LONGEST candidate is compared against the thresholds above
+ *
+ * Notes:
+ *   - A driver with 0 or 1 trip this week is trivially compliant (full rest).
+ *   - The violation is attributed to the last day of the week (Saturday) since that
+ *     is when the weekly rest deadline is reached.
+ *   - This check is separate from REST_GAP (inter-trip minimum 9h) — this rule
+ *     asks: was there at least ONE long rest anywhere in the 7-day period?
+ */
+
+export const WEEKLY_REST_RULES = {
+  /** Internal policy: 46h (1h above EC 561/2006 minimum of 45h) */
+  REGULAR_REST_HOURS:  46,
+  REDUCED_REST_HOURS:  24,
+  REGULAR_REST_MS:     46 * 3600 * 1000,
+  REDUCED_REST_MS:     24 * 3600 * 1000,
+} as const
+
+export type WeeklyRestSeverity = "violation" | "warning"
+
+export interface WeeklyRestResult {
+  /** Longest gap found (minutes) */
+  longestGapMinutes:  number
+  severity:           WeeklyRestSeverity
+  message:            string
+  /** UUID of the trip after the longest gap (the return-to-work trip) */
+  tripAfterRestUuid:  string
+  /** UUID of the trip before the longest gap (last trip before rest), or "" if gap was pre-week */
+  tripBeforeRestUuid: string
+}
+
+interface TripWindow {
+  orderId:   string
+  startTime: Date
+  endTime:   Date
+}
+
+function fmtHoursMin(minutes: number): string {
+  const h = Math.floor(minutes / 60)
+  const m = Math.round(minutes % 60)
+  return m === 0 ? `${h}h` : `${h}h ${m}m`
+}
+
+/**
+ * Find the weekly rest gap for a set of trips.
+ *
+ * @param weekTrips      Trips assigned to this driver IN the current week.
+ * @param lastPriorEnd   End-time of the driver's last trip BEFORE this week (if any).
+ *                       Pass null when no prior trips are loaded.
+ * @param weekStartDate  YYYY-MM-DD of the first day of the week (Sunday). Reserved — no longer
+ *                       used as a fallback anchor to avoid false positives.
+ * @param weekEndDate    YYYY-MM-DD of the LAST day of the week (Saturday).
+ *                       Used to compute the post-last-trip rest gap (e.g. driver rests
+ *                       all of Friday + Saturday after their last Monday trip).
+ * @returns              Result if the best gap is below the regular threshold; null if compliant.
+ */
+export function findWeeklyRestViolation(
+  weekTrips:     TripWindow[],
+  lastPriorEnd?: Date | null,
+  weekStartDate?: string,
+  weekEndDate?:   string,
+): WeeklyRestResult | null {
+  // 0 or 1 trip this week → no meaningful gap to assess; driver was mostly resting
+  if (weekTrips.length < 1) return null
+
+  // Sort this week's trips by start time
+  const sorted = [...weekTrips].sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
+
+  // ── Collect all rest gap candidates ─────────────────────────────────────────
+
+  interface GapCandidate {
+    gapMs:     number
+    beforeId:  string   // "" when gap starts before first recorded trip
+    afterId:   string
+  }
+
+  const candidates: GapCandidate[] = []
+
+  // 1. Gaps between consecutive this-week trips
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const gapMs = sorted[i + 1].startTime.getTime() - sorted[i].endTime.getTime()
+    if (gapMs > 0) {
+      candidates.push({ gapMs, beforeId: sorted[i].orderId, afterId: sorted[i + 1].orderId })
+    }
+  }
+
+  // 2. Gap from the end of the last prior-week trip to the first trip of the current week.
+  //    This captures Sunday/Monday rest before a Tuesday shift.
+  //    When lastPriorEnd is null (no prior trips found), we have no reliable anchor —
+  //    the driver may have been resting for days, weeks, or months before this week.
+  //    Do NOT use weekStartDate as a substitute anchor: that gives Monday − Sunday = 28h
+  //    which is a false positive for a driver who had the entire prior week off.
+  //    Omitting this candidate is the correct conservative choice: we flag only what
+  //    we can prove with the data we have.
+  const firstThisWeek = sorted[0]
+  const lastThisWeek  = sorted[sorted.length - 1]
+
+  if (lastPriorEnd) {
+    const gapMs = firstThisWeek.startTime.getTime() - lastPriorEnd.getTime()
+    if (gapMs > 0) {
+      candidates.push({ gapMs, beforeId: "", afterId: firstThisWeek.orderId })
+    }
+  }
+
+  // 3. Post-last-trip gap: from the last trip's end to the end of the week period.
+  //    Only added when there are 2+ trips — for a single-trip week (e.g. one Saturday trip)
+  //    the gap from trip-end to Saturday 23:59 is tiny (2-3h) and is NOT the weekly rest;
+  //    the weekly rest is the multi-day block before the trip, which we cannot reliably
+  //    measure without lastPriorEnd. Adding a tiny post-trip gap here would cause a
+  //    false violation for common single-trip Saturday drivers.
+  if (weekEndDate && sorted.length >= 2) {
+    const weekEndMs = new Date(weekEndDate + "T23:59:59").getTime()
+    const postGapMs = weekEndMs - lastThisWeek.endTime.getTime()
+    if (postGapMs > 0) {
+      candidates.push({ gapMs: postGapMs, beforeId: lastThisWeek.orderId, afterId: "" })
+    }
+  }
+
+  if (candidates.length === 0) return null
+
+  // ── Pick the longest gap ─────────────────────────────────────────────────────
+  const best = candidates.reduce((a, b) => a.gapMs > b.gapMs ? a : b)
+  const maxGapMs = best.gapMs
+
+  // Compliant — at least one rest window meets the regular threshold
+  if (maxGapMs >= WEEKLY_REST_RULES.REGULAR_REST_MS) return null
+
+  const longestGapMinutes = maxGapMs / 60000
+
+  if (maxGapMs >= WEEKLY_REST_RULES.REDUCED_REST_MS) {
+    return {
+      longestGapMinutes,
+      severity:           "warning",
+      message:            `Longest rest this week was ${fmtHoursMin(longestGapMinutes)} — below the 46h company policy for weekly rest (EC 561/2006 Art.8.6 minimum is 45h). Reduced rest (≥24h) requires compensation within 3 weeks.`,
+      tripBeforeRestUuid: best.beforeId,
+      tripAfterRestUuid:  best.afterId,
+    }
+  }
+
+  return {
+    longestGapMinutes,
+    severity:           "violation",
+    message:            `Longest rest this week was only ${fmtHoursMin(longestGapMinutes)} — below the 24h minimum weekly rest (EC 561/2006 Art.8.6). A valid weekly rest period is required every 7 days.`,
+    tripBeforeRestUuid: best.beforeId,
+    tripAfterRestUuid:  best.afterId,
+  }
+}

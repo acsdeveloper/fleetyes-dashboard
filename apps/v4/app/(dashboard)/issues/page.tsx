@@ -1,0 +1,739 @@
+"use client"
+
+import * as React from "react"
+import { useConfirm } from "@/components/confirm-dialog"
+import {
+  Search, RefreshCw, Download, Trash2, X, Loader2, ChevronDown, AlertTriangle, MapPin,
+} from "lucide-react"
+import { useLang } from "@/components/lang-context"
+import {
+  listIssues, createIssue, updateIssue, bulkDeleteIssues, exportIssues, listIssueUsers,
+  ISSUE_TYPES, CATEGORIES_BY_TYPE,
+  type Issue, type IssuePriority, type IssueStatus, type IssueType, type IssueUser,
+} from "@/lib/issues-api"
+import { listDrivers, type Driver } from "@/lib/drivers-api"
+import { listVehicles, type Vehicle } from "@/lib/vehicles-api"
+
+import { AgGridReact } from "ag-grid-react"
+import {
+  type ColDef, type ICellRendererParams,
+  ModuleRegistry, AllCommunityModule,
+  themeQuartz,
+} from "ag-grid-community"
+
+ModuleRegistry.registerModules([AllCommunityModule])
+
+// ─── AG Grid themes ───────────────────────────────────────────────────────────
+
+const baseParams = {
+  fontFamily: "var(--font-sans, 'Montserrat', 'Inter', system-ui, sans-serif)",
+  fontSize: 13,
+  rowHeight: 39,
+  headerHeight: 38,
+  rowBorder: false,
+  wrapperBorder: false,
+  headerRowBorder: false,
+  columnBorder: false,
+  cellHorizontalPaddingScale: 1.1,
+  rowVerticalPaddingScale: 1,
+  gridSize: 5,
+  scrollbarWidth: 6,
+}
+
+const lightTheme = themeQuartz.withParams({
+  ...baseParams,
+  backgroundColor: "#ffffff",
+  foregroundColor: "#1f2933",
+  headerBackgroundColor: "#f9fafb",
+  headerTextColor: "#39485d",
+  borderColor: "#eff0f1",
+  rowHoverColor: "#f5f7fb",
+  selectedRowBackgroundColor: "#edf2ff",
+})
+
+const darkTheme = themeQuartz.withParams({
+  ...baseParams,
+  backgroundColor: "#141414",
+  foregroundColor: "#e5e5e5",
+  headerBackgroundColor: "#1e2531",
+  headerTextColor: "#c9d0da",
+  borderColor: "#2a2a2a",
+  rowHoverColor: "#1f2937",
+  selectedRowBackgroundColor: "#1e3a5f",
+})
+
+// ─── Style maps (all statuses + priorities per API docs) ─────────────────────
+
+const PRIORITY_STYLE: Record<IssuePriority, { badge: string; dot: string; label: string }> = {
+  "low":                    { label: "Low",                  badge: "bg-slate-50 text-slate-600 border border-slate-200/80 dark:bg-slate-800/30 dark:text-slate-300 dark:border-slate-700/40",         dot: "bg-slate-400"   },
+  "medium":                 { label: "Medium",              badge: "bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-700/40",           dot: "bg-amber-500"   },
+  "high":                   { label: "High",                badge: "bg-orange-50 text-orange-700 border border-orange-200/80 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-700/40",     dot: "bg-orange-500"  },
+  "critical":               { label: "Critical",            badge: "bg-red-50 text-red-700 border border-red-200/80 dark:bg-red-900/20 dark:text-red-300 dark:border-red-700/40",                       dot: "bg-red-500"     },
+  "scheduled-maintenance":  { label: "Scheduled Maint.",    badge: "bg-violet-50 text-violet-700 border border-violet-200/80 dark:bg-violet-900/20 dark:text-violet-300 dark:border-violet-700/40",     dot: "bg-violet-400"  },
+}
+
+const STATUS_STYLE: Record<IssueStatus, { badge: string; dot: string; label: string }> = {
+  "pending":         { label: "Pending",         badge: "bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-700/40",            dot: "bg-amber-500"   },
+  "in-progress":     { label: "In Progress",     badge: "bg-blue-50 text-blue-700 border border-blue-200/80 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-700/40",                  dot: "bg-blue-500"    },
+  "backlogged":      { label: "Backlogged",      badge: "bg-slate-50 text-slate-600 border border-slate-200/80 dark:bg-slate-800/30 dark:text-slate-300 dark:border-slate-700/40",            dot: "bg-slate-400"   },
+  "requires-update": { label: "Requires Update", badge: "bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200/80 dark:bg-fuchsia-900/20 dark:text-fuchsia-300 dark:border-fuchsia-700/40", dot: "bg-fuchsia-500"  },
+  "in-review":       { label: "In Review",       badge: "bg-cyan-50 text-cyan-700 border border-cyan-200/80 dark:bg-cyan-900/20 dark:text-cyan-300 dark:border-cyan-700/40",                  dot: "bg-cyan-500"    },
+  "resolved":        { label: "Resolved",        badge: "bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-700/40", dot: "bg-emerald-500" },
+  "closed":          { label: "Closed",          badge: "bg-zinc-100 text-zinc-600 border border-zinc-200/80 dark:bg-zinc-800/40 dark:text-zinc-400 dark:border-zinc-700/40",               dot: "bg-zinc-400"    },
+}
+
+const PRIORITIES: IssuePriority[] = ["low", "medium", "high", "critical", "scheduled-maintenance"]
+const STATUSES:   IssueStatus[]   = ["pending", "in-progress", "backlogged", "requires-update", "in-review", "resolved", "closed"]
+
+// ─── Cell renderers ───────────────────────────────────────────────────────────
+
+function ReportCell({ data }: ICellRendererParams<Issue>) {
+  if (!data) return null
+  return (
+    <div className="flex items-center gap-2.5 h-full">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/30">
+        <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+      </span>
+      <p className="truncate text-[13px] font-medium">{data.report ?? "—"}</p>
+    </div>
+  )
+}
+
+function PriorityCell({ value }: ICellRendererParams) {
+  if (!value) return <span className="text-muted-foreground">—</span>
+  const s = PRIORITY_STYLE[value as IssuePriority]
+  if (!s) return <span className="text-xs text-muted-foreground capitalize">{value}</span>
+  return (
+    <div className="flex items-center h-full">
+      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${s.badge}`}>
+        <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+        {s.label}
+      </span>
+    </div>
+  )
+}
+
+function StatusCell({ value }: ICellRendererParams) {
+  if (!value) return <span className="text-muted-foreground">—</span>
+  const s = STATUS_STYLE[value as IssueStatus]
+  if (!s) return <span className="text-xs text-muted-foreground capitalize">{value}</span>
+  return (
+    <div className="flex items-center h-full">
+      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${s.badge}`}>
+        <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+        {s.label}
+      </span>
+    </div>
+  )
+}
+
+// ─── Drawer ───────────────────────────────────────────────────────────────────
+
+interface DrawerProps {
+  open: boolean
+  issue: Issue | null
+  drivers: Driver[]
+  vehicles: Vehicle[]
+  users: IssueUser[]
+  onClose: () => void
+  onSaved: () => void
+}
+
+// Module-level Field wrapper — prevents focus-loss on re-render
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+        {label}{required && " *"}
+      </label>
+      {children}
+    </div>
+  )
+}
+
+// Token evaluated at module level — Next.js inlines NEXT_PUBLIC_* at build time,
+// no need for typeof-window guards here.
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? ""
+
+// Inline Leaflet picker — same pattern as Places map picker
+function buildIssuePickerHtml(lat: number | null, lng: number | null): string {
+  const cLat = lat ?? 52.5
+  const cLng = lng ?? -1.7
+  const zoom = lat != null ? 14 : 6
+  const pinJs = lat != null
+    ? `var pin=L.marker([${lat},${lng}],{draggable:true}).addTo(map);
+       pin.on('dragend',function(){var ll=pin.getLatLng();window.parent.postMessage({type:'issue-pick-coords',lat:ll.lat,lng:ll.lng},'*');});`
+    : ""
+  return `<!DOCTYPE html><html><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
+<style>*{margin:0;padding:0;box-sizing:border-box}html,body,#map{width:100%;height:100%;cursor:crosshair}
+.leaflet-container{cursor:crosshair!important}\n</style></head>
+<body><div id="map"></div><script>
+var map=L.map('map',{zoomControl:true}).setView([${cLat},${cLng}],${zoom});
+${
+  MAPBOX_TOKEN
+    ? `L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/256/{z}/{x}/{y}@2x?access_token=${MAPBOX_TOKEN}',{maxZoom:22,tileSize:256,attribution:'\u00a9 Mapbox \u00a9 OSM'}).addTo(map);`
+    : `L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'\u00a9 OSM'}).addTo(map);`
+}
+var pin=null;
+${pinJs}
+map.on('click',function(e){
+  if(pin){map.removeLayer(pin);}
+  pin=L.marker(e.latlng,{draggable:true}).addTo(map);
+  pin.on('dragend',function(){var ll=pin.getLatLng();window.parent.postMessage({type:'issue-pick-coords',lat:ll.lat,lng:ll.lng},'*');});
+  window.parent.postMessage({type:'issue-pick-coords',lat:e.latlng.lat,lng:e.latlng.lng},'*');
+});
+<\/script></body></html>`
+}
+
+function IssueDrawer({ open, issue, drivers, vehicles, users, onClose, onSaved }: DrawerProps) {
+  const { t } = useLang()
+  const confirm = useConfirm()
+  const i18n = t.issues
+  const c = t.common
+  const isEdit = !!issue
+
+  const [report,          setReport]         = React.useState("")
+  const [driverUuid,      setDriverUuid]      = React.useState("")
+  const [vehicleUuid,     setVehicleUuid]     = React.useState("")
+  const [priority,        setPriority]        = React.useState<IssuePriority | "">("")
+  const [statusVal,       setStatusVal]       = React.useState<IssueStatus>("pending")
+  const [issueType,       setIssueType]       = React.useState<IssueType | "">("")
+  const [category,        setCategory]        = React.useState("")
+  const [assignedTo,      setAssignedTo]      = React.useState("")
+  const [reportedBy,      setReportedBy]      = React.useState("")
+  const [lat,             setLat]             = React.useState<number | null>(null)
+  const [lng,             setLng]             = React.useState<number | null>(null)
+  const [showMap,         setShowMap]         = React.useState(false)
+  const [saving,          setSaving]          = React.useState(false)
+  const [error,           setError]           = React.useState<string | null>(null)
+
+  // Categories available for the selected type
+  const availableCategories = React.useMemo(
+    () => issueType ? (CATEGORIES_BY_TYPE[issueType as IssueType] ?? []) : [],
+    [issueType]
+  )
+
+  // Reset category when type changes
+  React.useEffect(() => { setCategory("") }, [issueType])
+
+  React.useEffect(() => {
+    if (issue) {
+      setReport(issue.report ?? "")
+      setDriverUuid(issue.driver_uuid ?? "")
+      setVehicleUuid(issue.vehicle_uuid ?? "")
+      setPriority((issue.priority as IssuePriority | null) ?? "")
+      setStatusVal(issue.status ?? "pending")
+      setIssueType((issue.type as IssueType | null) ?? "")
+      setCategory(issue.category ?? "")
+      setAssignedTo(issue.assigned_to_uuid ?? "")
+      setReportedBy(issue.reported_by_uuid ?? "")
+      // Hydrate location coordinates
+      if (issue.location?.coordinates?.length === 2) {
+        setLng(issue.location.coordinates[0])
+        setLat(issue.location.coordinates[1])
+      } else {
+        setLat(null); setLng(null)
+      }
+    } else {
+      setReport(""); setDriverUuid(""); setVehicleUuid(""); setPriority("")
+      setStatusVal("pending"); setIssueType(""); setCategory(""); setAssignedTo(""); setReportedBy("")
+      setLat(null); setLng(null)
+    }
+    setError(null)
+    setShowMap(false)
+  }, [issue, open])
+
+  // Listen for pin drops from the map iframe
+  React.useEffect(() => {
+    if (!showMap) return
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type !== "issue-pick-coords") return
+      setLat(e.data.lat)
+      setLng(e.data.lng)
+    }
+    window.addEventListener("message", handler)
+    return () => window.removeEventListener("message", handler)
+  }, [showMap])
+
+  const handleSave = async () => {
+    if (!report.trim()) { setError("Report description is required."); return }
+    setSaving(true); setError(null)
+    try {
+      // Always send location key — API requires it; default to [0,0] when no pin placed
+      const location = {
+        type: "Point" as const,
+        coordinates: [lng ?? 0, lat ?? 0] as [number, number],
+        bbox: [0, 0, 0, 0] as [number, number, number, number],
+      }
+      const payload = {
+        report:            report.trim(),
+        driver_uuid:       driverUuid   || undefined,
+        vehicle_uuid:      vehicleUuid  || undefined,
+        priority:          (priority as IssuePriority)  || undefined,
+        status:            statusVal,
+        type:              issueType    || undefined,
+        category:          category     || undefined,
+        assigned_to_uuid:  assignedTo   || undefined,
+        reported_by_uuid:  reportedBy   || undefined,
+        location,
+      }
+      if (isEdit && issue) {
+        await updateIssue(issue.uuid, payload)
+      } else {
+        await createIssue(payload)
+      }
+      onSaved()
+      onClose()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const sel = "h-9 w-full appearance-none rounded-lg border bg-background px-3 pr-8 text-sm outline-none focus:ring-2 focus:ring-ring"
+
+  return (
+    <>
+      <div
+        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity ${open ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        onClick={onClose}
+      />
+      <div className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l bg-background shadow-2xl transition-transform duration-300 ${open ? "translate-x-0" : "translate-x-full"}`}>
+        {/* Header */}
+        <div className="flex items-center justify-between border-b px-5 py-4">
+          <h2 className="text-sm font-bold">{isEdit ? i18n.saveChanges : i18n.newIssue}</h2>
+          <button onClick={onClose} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">{error}</div>
+          )}
+
+          {/* Report */}
+          <Field label={`${i18n.report}`} required>
+            <textarea
+              value={report}
+              onChange={e => setReport(e.target.value)}
+              rows={3}
+              placeholder={i18n.report + "…"}
+              className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none resize-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+            />
+          </Field>
+
+          {/* ── Location picker ──────────────────────────────────────── */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                {i18n.incidentLocation}
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowMap(v => !v)}
+                className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+                  showMap
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <MapPin className="h-3 w-3" />
+                {showMap ? i18n.hideMap : i18n.pinLocation}
+              </button>
+            </div>
+
+            {/* Coordinate badge / hint */}
+            {lat != null && lng != null ? (
+              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs dark:border-red-800 dark:bg-red-950/30">
+                <MapPin className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                <span className="font-mono text-red-700 dark:text-red-300 flex-1">
+                  {lat.toFixed(6)}, {lng.toFixed(6)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { setLat(null); setLng(null) }}
+                  className="ml-auto rounded p-0.5 hover:bg-red-100 dark:hover:bg-red-900/50 text-red-500"
+                  title={c.close}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-muted-foreground/30 px-3 py-2 text-xs text-muted-foreground">
+                {i18n.noLocationPinned}
+              </div>
+            )}
+
+            {/* Inline Leaflet map — 280px tall */}
+            {showMap && (
+              <div className="overflow-hidden rounded-xl border" style={{ height: 280 }}>
+                <iframe
+                  title={i18n.incidentLocation}
+                  className="h-full w-full border-0"
+                  sandbox="allow-scripts allow-same-origin"
+                  srcDoc={buildIssuePickerHtml(lat, lng)}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Priority + Status */}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={i18n.priority}>
+              <div className="relative">
+                <select value={priority} onChange={e => setPriority(e.target.value as IssuePriority | "")} className={sel}>
+                  <option value="">—</option>
+                  {PRIORITIES.map(p => (
+                    <option key={p} value={p}>{PRIORITY_STYLE[p].label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+            </Field>
+            <Field label={c.status}>
+              <div className="relative">
+                <select value={statusVal} onChange={e => setStatusVal(e.target.value as IssueStatus)} className={sel}>
+                  {STATUSES.map(s => (
+                    <option key={s} value={s}>{STATUS_STYLE[s].label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+            </Field>
+          </div>
+
+          {/* Type + Category (category filtered by type) */}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={i18n.type}>
+              <div className="relative">
+                <select value={issueType} onChange={e => setIssueType(e.target.value as IssueType | "")} className={sel}>
+                  <option value="">—</option>
+                  {ISSUE_TYPES.map(t => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+            </Field>
+            <Field label={i18n.category}>
+              <div className="relative">
+                <select value={category} onChange={e => setCategory(e.target.value)} className={sel} disabled={!issueType}>
+                  <option value="">{issueType ? i18n.selectCategory : i18n.pickTypFirst}</option>
+                  {availableCategories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+            </Field>
+          </div>
+
+          {/* Driver + Vehicle */}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={c.driver}>
+              <div className="relative">
+                <select value={driverUuid} onChange={e => setDriverUuid(e.target.value)} className={sel}>
+                  <option value="">{c.noData}</option>
+                  {drivers.map(d => <option key={d.uuid} value={d.uuid}>{d.name}</option>)}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+            </Field>
+            <Field label={c.vehicle}>
+              <div className="relative">
+                <select value={vehicleUuid} onChange={e => setVehicleUuid(e.target.value)} className={sel}>
+                  <option value="">{c.noData}</option>
+                  {vehicles.map(v => <option key={v.uuid} value={v.uuid}>{v.plate_number ?? v.uuid}</option>)}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+            </Field>
+          </div>
+
+          {/* Assigned To + Reported By — from /int/v1/users */}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={i18n.assignee}>
+              <div className="relative">
+                <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)} className={sel}>
+                  <option value="">{i18n.unassigned}</option>
+                  {users.map(u => <option key={u.uuid} value={u.uuid}>{u.name}</option>)}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+            </Field>
+            <Field label={i18n.reportedBy}>
+              <div className="relative">
+                <select value={reportedBy} onChange={e => setReportedBy(e.target.value)} className={sel}>
+                  <option value="">—</option>
+                  {users.map(u => <option key={u.uuid} value={u.uuid}>{u.name}</option>)}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+            </Field>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 border-t px-5 py-4">
+          <button onClick={onClose} className="h-9 rounded-lg border bg-background px-4 text-sm text-muted-foreground hover:bg-muted">{c.cancel}</button>
+          <button onClick={handleSave} disabled={saving}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-50">
+            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {isEdit ? i18n.saveChanges : i18n.createIssue}
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function IssuesPage() {
+  const { t } = useLang()
+  const confirm = useConfirm()
+  const c = t.common
+  const i18n = t.issues
+
+  const [issues,         setIssues]         = React.useState<Issue[]>([])
+  const [drivers,        setDrivers]        = React.useState<Driver[]>([])
+  const [vehicles,       setVehicles]       = React.useState<Vehicle[]>([])
+  const [users,          setUsers]          = React.useState<IssueUser[]>([])
+  const [loading,        setLoading]        = React.useState(true)
+  const [error,          setError]          = React.useState<string | null>(null)
+  const [search,         setSearch]         = React.useState("")
+  const [searchFocused,  setSearchFocused]  = React.useState(false)
+  const [priorityFilter, setPriorityFilter] = React.useState<IssuePriority | "all">("all")
+  const [statusFilter,   setStatusFilter]   = React.useState<IssueStatus | "all">("all")
+  const [showFilters,    setShowFilters]    = React.useState(false)
+  const [selectedCount,  setSelectedCount]  = React.useState(0)
+  const [deleting,       setDeleting]       = React.useState(false)
+  const [drawerOpen,     setDrawerOpen]     = React.useState(false)
+  const [editIssue,      setEditIssue]      = React.useState<Issue | null>(null)
+  const [exporting,      setExporting]      = React.useState(false)
+
+  const [isDark, setIsDark] = React.useState(() =>
+    typeof window !== "undefined" && document.documentElement.classList.contains("dark")
+  )
+  React.useEffect(() => {
+    const observer = new MutationObserver(() =>
+      setIsDark(document.documentElement.classList.contains("dark"))
+    )
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
+    return () => observer.disconnect()
+  }, [])
+
+  const gridRef = React.useRef<AgGridReact<Issue>>(null)
+
+  const load = React.useCallback(async () => {
+    setLoading(true); setError(null)
+    try {
+      const [issuesRes, driversRes, vehiclesRes, usersRes] = await Promise.all([
+        listIssues({ limit: 500, sort: "-created_at" }),
+        listDrivers({ limit: 500 }),
+        listVehicles({ limit: 500 }),
+        listIssueUsers(),
+      ])
+      setIssues(issuesRes.issues ?? [])
+      setDrivers(driversRes.drivers ?? [])
+      setVehicles(vehiclesRes.vehicles ?? [])
+      setUsers(usersRes)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load issues")
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => { load() }, [load])
+
+  React.useEffect(() => {
+    gridRef.current?.api?.setGridOption("quickFilterText", search)
+  }, [search])
+
+  React.useEffect(() => {
+    const api = gridRef.current?.api
+    if (!api) return
+    api.setGridOption("defaultColDef", {
+      sortable: true, resizable: true, filter: "agTextColumnFilter",
+      suppressHeaderMenuButton: !showFilters, suppressHeaderFilterButton: !showFilters,
+      floatingFilter: false,
+    })
+    api.refreshHeader()
+  }, [showFilters])
+
+  const rowData = React.useMemo(() => {
+    let rows = issues
+    if (priorityFilter !== "all") rows = rows.filter(i => i.priority === priorityFilter)
+    if (statusFilter !== "all")   rows = rows.filter(i => i.status === statusFilter)
+    return rows
+  }, [issues, priorityFilter, statusFilter])
+
+  const handleDeleteSelected = React.useCallback(async () => {
+    const ok = await confirm({
+      title: `Delete ${selectedCount} issue${selectedCount !== 1 ? "s" : ""}`,
+      description: "This action is permanent and cannot be undone.",
+    })
+    if (!ok) return
+    setDeleting(true)
+    try {
+      const uuids = (gridRef.current?.api?.getSelectedRows() ?? []).map(r => r.uuid)
+      await bulkDeleteIssues(uuids)
+      setSelectedCount(0)
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Delete failed")
+    } finally {
+      setDeleting(false)
+    }
+  }, [selectedCount, load])
+
+  const handleExport = React.useCallback(async () => {
+    setExporting(true)
+    try {
+      const blob = await exportIssues()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url; a.download = `issues-export-${new Date().toISOString().slice(0,10)}.xlsx`
+      a.click(); URL.revokeObjectURL(url)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Export failed")
+    } finally {
+      setExporting(false)
+    }
+  }, [])
+
+  const colDefs = React.useMemo<ColDef<Issue>[]>(() => [
+    { headerName: c.ref,         field: "public_id",    width: 130, cellRenderer: ({ value }: ICellRendererParams) => <span className="font-mono text-xs text-muted-foreground">{value ?? "—"}</span> },
+    { headerName: i18n.report,   field: "report",       flex: 3, minWidth: 200, cellRenderer: ReportCell },
+    { headerName: "Type",        field: "type",         width: 140, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="text-xs capitalize">{ISSUE_TYPES.find(t => t.value === value)?.label ?? value}</span> : <span className="text-muted-foreground text-xs">—</span> },
+    { headerName: c.driver,      field: "driver_name",  width: 150, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="text-sm">{value}</span> : <span className="text-muted-foreground text-xs">—</span> },
+    { headerName: c.vehicle,     field: "vehicle_name", width: 140, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="font-mono text-xs">{value}</span> : <span className="text-muted-foreground text-xs">—</span> },
+    { headerName: i18n.priority, field: "priority",     width: 150, cellRenderer: PriorityCell },
+    { headerName: c.status,      field: "status",       width: 150, cellRenderer: StatusCell },
+    { headerName: i18n.assignee, field: "assignee_name",width: 150, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="text-sm">{value}</span> : <span className="text-muted-foreground text-xs italic">{i18n.unassigned}</span> },
+    { headerName: c.date,        field: "created_at",   width: 120, cellRenderer: ({ value }: ICellRendererParams) => <span className="text-xs text-muted-foreground tabular-nums">{value?.slice(0, 10) ?? "—"}</span> },
+  ], [c, i18n])
+
+  const defaultColDef = React.useMemo<ColDef>(() => ({
+    sortable: true, resizable: true, filter: "agTextColumnFilter",
+    suppressHeaderMenuButton: !showFilters, suppressHeaderFilterButton: !showFilters,
+    floatingFilter: false,
+  }), [showFilters])
+
+  return (
+    <div className="flex h-full flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
+
+      {/* ── Toolbar ── */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex-1" />
+
+        {selectedCount > 0 && (
+          <button onClick={handleDeleteSelected} disabled={deleting}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-red-500 px-3 text-xs font-semibold text-white shadow-sm transition-all hover:bg-red-600 disabled:opacity-50">
+            <Trash2 className="h-3.5 w-3.5" />Delete {selectedCount}
+          </button>
+        )}
+
+        {/* Search */}
+        <div className={`relative transition-all duration-200 ${searchFocused ? "w-72" : "w-40"}`}>
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <input type="text" placeholder={`${c.search} issues\u2026`} value={search}
+            onChange={e => setSearch(e.target.value)}
+            onFocus={() => setSearchFocused(true)} onBlur={() => setSearchFocused(false)}
+            className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
+          />
+        </div>
+
+        {/* Priority filter pills */}
+        <div className="flex items-center gap-0.5 rounded-lg border bg-muted/30 p-0.5">
+          {(["critical","high","medium","low","scheduled-maintenance"] as IssuePriority[]).map(p => (
+            <button key={p} onClick={() => setPriorityFilter(v => v === p ? "all" : p)}
+              className={`rounded-md px-2 py-1 text-xs font-medium transition-all ${priorityFilter === p
+                ? (p === "critical" ? "bg-red-500" : p === "high" ? "bg-orange-500" : p === "medium" ? "bg-amber-500" : p === "scheduled-maintenance" ? "bg-violet-500" : "bg-slate-500") + " text-white shadow-sm"
+                : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
+              {PRIORITY_STYLE[p].label}
+            </button>
+          ))}
+        </div>
+
+        {/* Status filter pills (full 7 statuses) */}
+        <div className="flex items-center gap-0.5 rounded-lg border bg-muted/30 p-0.5">
+          {STATUSES.map(s => (
+            <button key={s} onClick={() => setStatusFilter(v => v === s ? "all" : s)}
+              className={`rounded-md px-2 py-1 text-xs font-medium transition-all ${statusFilter === s ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
+              {STATUS_STYLE[s].label}
+            </button>
+          ))}
+          <button onClick={() => setShowFilters(v => !v)}
+            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showFilters ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-background hover:text-foreground"}`}>
+            <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" d="M2 4h12M4 8h8M6 12h4" />
+            </svg>
+            {c.filter}
+          </button>
+        </div>
+
+        <span className="h-6 w-px bg-border" />
+        <button onClick={load} disabled={loading} title={c.refresh}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40">
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+        </button>
+        <button onClick={handleExport} disabled={exporting} title={c.export}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40">
+          {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+        </button>
+        <span className="h-6 w-px bg-border" />
+        <button onClick={() => { setEditIssue(null); setDrawerOpen(true) }}
+          className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
+          {i18n.newIssue}
+        </button>
+      </div>
+
+      {/* ── Error ── */}
+      {error && (
+        <div className="shrink-0 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-900 dark:bg-red-950/20 dark:text-red-400">
+          {error} — <button onClick={load} className="underline">retry</button>
+        </div>
+      )}
+
+      {/* ── AG Grid ── */}
+      <div className="flex-1 min-h-0 overflow-hidden rounded-xl border bg-card shadow-sm" style={{ height: "100%" }}>
+        <AgGridReact<Issue>
+          ref={gridRef}
+          rowData={loading ? undefined : rowData}
+          columnDefs={colDefs}
+          defaultColDef={defaultColDef}
+          theme={isDark ? darkTheme : lightTheme}
+          pagination
+          paginationPageSize={25}
+          paginationPageSizeSelector={[25, 50, 100]}
+          animateRows
+          suppressCellFocus
+          getRowId={({ data }) => data.uuid}
+          rowSelection={{ mode: "multiRow", enableClickSelection: false }}
+          onSelectionChanged={() => setSelectedCount(gridRef.current?.api?.getSelectedRows().length ?? 0)}
+          onRowClicked={({ data }) => { if (data) { setEditIssue(data); setDrawerOpen(true) } }}
+          rowClass="cursor-pointer"
+          overlayLoadingTemplate='<span class="text-sm text-muted-foreground">Loading issues…</span>'
+          overlayNoRowsTemplate='<span class="text-sm text-muted-foreground">No issues found.</span>'
+        />
+      </div>
+
+      {/* ── Drawer ── */}
+      <IssueDrawer
+        open={drawerOpen}
+        issue={editIssue}
+        drivers={drivers}
+        vehicles={vehicles}
+        users={users}
+        onClose={() => setDrawerOpen(false)}
+        onSaved={load}
+      />
+    </div>
+  )
+}

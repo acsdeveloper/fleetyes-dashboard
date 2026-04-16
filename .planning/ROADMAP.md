@@ -63,3 +63,126 @@ Plans:
 
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.4: Compliance Engine — Rule Logic Rethink (Rule-by-Rule with Trip Context) (BACKLOG)
+
+**Goal:** Rethink the compliance engine from the ground up to ensure every rule is evaluated correctly, with clear violated-rule reporting that includes: the rule name, what was found, the trip ID, trip start time, trip end time, and the exact violation reason. The engine must use a simple, auditable loop that checks each rule independently against the trip data.
+
+**Context:** The current compliance engine logic is unclear and likely broken — violations may not be surfacing, or surfacing incorrectly, due to muddled rule evaluation order, stale data, or short-circuit logic that skips rules when data is sparse. The goal is to:
+1. Replace any opaque batch/async logic with a transparent rule-loop: iterate over each rule, evaluate it against the driver's trip window, and emit a structured violation object if the rule is breached
+2. Each violation must carry: `ruleId`, `ruleName`, `tripId`, `startTime`, `endTime`, `violationDescription` — so the UI can display exactly what was wrong, for which trip, and why
+3. Rules must be evaluated even when trip data is sparse (treat missing history as "driver was free")
+4. The engine must be re-verified against all known edge cases before re-deploying
+
+**Known Issues to Resolve:**
+1. **Opaque evaluation path** — it is currently unclear which rules are being checked and in what order
+2. **Missing violation context** — violations don't consistently carry trip ID, start/end times, and human-readable reason
+3. **Sparse-data handling** — rules may be skipped or incorrectly triggered when trip history is incomplete
+4. **No simple audit trail** — can't easily trace why a specific rule fired for a specific trip
+
+**Requirements:** TBD
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.5: Frontend UI for All New API Modules (BACKLOG)
+
+**Goal:** Build the frontend pages, components, and tests for all API clients introduced in the api-docs review — Issues, Off-Shift plans, Auto-Allocation, and the extended CRUD across Drivers, Fleets, Vehicles, Places, and Leave Requests.
+
+**Scope:**
+- Issues module: list, create, edit, assign, status update, bulk delete, export
+- Off-Shift (Recurring Leave Plans): list, create, edit, delete — with cascade warning
+- Auto-Allocation: shift data view, constraint management, initiate + apply flow
+- Drivers: extended forms for shift preferences, max trips/week, consecutive days, bulk priority reorder, import/export
+- Fleets: create/edit forms, fleet membership management (assign/remove drivers & vehicles)
+- Vehicles: create/edit forms, PMI and tachograph date fields, import/export
+- Places: create/edit forms, bulk delete with 2-step confirmation, map + reverse geocode, import/export
+- Leave Requests: create form, approve/reject actions, full status lifecycle
+
+**Requirements:** TBD — pending clarification questions on scope, design patterns, and which modules need brand-new pages vs updates to existing ones.
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.6: Driver Creation Page Fails — API Investigation & Fix (BACKLOG)
+
+**Goal:** Resolve the driver creation failure in Settings → Drivers. The form submits but the request appears to hang or fail silently. The 30s timeout now surfaces errors, but the root cause (wrong payload, missing field, or server-side validation issue) needs to be identified and fixed.
+
+**Known Context:**
+- `POST /int/v1/drivers` is a single-step operation per `api-docs/driver_api_docs.md` — only `name` (and optionally `status`) are required
+- A 30s `AbortController` timeout was added to `ontrackFetch` — the drawer will now show an error instead of getting stuck
+- The two-step user-creation approach was investigated and reverted — the internal API does NOT require a separate user/team-member creation step
+- Next step: capture the actual error message from the API and identify the exact rejection cause
+
+**Requirements:** TBD
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.7: Edit Records in All List Pages With Add Button (BACKLOG)
+
+**Goal:** Add edit (inline or drawer) functionality to every list/table page that already has an "Add" button — so users can update existing records without having to delete and re-create them. The edit action should be consistent in style with the existing add flow (e.g., reusing the same drawer/form component, pre-populated with the selected record's current values).
+
+**Scope (list pages with Add buttons):**
+- Drivers
+- Vehicles
+- Fleets
+- Places
+- Leave Requests
+- Off-Shift / Recurring Leave Plans
+- Issues
+- Any other module-level list pages that grow an Add button in future
+
+**Requirements:** TBD
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.8: Rota Compliance Matrix Tab — Visual Analysis View (BACKLOG)
+
+**Goal:** Add a new "Analysis" tab in the weekly rota page that presents compliance rule results in a graphical matrix format instead of plain text — rules on the left axis, each driver in a column, with colour-coded cells showing utilisation and violation status.
+
+**Context:** The existing compliance panel is a side-drawer with two text tabs ("Issues" and "Rules Reference"). The panel works well for drilling into individual violations but gives no cross-driver overview. The proposed tab is modelled on `api-docs/analysis.html` — a premium card layout showing per-driver metrics:
+- Metric row on the left (rule ID + title + limit)
+- Per-driver column with: used/total values + a colour-coded progress bar (green/amber/red)
+- Click-through to specific violations for any red/amber cell
+
+**Design from analysis.html:**
+- Two sections: Driving Times and Resting Times
+- Each row: Metric | Total (used) | Max/Min | Remaining | Utilization bar
+- Status pill at top per-driver (compliant / warning / violation)
+- Warning alert box at bottom for compensated-rest actions required
+
+**Matrix adaptation (multi-driver):**
+- Replace single-driver card with a sticky-header table
+- Left column: rule name + limit (like Metric in analysis.html)
+- One column per driver — utilization bar + used/total values
+- Cell background: green = compliant, amber = warning, red = violation
+- Zero-data drivers show neutral grey bar at 0%
+
+**Data already available (no new API needed):**
+- `complianceReports: Map<driverUuid, RotaComplianceReport>` — per-driver violations/warnings
+- `COMPLIANCE_RULES` — 6 rules with id, title, limit, category
+- `drivers[]` — all drivers (column headers)
+- `tripIndex` — raw trip data for calculating actual time totals
+
+**Key open questions:**
+1. Where does the tab live? Options: (a) third tab in existing compliance side-panel, (b) top-level tab row above the grid, (c) inline below the grid when activated
+2. How do we compute "used" hours per-driver per-rule? (Need a `getDriverStats()` helper in compliance engine returning raw minutes per rule, not just pass/fail)
+3. Should violation cells link back to the driver row on the grid (scroll + highlight)?
+4. Does this replace the existing Issues tab or sit alongside it?
+
+**Requirements:** TBD
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)

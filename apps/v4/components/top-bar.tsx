@@ -2,11 +2,11 @@
 import * as React from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
-import { Sun, Moon, Monitor, LogOut, User, Settings, ChevronDown, Eye, EyeOff, Globe } from "lucide-react"
+import { Sun, Moon, Monitor, LogOut, User, Settings, ChevronDown, Globe } from "lucide-react"
 import { useLang, type Lang } from "@/components/lang-context"
 import { useNavVisibility } from "@/components/nav-visibility-context"
 import { cn } from "@/lib/utils"
-import { clearToken } from "@/lib/ontrack-api"
+import { clearToken, getCurrentUser } from "@/lib/ontrack-api"
 
 // ─── FLAG SVGs (inline, zero-dependency) ─────────────────────────────────────
 
@@ -142,10 +142,11 @@ function LangDropdown() {
 // ─── Top bar path labels (use t.nav from translations) ───────────────────────
 
 const PATH_KEYS: Record<string, keyof ReturnType<typeof useLang>["t"]["nav"] | null> = {
+  "/calendar":         "calendar",
   "/trips":            "trips",
-  "/rota":             null,          // special: topbar t.pages.rota.title
-  "/vehicles":         null,
-  "/fleets":           null,
+  "/rota":             null,          // special: uses t.pages.rota.title
+  "/vehicles":         null,          // special: uses t.pages.vehicles.title
+  "/fleets":           null,          // special: uses t.pages.fleets.title
   "/places":           "places",
   "/drivers":          "drivers",
   "/fleet-management": "fleetManagement",
@@ -158,21 +159,36 @@ const PATH_KEYS: Record<string, keyof ReturnType<typeof useLang>["t"]["nav"] | n
   "/toll-receipts":    "tollReceipts",
   "/parking":          "parkingMonitoring",
   "/inventory":        "inventory",
-  "/settings":         null,
+  "/holidays":         "holidays",
+  "/import-hub":       "importHub",
+  "/issues":           "issues",
+  "/off-shift":        "offShift",
+  "/settings":         "allocationSettings",
+  "/org-settings":     null,
   "/":                 "dashboard",
 }
 
-// Stable english fallbacks for paths not in nav keys (pages namespace used instead)
 const PATH_PAGE_KEYS: Record<string, keyof ReturnType<typeof useLang>["t"]["pages"]> = {
   "/rota":      "rota",
   "/vehicles":  "vehicles",
   "/fleets":    "fleets",
-  "/settings":  "dashboard",   // fallback label
+}
+
+// Paths that have a fixed label not tied to i18n keys
+const PATH_FIXED_LABELS: Record<string, string> = {
+  "/org-settings": "Organisation Settings",
 }
 
 function usePageLabel() {
   const pathname = usePathname()
   const { t } = useLang()
+
+  // Check fixed label overrides first
+  const fixedKey = Object.keys(PATH_FIXED_LABELS)
+    .filter(k => pathname.startsWith(k))
+    .sort((a, b) => b.length - a.length)[0]
+  if (fixedKey) return PATH_FIXED_LABELS[fixedKey]
+
   const key = Object.keys(PATH_KEYS)
     .filter(k => pathname.startsWith(k))
     .sort((a, b) => b.length - a.length)[0]
@@ -185,7 +201,7 @@ function usePageLabel() {
 
 // ─── TOP BAR ──────────────────────────────────────────────────────────────────
 
-const MOCK_USER = { name: "Gareth Williams", email: "gareth.williams@fleetyes.co.uk", role: "Transport Manager" }
+const FALLBACK_USER = { name: "User", email: "", role: "" }
 
 export function TopBar() {
   const router = useRouter()
@@ -195,6 +211,13 @@ export function TopBar() {
   const [profileOpen, setProfileOpen] = React.useState(false)
   const profileRef = React.useRef<HTMLDivElement>(null)
   const pageLabel = usePageLabel()
+
+  // Read the real user from localStorage (populated at login)
+  const [currentUser, setUser] = React.useState(FALLBACK_USER)
+  React.useEffect(() => {
+    const u = getCurrentUser()
+    if (u) setUser(u)
+  }, [])
 
   function handleLogout() {
     clearToken()
@@ -211,7 +234,12 @@ export function TopBar() {
     return () => document.removeEventListener("mousedown", onClickOutside)
   }, [])
 
-  const initials = MOCK_USER.name.split(" ").map(n => n[0]).join("").toUpperCase()
+  const initials = currentUser.name
+    .split(" ")
+    .map(n => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2) || "U"
 
   return (
     <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-1.5 border-b bg-background/80 px-4 backdrop-blur-md">
@@ -223,21 +251,6 @@ export function TopBar() {
 
       {/* ── Right-side controls ──────────────────────────────────────────── */}
       <div className="ml-auto flex items-center gap-1.5">
-
-      {/* ── Hidden pages toggle ─────────────────────────────────────────── */}
-      <button
-        onClick={toggleHidden}
-        title={showHidden ? "Hide staging pages" : "Show staging pages"}
-        className={cn(
-          "flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors",
-          showHidden
-            ? "border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-700"
-            : "bg-muted/40 text-muted-foreground hover:text-foreground"
-        )}
-      >
-        {showHidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-        <span className="hidden sm:inline">Staging</span>
-      </button>
 
       {/* ── Language dropdown (6 langs) ─────────────────────────────────── */}
       <LangDropdown />
@@ -273,7 +286,7 @@ export function TopBar() {
             {initials}
           </span>
           <span className="hidden text-xs font-medium sm:block max-w-[120px] truncate">
-            {MOCK_USER.name}
+            {currentUser.name}
           </span>
           <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", profileOpen && "rotate-180")} />
         </button>
@@ -286,9 +299,11 @@ export function TopBar() {
                   {initials}
                 </span>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold truncate">{MOCK_USER.name}</p>
-                  <p className="text-[10px] text-muted-foreground truncate">{MOCK_USER.email}</p>
-                  <p className="text-[10px] text-muted-foreground">{MOCK_USER.role}</p>
+                  <p className="text-sm font-semibold truncate">{currentUser.name}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">{currentUser.email}</p>
+                  {currentUser.role && (
+                    <p className="text-[10px] text-muted-foreground">{currentUser.role}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -302,7 +317,7 @@ export function TopBar() {
                 {t.topbar.profile}
               </button>
               <button
-                onClick={() => setProfileOpen(false)}
+                onClick={() => { router.push("/org-settings"); setProfileOpen(false) }}
                 className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm hover:bg-muted transition-colors"
               >
                 <Settings className="h-4 w-4 text-muted-foreground" />

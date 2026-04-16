@@ -3,14 +3,46 @@
 import * as React from "react"
 import {
   Search, RefreshCw, Download, Calendar, Clock,
-  AlertCircle, ChevronRight, CheckCircle2, Loader2, X,
-  Wrench,
+  AlertCircle, ChevronRight, CheckCircle2, Loader2, X, Plus, Trash2, Wrench,
+  Paperclip, FileText, FileSpreadsheet, FileCode, File, UploadCloud,
 } from "lucide-react"
 import {
-  listVehicleUnavailability,
+  listVehicleUnavailability, createLeaveRequest, updateLeaveRequest, deleteLeaveRequest,
   type LeaveRequest,
 } from "@/lib/leave-requests-api"
-import { useLang, LOCALE_TAG } from "@/components/lang-context"
+import { listVehicles, type Vehicle } from "@/lib/vehicles-api"
+import { useLang } from "@/components/lang-context"
+import { useConfirm } from "@/components/confirm-dialog"
+import { DatePicker } from "@/components/date-picker"
+
+// ─── File type constants & icon helper ────────────────────────────────────────
+
+export const ALLOWED_ACCEPT = [
+  ".pdf",
+  ".doc",".docx",".rtf",".odt",
+  ".xls",".xlsx",".csv",".ods",
+  ".ppt",".pptx",".odp",
+  ".html",".htm",
+  ".txt",
+].join(",")
+
+export function getFileTypeIcon(filename: string, contentType?: string) {
+  const ext  = filename.split(".").pop()?.toLowerCase() ?? ""
+  const mime = (contentType ?? "").toLowerCase()
+  if (ext === "pdf"  || mime.includes("pdf"))
+    return { Icon: FileText,        cls: "text-red-500"    }
+  if (["doc","docx","rtf","odt"].includes(ext) || mime.includes("word") || mime.includes("opendocument.text"))
+    return { Icon: FileText,        cls: "text-blue-500"   }
+  if (["xls","xlsx","csv","ods"].includes(ext) || mime.includes("spreadsheet") || mime.includes("excel"))
+    return { Icon: FileSpreadsheet, cls: "text-green-600"  }
+  if (["ppt","pptx","odp"].includes(ext) || mime.includes("presentation"))
+    return { Icon: File,            cls: "text-orange-500" }
+  if (["html","htm"].includes(ext) || mime.includes("html"))
+    return { Icon: FileCode,        cls: "text-violet-500" }
+  if (ext === "txt" || mime === "text/plain")
+    return { Icon: FileText,        cls: "text-gray-500"   }
+  return   { Icon: File,            cls: "text-gray-400"   }
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -46,22 +78,63 @@ function getStatusBadge(r: LeaveRequest, mt: typeof import("@/components/lang-co
   return       { label: mt.statusCompleted, bg: "bg-emerald-50 dark:bg-emerald-900/20", border: "border-emerald-300/70 dark:border-emerald-700/40", text: "text-emerald-700 dark:text-emerald-300", dot: "bg-emerald-500" }
 }
 
+function vehicleLabel(v: Vehicle) {
+  const parts = [v.plate_number, v.make, v.model, v.year].filter(Boolean)
+  return parts.join(" · ")
+}
+
+// ─── Row attachment hook (lazy, per-record cache) ────────────────────────────
+interface RowFile { uuid: string; original_filename: string; url: string; content_type?: string }
+const _rowFileCache = new Map<string, RowFile[]>()
+
+function useRowFiles(uuid: string) {
+  const init = _rowFileCache.get(uuid)
+  const [files, setFiles] = React.useState<RowFile[]>(init ?? [])
+  React.useEffect(() => {
+    if (_rowFileCache.has(uuid)) { setFiles(_rowFileCache.get(uuid)!); return }
+    let dead = false
+    void (async () => {
+      try {
+        const { getToken, ONTRACK_HOST } = await import("@/lib/ontrack-api")
+        const res = await fetch(
+          `${ONTRACK_HOST}/int/v1/files?subject_uuid=${uuid}&limit=10`,
+          { headers: { Authorization: `Bearer ${getToken()}` } }
+        )
+        if (!res.ok || dead) return
+        const d = await res.json()
+        const list: RowFile[] = d?.files ?? d?.data ?? []
+        _rowFileCache.set(uuid, list)
+        if (!dead) setFiles(list)
+      } catch { _rowFileCache.set(uuid, []) }
+    })()
+    return () => { dead = true }
+  }, [uuid])
+  return files
+}
+
 // ─── Row ──────────────────────────────────────────────────────────────────────
 
-function MaintenanceRow({ r, locale, mt }: {
+function MaintenanceRow({
+  r, locale, mt, onClick,
+}: {
   r: LeaveRequest
   locale: string
   mt: typeof import("@/components/lang-context").translations["en"]["maintenance"]
+  onClick: () => void
 }) {
   const badge   = getStatusBadge(r, mt)
   const vehicle = r.vehicle_name ?? r.vehicle?.plate_number ?? "—"
   const make    = [r.vehicle?.make, r.vehicle?.model].filter(Boolean).join(" ")
   const days    = daysDiff(r.start_date, r.end_date)
   const reason  = r.reason || r.unavailability_type || "Maintenance"
+  const files   = useRowFiles(r.uuid)
 
   return (
-    <div className="flex items-center gap-4 px-4 py-3 hover:bg-muted/30 transition-colors border-b last:border-0">
-      <div className={`h-2.5 w-2.5 shrink-0 rounded-full ${badge.dot}`} />
+    <div
+      onClick={onClick}
+      className="flex items-start gap-4 px-4 py-3 hover:bg-muted/30 transition-colors border-b last:border-0 cursor-pointer"
+    >
+      <div className={`h-2.5 w-2.5 shrink-0 rounded-full mt-1.5 ${badge.dot}`} />
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
@@ -73,21 +146,44 @@ function MaintenanceRow({ r, locale, mt }: {
           </span>
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground truncate">{reason}</p>
+
+        {/* Inline file chips — visible without opening drawer */}
+        {files.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {files.map(f => {
+              const { Icon, cls } = getFileTypeIcon(f.original_filename, f.content_type)
+              return (
+                <a
+                  key={f.uuid}
+                  href={f.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  title={f.original_filename}
+                  className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium bg-background hover:bg-muted transition-colors ${cls}`}
+                >
+                  <Icon className="h-3 w-3 shrink-0" />
+                  <span className="max-w-[160px] truncate text-foreground">{f.original_filename}</span>
+                </a>
+              )
+            })}
+          </div>
+        )}
       </div>
 
-      <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
+      <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 mt-0.5">
         <Calendar className="h-3.5 w-3.5" />
         <span>{fmtDate(r.start_date, locale)}</span>
         <ChevronRight className="h-3 w-3 opacity-40" />
         <span>{fmtDate(r.end_date, locale)}</span>
       </div>
 
-      <div className="hidden md:flex items-center gap-1 text-xs text-muted-foreground shrink-0 w-14 justify-end">
+      <div className="hidden md:flex items-center gap-1 text-xs text-muted-foreground shrink-0 w-14 justify-end mt-0.5">
         <Clock className="h-3 w-3" />
         <span>{mt.durationDays.replace("{n}", String(days))}</span>
       </div>
 
-      <div className="text-right shrink-0 w-20">
+      <div className="text-right shrink-0 w-20 mt-0.5">
         <p className={`text-xs font-semibold ${badge.text}`}>
           {isUpcoming(r) ? daysFromNowStr(r.start_date, mt) : daysFromNowStr(r.end_date, mt)}
         </p>
@@ -116,25 +212,362 @@ function EmptyState({ tab, mt }: {
   )
 }
 
+// ─── Drawer ───────────────────────────────────────────────────────────────────
+
+function MaintenanceDrawer({
+  open, record, vehicles, onClose, onSaved,
+}: {
+  open:     boolean
+  record:   LeaveRequest | null
+  vehicles: Vehicle[]
+  onClose:  () => void
+  onSaved:  () => void
+}) {
+  const isEdit = !!record
+
+  const [vehicleUuid, setVehicleUuid] = React.useState("")
+  const [startDate,   setStartDate]   = React.useState("")
+  const [endDate,     setEndDate]     = React.useState("")
+  const [reason,      setReason]      = React.useState("")
+  const [saving,      setSaving]      = React.useState(false)
+  const [deleting,    setDeleting]    = React.useState(false)
+  const [error,       setError]       = React.useState<string | null>(null)
+  const confirm = useConfirm()
+
+  // ── File attachments (edit only) ──────────────────────────────────────────
+  interface AttachedFile { uuid: string; original_filename: string; url: string; content_type?: string }
+  const [files,        setFiles]        = React.useState<AttachedFile[]>([])
+  const [filesLoading, setFilesLoading] = React.useState(false)
+  const [uploading,    setUploading]    = React.useState(false)
+  const [fileError,    setFileError]    = React.useState<string | null>(null)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+
+  async function fetchFiles(subjectUuid: string) {
+    setFilesLoading(true)
+    try {
+      const { getToken, ONTRACK_HOST } = await import("@/lib/ontrack-api")
+      const res = await fetch(
+        `${ONTRACK_HOST}/int/v1/files?sort=-created_at&subject_uuid=${subjectUuid}`,
+        { headers: { Authorization: `Bearer ${getToken()}` } }
+      )
+      if (!res.ok) return
+      const data = await res.json()
+      // API returns { files: [...] } or { data: [...] }
+      const list: AttachedFile[] = data?.files ?? data?.data ?? []
+      setFiles(list)
+      // Keep row cache in sync so MaintenanceRow shows fresh data after drawer opens
+      _rowFileCache.set(subjectUuid, list)
+    } catch { /* non-fatal */ }
+    finally { setFilesLoading(false) }
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!record) return
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = "" // allow re-selecting same file
+    setUploading(true); setFileError(null)
+    try {
+      const { getToken, ONTRACK_HOST } = await import("@/lib/ontrack-api")
+      const fd = new FormData()
+      fd.append("file", file)
+      fd.append("subject_uuid", record.uuid)
+      fd.append("subject_type", "leave_request")
+      fd.append("type", "maintenance_document")
+      const res = await fetch(`${ONTRACK_HOST}/int/v1/files/upload`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${getToken()}` },
+        body: fd,
+      })
+      if (!res.ok) throw new Error("Upload failed")
+      // Refresh drawer file list + bust row cache so the list row updates
+      _rowFileCache.delete(record.uuid)
+      await fetchFiles(record.uuid)
+    } catch (err) {
+      setFileError(err instanceof Error ? err.message : "Upload failed")
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function handleFileDelete(fileUuid: string) {
+    if (!record) return
+    try {
+      const { getToken, ONTRACK_HOST } = await import("@/lib/ontrack-api")
+      await fetch(`${ONTRACK_HOST}/int/v1/files/${fileUuid}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      })
+      const updated = files.filter(f => f.uuid !== fileUuid)
+      setFiles(updated)
+      // Also update the row cache so the row chip disappears immediately
+      _rowFileCache.set(record.uuid, updated)
+    } catch { setFileError("Could not delete file") }
+  }
+
+  React.useEffect(() => {
+    if (record) {
+      setVehicleUuid(record.vehicle_uuid ?? "")
+      setStartDate(record.start_date?.slice(0, 10) ?? "")
+      setEndDate(record.end_date?.slice(0, 10) ?? "")
+      setReason(record.reason ?? "")
+      // Load attachments on open (edit only)
+      void fetchFiles(record.uuid)
+    } else {
+      setVehicleUuid(""); setStartDate(""); setEndDate(""); setReason("")
+      setFiles([])
+    }
+    setError(null); setFileError(null)
+  }, [record, open])
+
+  const handleSave = async () => {
+    if (!vehicleUuid && !isEdit) { setError("Please select a vehicle."); return }
+    if (!startDate) { setError("Start date is required."); return }
+    if (!endDate)   { setError("End date is required.");   return }
+    setSaving(true); setError(null)
+    try {
+      if (isEdit && record) {
+        await updateLeaveRequest(record.uuid, {
+          user_uuid:           record.user_uuid ?? null,
+          vehicle_uuid:        vehicleUuid || record.vehicle_uuid || null,
+          start_date:          startDate,
+          end_date:            endDate,
+          reason:              reason || undefined,
+          unavailability_type: "vehicle",
+        })
+      } else {
+        await createLeaveRequest({
+          vehicle_uuid:        vehicleUuid,
+          start_date:          startDate,
+          end_date:            endDate,
+          reason:              reason || undefined,
+          unavailability_type: "vehicle",
+        })
+      }
+      onSaved(); onClose()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!record) return
+    const ok = await confirm({
+      title: "Delete maintenance record",
+      description: "This will permanently remove the maintenance period record.",
+    })
+    if (!ok) return
+    setDeleting(true); setError(null)
+    try { await deleteLeaveRequest(record.uuid); onSaved(); onClose() }
+    catch (e) { setError(e instanceof Error ? e.message : "Delete failed") }
+    finally   { setDeleting(false) }
+  }
+
+  return (
+    <>
+      <div
+        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity ${open ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        onClick={onClose}
+      />
+      <div className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l bg-background shadow-2xl transition-transform duration-300 ${open ? "translate-x-0" : "translate-x-full"}`}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between border-b px-5 py-3">
+          <div>
+            <h2 className="text-sm font-semibold">
+              {isEdit ? "Edit Maintenance Period" : "New Maintenance Period"}
+            </h2>
+            {isEdit && record && (
+              <p className="text-xs text-muted-foreground font-mono mt-0.5">{record.public_id}</p>
+            )}
+          </div>
+          <button onClick={onClose} className="rounded-md p-1 hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3">
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">
+              {error}
+            </div>
+          )}
+
+          {/* Vehicle */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Vehicle</label>
+            {isEdit ? (
+              <p className="text-sm font-medium font-mono">
+                {record?.vehicle_name ?? record?.vehicle?.plate_number ?? "—"}
+                {(record?.vehicle?.make || record?.vehicle?.model) && (
+                  <span className="ml-2 font-sans text-muted-foreground font-normal text-xs">
+                    {[record?.vehicle?.make, record?.vehicle?.model].filter(Boolean).join(" ")}
+                  </span>
+                )}
+              </p>
+            ) : (
+              <select value={vehicleUuid} onChange={e => setVehicleUuid(e.target.value)}
+                className="h-8 w-full appearance-none rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring">
+                <option value="">Select a vehicle…</option>
+                {vehicles.map(v => (
+                  <option key={v.uuid} value={v.uuid}>{vehicleLabel(v)}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Dates */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Start Date *</label>
+              <DatePicker value={startDate} onChange={setStartDate} placeholder="Start date" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">End Date *</label>
+              <DatePicker value={endDate} onChange={setEndDate} placeholder="End date" align="end" />
+            </div>
+          </div>
+
+          {/* Duration hint */}
+          {startDate && endDate && (
+            <p className="text-xs text-muted-foreground">
+              Duration: <span className="font-semibold text-foreground">{daysDiff(startDate, endDate)} day{daysDiff(startDate, endDate) !== 1 ? "s" : ""}</span>
+            </p>
+          )}
+
+          {/* Reason */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Reason / Notes</label>
+            <textarea value={reason} onChange={e => setReason(e.target.value)} rows={3}
+              placeholder="e.g. Annual service, tyre replacement, MOT…"
+              className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring resize-none" />
+          </div>
+
+          {/* Attachments — edit only */}
+          {isEdit && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                  <Paperclip className="h-3 w-3" /> Attachments
+                </label>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted disabled:opacity-50 transition-colors"
+                >
+                  {uploading
+                    ? <><Loader2 className="h-3 w-3 animate-spin" /> Uploading…</>
+                    : <><UploadCloud className="h-3 w-3" /> Attach file</>}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={ALLOWED_ACCEPT}
+                  className="hidden"
+                  onChange={handleFileUpload}
+                />
+              </div>
+
+              {fileError && (
+                <p className="text-xs text-red-500">{fileError}</p>
+              )}
+
+              {filesLoading ? (
+                <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading attachments…
+                </div>
+              ) : files.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">No attachments yet.</p>
+              ) : (
+                <ul className="divide-y rounded-lg border overflow-hidden">
+                  {files.map(f => {
+                    const { Icon, cls } = getFileTypeIcon(f.original_filename, f.content_type)
+                    return (
+                      <li key={f.uuid} className="flex items-center gap-2 px-3 py-2 bg-background hover:bg-muted/30 transition-colors">
+                        <Icon className={`h-3.5 w-3.5 shrink-0 ${cls}`} />
+                        <a
+                          href={f.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 min-w-0 truncate text-xs text-primary hover:underline"
+                          title={f.original_filename}
+                        >
+                          {f.original_filename}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => handleFileDelete(f.uuid)}
+                          className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                          title="Remove attachment"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-2 border-t px-5 py-3">
+          {isEdit ? (
+            <button onClick={handleDelete} disabled={deleting}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-rose-200 px-3 text-sm text-rose-600 hover:bg-rose-50 disabled:opacity-50 transition-colors">
+              {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              Delete
+            </button>
+          ) : <span />}
+          <div className="flex gap-2">
+            <button onClick={onClose} className="h-8 rounded-lg border bg-background px-4 text-sm text-muted-foreground hover:bg-muted">
+              Cancel
+            </button>
+            <button onClick={handleSave} disabled={saving}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-50">
+              {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {isEdit ? "Save Changes" : "Create Record"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function MaintenanceTripsPage() {
   const { t, dateLocale } = useLang()
   const mt = t.maintenance
 
-  const [tab, setTab]         = React.useState<"upcoming" | "historical">("upcoming")
-  const [records, setRecords] = React.useState<LeaveRequest[]>([])
-  const [loading, setLoading] = React.useState(true)
+  const [tab,        setTab]        = React.useState<"upcoming" | "historical">("upcoming")
+  const [records,    setRecords]    = React.useState<LeaveRequest[]>([])
+  const [vehicles,   setVehicles]   = React.useState<Vehicle[]>([])
+  const [loading,    setLoading]    = React.useState(true)
   const [refreshing, setRefreshing] = React.useState(false)
-  const [error, setError]     = React.useState<string | null>(null)
-  const [search, setSearch]   = React.useState("")
+  const [error,      setError]      = React.useState<string | null>(null)
+  const [search,     setSearch]     = React.useState("")
   const [refreshKey, setRefreshKey] = React.useState(0)
+  const [drawerOpen, setDrawerOpen] = React.useState(false)
+  const [editRecord, setEditRecord] = React.useState<LeaveRequest | null>(null)
 
   React.useEffect(() => {
     setLoading(true)
     setError(null)
-    listVehicleUnavailability({ per_page: 500, sort: "-start_date" })
-      .then(res => setRecords(res.data ?? []))
+    Promise.all([
+      listVehicleUnavailability({ per_page: 500, sort: "-start_date" }),
+      listVehicles({ limit: 500, sort: "plate_number" }),
+    ])
+      .then(([leavesRes, vehiclesRes]) => {
+        setRecords(leavesRes.data ?? [])
+        setVehicles(vehiclesRes.vehicles ?? [])
+      })
       .catch(err => setError(err.message ?? "Failed to load"))
       .finally(() => setLoading(false))
   }, [refreshKey])
@@ -144,6 +577,9 @@ export default function MaintenanceTripsPage() {
     setRefreshKey(k => k + 1)
     setTimeout(() => setRefreshing(false), 800)
   }
+
+  const openCreate = () => { setEditRecord(null); setDrawerOpen(true) }
+  const openEdit   = (r: LeaveRequest) => { setEditRecord(r); setDrawerOpen(true) }
 
   const now        = new Date()
   const upcoming   = records.filter(r => new Date(r.end_date) >= now)
@@ -167,7 +603,7 @@ export default function MaintenanceTripsPage() {
   return (
     <div className="flex h-full flex-col gap-3 p-4 md:p-5 overflow-hidden">
 
-      {/* ── Toolbar ───────────────────────────────────────────────────── */}
+      {/* ── Toolbar ── */}
       <div className="flex items-center gap-2 flex-wrap shrink-0">
 
         {/* Tabs */}
@@ -215,7 +651,6 @@ export default function MaintenanceTripsPage() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
-          {/* Record count */}
           {!loading && !error && (
             <span className="text-xs text-muted-foreground hidden sm:inline">
               {search
@@ -224,7 +659,6 @@ export default function MaintenanceTripsPage() {
             </span>
           )}
 
-          {/* Refresh */}
           <button
             onClick={handleRefresh}
             disabled={loading || refreshing}
@@ -234,15 +668,22 @@ export default function MaintenanceTripsPage() {
             <span className="hidden sm:inline">{mt.refresh}</span>
           </button>
 
-          {/* Export */}
           <button className="inline-flex h-8 items-center gap-1.5 rounded-lg border bg-background px-3 text-xs text-muted-foreground hover:bg-muted transition-colors">
             <Download className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">{mt.export}</span>
           </button>
+
+          <span className="h-6 w-px bg-border" />
+
+          <button onClick={openCreate}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors">
+            <Plus className="h-3.5 w-3.5" />
+            New
+          </button>
         </div>
       </div>
 
-      {/* ── List ──────────────────────────────────────────────────────── */}
+      {/* ── List ── */}
       <div className="flex-1 min-h-0 overflow-auto rounded-xl border bg-card shadow-sm">
 
         {/* Column header */}
@@ -254,7 +695,6 @@ export default function MaintenanceTripsPage() {
           <span className="w-20 text-right text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{mt.colWhen}</span>
         </div>
 
-        {/* Loading */}
         {loading && (
           <div className="flex flex-col items-center gap-3 py-20">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/50" />
@@ -262,7 +702,6 @@ export default function MaintenanceTripsPage() {
           </div>
         )}
 
-        {/* Error */}
         {!loading && error && (
           <div className="flex flex-col items-center gap-3 py-20">
             <AlertCircle className="h-8 w-8 text-rose-400" />
@@ -276,18 +715,28 @@ export default function MaintenanceTripsPage() {
           </div>
         )}
 
-        {/* Empty */}
         {!loading && !error && filtered.length === 0 && <EmptyState tab={tab} mt={mt} />}
 
-        {/* Rows */}
         {!loading && !error && filtered.length > 0 && (
           <div>
             {filtered.map(r => (
-              <MaintenanceRow key={r.uuid} r={r} locale={dateLocale} mt={mt} />
+              <MaintenanceRow
+                key={r.uuid} r={r} locale={dateLocale} mt={mt}
+                onClick={() => openEdit(r)}
+              />
             ))}
           </div>
         )}
       </div>
+
+      {/* ── Drawer ── */}
+      <MaintenanceDrawer
+        open={drawerOpen}
+        record={editRecord}
+        vehicles={vehicles}
+        onClose={() => setDrawerOpen(false)}
+        onSaved={handleRefresh}
+      />
     </div>
   )
 }

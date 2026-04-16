@@ -2,11 +2,14 @@
 
 import * as React from "react"
 import {
-  Search, RefreshCw, Plus, Upload, Download,
-  LayoutGrid, List, Car, Trash2,
+  Search, RefreshCw, Upload, Download,
+  LayoutGrid, List, Car, Trash2, X, Loader2, ChevronDown, CheckCircle2, AlertCircle,
 } from "lucide-react"
 import { useLang } from "@/components/lang-context"
-import { listVehicles, bulkDeleteVehicles, type Vehicle } from "@/lib/vehicles-api"
+import { useConfirm } from "@/components/confirm-dialog"
+import { listVehicles, createVehicle, updateVehicle, exportVehicles, bulkDeleteVehicles, importVehicles, type Vehicle, type FleetVehicle } from "@/lib/vehicles-api"
+import { listFleets, assignVehicleToFleet, removeVehicleFromFleet, type Fleet } from "@/lib/fleets-api"
+import { ImportModal } from "@/components/import-modal"
 
 import { AgGridReact } from "ag-grid-react"
 import {
@@ -129,21 +132,265 @@ function StatusCell({ data }: ICellRendererParams<Vehicle>) {
   )
 }
 
+// ─── Vehicle Drawer ────────────────────────────────────────────────────────────
+
+function VehicleDrawer({ open, vehicle, fleets, onClose, onSaved }: {
+  open: boolean; vehicle: Vehicle | null; fleets: Fleet[]; onClose: () => void; onSaved: () => void
+}) {
+  const { t } = useLang()
+  const confirm = useConfirm()
+  const c = t.common
+  const v18n = t.vehicles
+  const isEdit = !!vehicle
+  const [plate,       setPlate]       = React.useState("")
+  const [make,        setMake]        = React.useState("")
+  const [model,       setModel]       = React.useState("")
+  const [year,        setYear]        = React.useState("")
+  const [fleetUuids,  setFleetUuids]  = React.useState<string[]>([])
+  const [fleetSearch, setFleetSearch] = React.useState("")
+  const [fleetOpen,   setFleetOpen]   = React.useState(false)
+  const [pmiDate,     setPmiDate]     = React.useState("")
+  const [tachoDate,   setTachoDate]   = React.useState("")
+  const [statusVal,   setStatusVal]   = React.useState<VehicleStatus>("active")
+  const [saving,      setSaving]      = React.useState(false)
+  const [error,       setError]       = React.useState<string | null>(null)
+  const searchRef = React.useRef<HTMLInputElement>(null)
+  const dropRef   = React.useRef<HTMLDivElement>(null)
+
+  // Close dropdown on outside click
+  React.useEffect(() => {
+    if (!fleetOpen) return
+    const fn = (e: MouseEvent) => {
+      if (!dropRef.current?.contains(e.target as Node)) setFleetOpen(false)
+    }
+    document.addEventListener("mousedown", fn)
+    return () => document.removeEventListener("mousedown", fn)
+  }, [fleetOpen])
+
+  React.useEffect(() => {
+    if (vehicle) {
+      setPlate(vehicle.plate_number ?? "")
+      setMake(vehicle.make ?? "")
+      setModel(vehicle.model ?? "")
+      setYear(vehicle.year != null ? String(vehicle.year) : "")
+      // Fleet membership lives in fleet_vehicles[] (one-to-many)
+      setFleetUuids(vehicle.fleet_vehicles?.map(fv => fv.fleet_uuid) ?? [])
+      setPmiDate(vehicle.last_pmi_date?.slice(0,10) ?? "")
+      setTachoDate(vehicle.tachograph_cal_date?.slice(0,10) ?? "")
+      setStatusVal(normaliseStatus(vehicle.status))
+    } else {
+      setPlate(""); setMake(""); setModel(""); setYear("")
+      setFleetUuids([]); setPmiDate(""); setTachoDate(""); setStatusVal("active")
+    }
+    setFleetSearch(""); setFleetOpen(false); setError(null)
+  }, [vehicle, open])
+
+  const handleSave = async () => {
+    if (!plate.trim()) { setError("Plate number is required."); return }
+    if (!make.trim())  { setError("Make is required."); return }
+    setSaving(true); setError(null)
+    try {
+      const prevUuids = new Set(vehicle?.fleet_vehicles?.map(fv => fv.fleet_uuid) ?? [])
+      const nextUuids = new Set(fleetUuids)
+      const common = {
+        plate_number:         plate.trim().toUpperCase(),
+        make:                 make.trim(),
+        model:                model      || undefined,
+        year:                 year       || undefined,
+        last_pmi_date:        pmiDate    || undefined,
+        tachograph_cal_date:  tachoDate  || undefined,
+        status:               (statusVal === "active" ? "active" : "inactive") as "active" | "inactive",
+      }
+      let savedUuid: string
+      if (isEdit && vehicle) {
+        await updateVehicle(vehicle.uuid, common)
+        savedUuid = vehicle.uuid
+      } else {
+        const created = await createVehicle(common)
+        savedUuid = created.uuid
+      }
+      // Assign newly added fleets
+      await Promise.all(
+        [...nextUuids].filter(u => !prevUuids.has(u)).map(u => assignVehicleToFleet(savedUuid, u))
+      )
+      // Remove de-selected fleets
+      await Promise.all(
+        [...prevUuids].filter(u => !nextUuids.has(u)).map(u => removeVehicleFromFleet(savedUuid, u))
+      )
+      onSaved(); onClose()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const sixMonthsAgo = new Date(); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+  const isPmiOverdue   = pmiDate   && new Date(pmiDate)   < sixMonthsAgo
+  const isTachoOverdue = tachoDate && new Date(tachoDate) < sixMonthsAgo
+
+  // Fleet chip selector helpers
+  const selectedFleets  = fleets.filter(f => fleetUuids.includes(f.uuid))
+  const availableFleets = fleets.filter(f =>
+    !fleetUuids.includes(f.uuid) &&
+    f.name.toLowerCase().includes(fleetSearch.toLowerCase())
+  )
+  const addFleet    = (uuid: string) => { setFleetUuids(p => [...p, uuid]); setFleetSearch("") }
+  const removeFleet = (uuid: string) => setFleetUuids(p => p.filter(u => u !== uuid))
+
+  return (
+    <>
+      <div className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity ${open ? "opacity-100" : "opacity-0 pointer-events-none"}`} onClick={onClose} />
+      <div className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l bg-background shadow-2xl transition-transform duration-300 ${open ? "translate-x-0" : "translate-x-full"}`}>
+        <div className="flex items-center justify-between border-b px-5 py-4">
+          <h2 className="text-sm font-bold">{isEdit ? c.edit : v18n.addVehicle}</h2>
+          <button onClick={onClose} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">{error}</div>}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Plate *</label>
+            <input type="text" value={plate} onChange={e => setPlate(e.target.value.toUpperCase())} placeholder="AB12 CDE"
+              className="h-9 w-full rounded-lg border bg-background px-3 text-sm font-mono outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Make *</label>
+              <input type="text" value={make} onChange={e => setMake(e.target.value)} placeholder="Mercedes"
+                className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Model</label>
+              <input type="text" value={model} onChange={e => setModel(e.target.value)} placeholder="Sprinter"
+                className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{v18n.year}</label>
+            <input type="number" min={1990} max={2030} value={year} onChange={e => setYear(e.target.value)} placeholder="2022"
+              className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring" />
+          </div>
+
+          {/* ── Fleet chip-selector ── */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{c.fleet}</label>
+            <div ref={dropRef} className="relative">
+              {/* Selected fleet chips + search input */}
+              <div
+                className="min-h-[36px] w-full rounded-lg border bg-background px-2 py-1.5 flex flex-wrap gap-1.5 cursor-text focus-within:ring-2 focus-within:ring-ring"
+                onClick={() => { setFleetOpen(true); searchRef.current?.focus() }}
+              >
+                {selectedFleets.map(f => (
+                  <span key={f.uuid} className="inline-flex items-center gap-1 rounded-md bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 text-xs font-medium">
+                    {f.name}
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); removeFleet(f.uuid) }}
+                      className="ml-0.5 rounded-full hover:bg-primary/20 transition-colors leading-none"
+                    >
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                  </span>
+                ))}
+                <input
+                  ref={searchRef}
+                  value={fleetSearch}
+                  onChange={e => { setFleetSearch(e.target.value); setFleetOpen(true) }}
+                  onFocus={() => setFleetOpen(true)}
+                  placeholder={selectedFleets.length === 0 ? "Search fleets…" : ""}
+                  className="flex-1 min-w-[80px] bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                />
+              </div>
+              {/* Dropdown */}
+              {fleetOpen && (
+                <div className="absolute z-50 mt-1 w-full rounded-lg border bg-popover shadow-lg overflow-hidden">
+                  <div className="max-h-48 overflow-y-auto">
+                    {availableFleets.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-muted-foreground">
+                        {fleetSearch ? "No fleets match your search" : "All fleets already selected"}
+                      </div>
+                    ) : (
+                      availableFleets.map(f => (
+                        <button
+                          key={f.uuid}
+                          type="button"
+                          onMouseDown={e => { e.preventDefault(); addFleet(f.uuid) }}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-accent transition-colors flex items-center justify-between group"
+                        >
+                          <span>{f.name}</span>
+                          <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">+ add</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className={`text-xs font-semibold uppercase tracking-wide ${isPmiOverdue ? "text-amber-600" : "text-muted-foreground"}`}>
+                {v18n.lastPmi} {isPmiOverdue && "⚠"}
+              </label>
+              <input type="date" value={pmiDate} onChange={e => setPmiDate(e.target.value)}
+                className={`h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring ${isPmiOverdue ? "border-amber-400" : ""}`} />
+            </div>
+            <div className="space-y-1.5">
+              <label className={`text-xs font-semibold uppercase tracking-wide ${isTachoOverdue ? "text-amber-600" : "text-muted-foreground"}`}>
+                {v18n.tachographCal} {isTachoOverdue && "⚠"}
+              </label>
+              <input type="date" value={tachoDate} onChange={e => setTachoDate(e.target.value)}
+                className={`h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring ${isTachoOverdue ? "border-amber-400" : ""}`} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{c.status}</label>
+            <div className="flex gap-2">
+              {(["active", "inactive"] as VehicleStatus[]).map(s => (
+                <button key={s} onClick={() => setStatusVal(s)}
+                  className={`flex-1 h-8 rounded-lg border text-xs font-semibold capitalize transition-all ${statusVal === s ? s === "active" ? "bg-emerald-500 text-white border-emerald-500" : "bg-rose-500 text-white border-rose-500" : "bg-background text-muted-foreground hover:bg-muted"}`}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t px-5 py-4">
+          <button onClick={onClose} className="h-9 rounded-lg border bg-background px-4 text-sm text-muted-foreground hover:bg-muted">{c.cancel}</button>
+          <button onClick={handleSave} disabled={saving}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-50">
+            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {isEdit ? c.save : v18n.addVehicle}
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
+
 
 export default function VehiclesPage() {
   const { t } = useLang()
+  const confirm = useConfirm()
   const c = t.common
+  const v18n = t.vehicles
   const [vehicles,      setVehicles]      = React.useState<Vehicle[]>([])
+  const [fleets,        setFleetList]     = React.useState<Fleet[]>([])
   const [loading,       setLoading]       = React.useState(true)
   const [error,         setError]         = React.useState<string | null>(null)
   const [search,        setSearch]        = React.useState("")
-  const [statusFilter,  setStatusFilter]  = React.useState<"all" | VehicleStatus>("active")
+  const [statusFilter,  setStatusFilter]  = React.useState<"all" | VehicleStatus>("all")
   const [view,          setView]          = React.useState<"list" | "cards">("list")
   const [showFilters,   setShowFilters]   = React.useState(false)
   const [searchFocused, setSearchFocused] = React.useState(false)
   const [selectedCount, setSelectedCount] = React.useState(0)
   const [deleting,      setDeleting]      = React.useState(false)
+  const [drawerOpen,    setDrawerOpen]    = React.useState(false)
+  const [editVehicle,   setEditVehicle]   = React.useState<Vehicle | null>(null)
+  const [showImport,    setShowImport]    = React.useState(false)
 
   // Dark mode
   const [isDark, setIsDark] = React.useState(() =>
@@ -163,8 +410,12 @@ export default function VehiclesPage() {
   const load = React.useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const res = await listVehicles({ limit: 500 })
-      setVehicles(res.vehicles ?? [])
+      const [vehiclesRes, fleetsRes] = await Promise.all([
+        listVehicles({ limit: 500 }),
+        listFleets({ limit: 500 }),
+      ])
+      setVehicles(vehiclesRes.vehicles ?? [])
+      setFleetList(fleetsRes.fleets ?? [])
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load vehicles")
     } finally {
@@ -174,14 +425,18 @@ export default function VehiclesPage() {
 
   // ── Delete selected ──
   const handleDeleteSelected = React.useCallback(async () => {
-    if (!window.confirm(`Delete ${selectedCount} vehicle${selectedCount !== 1 ? "s" : ""}? This cannot be undone.`)) return
+    const ok = await confirm({
+      title: `Delete ${selectedCount} vehicle${selectedCount !== 1 ? "s" : ""}`,
+      description: "This action is permanent and cannot be undone.",
+    })
+    if (!ok) return
     setDeleting(true)
     try {
       const uuids = (gridRef.current?.api?.getSelectedRows() ?? []).map(r => r.uuid)
-      const { deleted, errors } = await bulkDeleteVehicles(uuids)
+      const res = await bulkDeleteVehicles(uuids)
       setSelectedCount(0)
       await load()
-      if (errors.length) setError(`Deleted ${deleted}, ${errors.length} failed: ${errors[0]}`)
+      if (res.status !== "success") setError(res.message ?? "Some deletes failed")
     } catch (e) {
       setError(e instanceof Error ? e.message : "Delete failed")
     } finally {
@@ -219,13 +474,23 @@ export default function VehiclesPage() {
 
   // ── Column defs ──
   const colDefs = React.useMemo<ColDef<Vehicle>[]>(() => [
-    { headerName: c.vehicle, field: "plate_number", cellRenderer: PlateCell, flex: 1.5, minWidth: 160, filter: "agTextColumnFilter" },
-    { headerName: "Make / Model", field: "make", cellRenderer: MakeModelCell, flex: 2, minWidth: 160, filter: "agTextColumnFilter" },
-    { headerName: "Year", field: "year", width: 90, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="font-mono text-sm">{value}</span> : <span className="text-muted-foreground">—</span> },
-    { headerName: "Colour", field: "colour", width: 120, valueGetter: ({ data }) => data?.colour ?? data?.color, cellRenderer: ({ value }: ICellRendererParams) => value ? <div className="flex items-center gap-2 h-full"><span className="text-sm">{value}</span></div> : <span className="text-muted-foreground">—</span> },
+    { headerName: c.vehicle, field: "plate_number", cellRenderer: PlateCell, flex: 1.5, minWidth: 160 },
+    { headerName: "Make / Model", field: "make", cellRenderer: MakeModelCell, flex: 2, minWidth: 160 },
+    { headerName: v18n.year, field: "year", width: 90, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="font-mono text-sm">{value}</span> : <span className="text-muted-foreground">—</span> },
+    { headerName: c.fleet, field: "fleet_vehicles", flex: 1.5, minWidth: 130, valueGetter: ({ data }) => data?.fleet_vehicles?.map((fv: FleetVehicle) => fv.fleet?.name).filter(Boolean).join(", ") ?? "", cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{value}</span> : <span className="text-muted-foreground">—</span> },
+    { headerName: v18n.lastPmi, field: "last_pmi_date", width: 130, cellRenderer: ({ value }: ICellRendererParams) => {
+      if (!value) return <span className="text-muted-foreground text-xs">—</span>
+      const d = new Date(value); const ago = new Date(); ago.setMonth(ago.getMonth() - 6)
+      return <span className={`text-xs tabular-nums ${d < ago ? "text-amber-600 font-semibold" : "text-muted-foreground"}`}>{value.slice(0,10)}</span>
+    }},
+    { headerName: v18n.tachographCal, field: "tachograph_cal_date", width: 145, cellRenderer: ({ value }: ICellRendererParams) => {
+      if (!value) return <span className="text-muted-foreground text-xs">—</span>
+      const d = new Date(value); const ago = new Date(); ago.setMonth(ago.getMonth() - 6)
+      return <span className={`text-xs tabular-nums ${d < ago ? "text-amber-600 font-semibold" : "text-muted-foreground"}`}>{value.slice(0,10)}</span>
+    }},
     { headerName: c.driver, field: "driver_name", flex: 1.5, minWidth: 140, cellRenderer: ({ value }: ICellRendererParams) => value ? <span className="text-sm">{value}</span> : <span className="text-muted-foreground text-xs italic">—</span> },
     { headerName: c.status, field: "status", width: 140, cellRenderer: StatusCell },
-  ], [c])
+  ], [c, v18n])
 
   const defaultColDef = React.useMemo<ColDef>(() => ({
     sortable: true,
@@ -237,7 +502,8 @@ export default function VehiclesPage() {
   }), [showFilters])
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
+    <>
+      <div className="flex h-full flex-col gap-3 overflow-hidden px-6 pt-3 pb-2 md:px-8 lg:px-10">
 
       {/* ── Toolbar ── */}
       <div className="flex items-center gap-2">
@@ -319,19 +585,19 @@ export default function VehiclesPage() {
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40">
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
         </button>
-        <button title="Import"
+        <button title="Import" onClick={() => setShowImport(true)}
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <Upload className="h-3.5 w-3.5" />
         </button>
-        <button title="Export" onClick={() => gridRef.current?.api?.exportDataAsCsv()}
+        <button title="Export" onClick={async () => { try { const blob = await exportVehicles(); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `vehicles-export.xlsx`; a.click(); URL.revokeObjectURL(url) } catch(e) { setError(e instanceof Error ? e.message : "Export failed") } }}
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <Download className="h-3.5 w-3.5" />
         </button>
 
         <span className="h-6 w-px bg-border" />
 
-        <button className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
-          <Plus className="h-3.5 w-3.5" /> {c.addNew}
+        <button onClick={() => { setEditVehicle(null); setDrawerOpen(true) }} className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
+          {c.addNew}
         </button>
       </div>
 
@@ -358,11 +624,11 @@ export default function VehiclesPage() {
             suppressCellFocus
             getRowId={({ data }) => data.uuid}
             rowSelection={{ mode: "multiRow", enableClickSelection: false }}
-            onSelectionChanged={() =>
-              setSelectedCount(gridRef.current?.api?.getSelectedRows().length ?? 0)
-            }
-            overlayLoadingTemplate='<span class="text-sm text-muted-foreground">Loading vehicles…</span>'
-            overlayNoRowsTemplate='<span class="text-sm text-muted-foreground">No vehicles found.</span>'
+            onRowClicked={({ data }) => { if (data) { setEditVehicle(data); setDrawerOpen(true) } }}
+            rowClass="cursor-pointer"
+            onSelectionChanged={() => setSelectedCount(gridRef.current?.api?.getSelectedRows().length ?? 0)}
+            overlayLoadingTemplate='<span class="ag-custom-loading">Loading vehicles…</span>'
+            overlayNoRowsTemplate='<span class="ag-custom-no-rows">No vehicles found.</span>'
           />
         </div>
       )}
@@ -430,5 +696,21 @@ export default function VehiclesPage() {
         </div>
       )}
     </div>
+    <VehicleDrawer
+      open={drawerOpen}
+      vehicle={editVehicle}
+      fleets={fleets}
+      onClose={() => setDrawerOpen(false)}
+      onSaved={load}
+    />
+    <ImportModal
+      open={showImport}
+      onClose={() => setShowImport(false)}
+      onDone={load}
+      entityName="Vehicles"
+      uploadType="vehicle_import"
+      importFn={importVehicles}
+    />
+    </>
   )
 }

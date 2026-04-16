@@ -1,7 +1,7 @@
 /**
  * Toll Receipt Images API — /int/v1/expense-receipt-images
  */
-import { ontrackFetch, buildQueryString, getToken } from "./ontrack-api"
+import { ontrackFetch, buildQueryString, getToken, ONTRACK_HOST } from "./ontrack-api"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,9 +36,12 @@ export interface TollReceiptImage {
   latitude?: string | number
   longitude?: string | number
   location_name?: string
+  toll_location?: string
+  crossing_date?: string
   extracted_data?: TollReceiptExtractedData
   product?: string
   amount?: string
+  currency?: string
   product_volume?: string
   driver?: { uuid: string; name: string }
   file?: { uuid: string; path?: string; url?: string }
@@ -99,18 +102,22 @@ export async function getTollReceipt(id: string): Promise<{ expense_receipt_imag
 
 // ─── Upload Single Image or PDF ───────────────────────────────────────────────
 
-export async function uploadTollFile(file: File): Promise<{ uuid: string; original_filename: string }> {
+export async function uploadTollFile(file: File): Promise<{ uuid: string; original_filename?: string; url?: string }> {
   const fd = new FormData()
   fd.append("file", file)
-  fd.append("type", "fuel_report_import")
+  fd.append("type", "toll_import")
   const token = getToken()
-  const res = await fetch("https://ontrack-api.agilecyber.com/int/v1/files/upload", {
+  const res = await fetch(`${ONTRACK_HOST}/int/v1/files/upload`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: fd,
   })
   if (!res.ok) throw new Error("File upload failed")
-  return res.json()
+  const body = await res.json()
+  // API returns either { uuid, url } (flat) or { file: { uuid, url, ... } } (nested)
+  const fileObj = body?.file ?? body
+  if (!fileObj?.uuid) throw new Error("Upload response missing file UUID")
+  return { uuid: fileObj.uuid, original_filename: fileObj.original_filename, url: fileObj.url }
 }
 
 // ─── Import Single Image/PDF (via fuel-reports/import) ───────────────────────
@@ -135,6 +142,53 @@ export async function importTollZip(
       ...(parentUuid ? { uuid: parentUuid } : {}),
     }),
   })
+}
+
+// ─── Process Toll Receipts ────────────────────────────────────────────────────
+// Triggers OCR processing for pending toll receipt images (including those
+// linked from manually-entered toll expense records).
+
+export interface ProcessTollReceiptsResult {
+  status: string
+  message: string
+  data?: {
+    processed: number
+    created: number
+    skipped: number
+    total_errors?: number
+    error_log_url?: string
+    errors?: [number | string, string][]
+  }
+}
+
+export async function processTollReceipts(params: {
+  driver_uuid?: string
+  date_from?: string
+  date_to?: string
+  limit?: number
+} = {}): Promise<ProcessTollReceiptsResult> {
+  // This endpoint lives at /api/v1/ (NOT /int/v1/) — cannot use ontrackFetch.
+  // Method: POST with optional JSON body (driver_uuid, date_from, date_to, limit).
+  const token = getToken()
+  const res = await fetch(
+    `${ONTRACK_HOST}/api/v1/expense-reports/process-receipt-images`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      // Only send fields that have a value
+      body: JSON.stringify(
+        Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null))
+      ),
+    }
+  )
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ message: res.statusText }))
+    throw new Error(body?.message ?? `HTTP ${res.status}`)
+  }
+  return res.json() as Promise<ProcessTollReceiptsResult>
 }
 
 // ─── Static Values ────────────────────────────────────────────────────────────
