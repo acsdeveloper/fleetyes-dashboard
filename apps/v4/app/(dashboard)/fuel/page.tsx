@@ -1341,12 +1341,6 @@ function ExpensesTab({ isDark, vehicles, drivers }: { isDark: boolean; vehicles:
           {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
         </button>
 
-        <span className="h-6 w-px bg-border" />
-
-        <button onClick={() => setSlideOver("new")}
-          className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">
-          <Plus className="mr-1.5 h-3.5 w-3.5" />{f.addExpense}
-        </button>
       </div>
 
       {error && (
