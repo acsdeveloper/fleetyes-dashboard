@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 import * as React from "react"
 
 export type Lang = "en" | "de" | "fr" | "es" | "it" | "pl"
@@ -232,7 +232,7 @@ export type Translations = {
     // SendToAmazonModal
     sendTitle: string; sendSubtitle: string; sendFromDate: string; sendToDate: string
     sendPreviewBtn: string; sendDownloading: string; sendBtn: string; sendSending: string
-    sendSuccess: string; sendSuccessMsg: string
+    sendWarning: string; sendSuccess: string; sendSuccessMsg: string
     // Expense tab columns
     colChargeEx: string; colVat: string; colChargeInc: string; colProcessingStatus: string
   }
@@ -633,6 +633,7 @@ export const translations: Record<Lang, Translations> = {
       sendFromDate:"From Date", sendToDate:"To Date",
       sendPreviewBtn:"Preview data before sending", sendDownloading:"Downloading…",
       sendBtn:"Send to Amazon Relay", sendSending:"Sending…",
+      sendWarning:"This will submit all processed toll charges in the selected date range to Amazon Relay.",
       sendSuccess:"Submitted successfully",
       sendSuccessMsg:"Toll charges have been sent to Amazon Relay.",
       colChargeEx:"Charge (ex. VAT)", colVat:"VAT",
@@ -1041,7 +1042,8 @@ export const translations: Record<Lang, Translations> = {
       sendTitle:"An Amazon senden", sendSubtitle:"Mautgebühren für den ausgewählten Zeitraum an Amazon Relay übermitteln",
       sendFromDate:"Von Datum", sendToDate:"Bis Datum",
       sendPreviewBtn:"Daten vor dem Senden anzeigen", sendDownloading:"Wird heruntergeladen…",
-      sendBtn:"An Amazon Relay senden", sendSending:"Wird gesendet…",
+      sendBtn:"An Amazon Relay senden", sendSending:"Wird gesendet.",
+      sendWarning:"Alle verarbeiteten Mautgebühren im ausgewählten Zeitraum werden an Amazon Relay übermittelt.",
       sendSuccess:"Erfolgreich übermittelt",
       sendSuccessMsg:"Mautgebühren wurden an Amazon Relay gesendet.",
       colChargeEx:"Gebühr (ohne MwSt.)", colVat:"MwSt.",
@@ -1450,7 +1452,8 @@ export const translations: Record<Lang, Translations> = {
       sendTitle:"Envoyer à Amazon", sendSubtitle:"Soumettre les péages à Amazon Relay pour la période sélectionnée",
       sendFromDate:"Date de début", sendToDate:"Date de fin",
       sendPreviewBtn:"Aperçu avant envoi", sendDownloading:"Téléchargement…",
-      sendBtn:"Envoyer à Amazon Relay", sendSending:"Envoi en cours…",
+      sendBtn:"Envoyer à Amazon Relay", sendSending:"Envoi en cours.",
+      sendWarning:"Tous les péages traités dans la plage de dates sélectionnée seront soumis à Amazon Relay.",
       sendSuccess:"Soumis avec succès",
       sendSuccessMsg:"Les péages ont été envoyés à Amazon Relay.",
       colChargeEx:"Frais (HT)", colVat:"TVA",
@@ -1827,7 +1830,8 @@ export const translations: Record<Lang, Translations> = {
       sendTitle:"Enviar a Amazon", sendSubtitle:"Enviar cargos de peaje a Amazon Relay para el período seleccionado",
       sendFromDate:"Fecha de inicio", sendToDate:"Fecha de fin",
       sendPreviewBtn:"Previsualizar antes de enviar", sendDownloading:"Descargando…",
-      sendBtn:"Enviar a Amazon Relay", sendSending:"Enviando…",
+      sendBtn:"Enviar a Amazon Relay", sendSending:"Enviando.",
+      sendWarning:"Esto enviará todos los cargos de peaje procesados en el rango de fechas seleccionado a Amazon Relay.",
       sendSuccess:"Enviado correctamente",
       sendSuccessMsg:"Los cargos de peaje han sido enviados a Amazon Relay.",
       colChargeEx:"Cargo (sin IVA)", colVat:"IVA",
@@ -1936,11 +1940,11 @@ export const translations: Record<Lang, Translations> = {
       documentTitle:"Título del documento",category:"Categoría",newCategory:"Nombre de nueva categoría",
       description:"Descripción",notes:"Notas",
       walkaroundTemplates:"Plantillas de inspección de vehículos",
-      walkaroundTemplatesDesc:"Cree plantillas configurables con tipos de preguntas, fotos obligatorias y lógica condicional. Asigne por vehículo.",
+      walkaroundTemplatesDesc:"Cree plantillas configurables mit tipos de preguntas, fotos obligatorias y lógica condicional. Asigne por vehículo.",
       helpText:"Texto de ayuda",questionType:"Tipo de pregunta",dropdownOptions:"Opciones de lista desplegable",
       unitLabel:"Etiqueta de unidad",requiredToSubmit:"¿Requerido para enviar?",
       defectSeverity:"Gravedad del defecto",conditionalDisplay:"Visualización condicional",
-      noConditional:"No hay otras preguntas en esta sección con respuestas seleccionables.",
+      noConditional:"No hay otras preguntas en esta sección mit respuestas seleccionables.",
       templateName:"Nombre de plantilla",vehicleAssignment:"Asignación de vehículo",
       vehicleAssignmentDesc:"Una plantilla por vehículo. Asignar aquí la elimina de la plantilla actual.",
       unassigned:"Sin asignar",sections:"Secciones",checks:"Inspecciones",vehicles:"Vehículos",
@@ -2172,7 +2176,8 @@ export const translations: Record<Lang, Translations> = {
       sendTitle:"Invia ad Amazon", sendSubtitle:"Invia i pedaggi ad Amazon Relay per il periodo selezionato",
       sendFromDate:"Data inizio", sendToDate:"Data fine",
       sendPreviewBtn:"Anteprima prima di inviare", sendDownloading:"Download…",
-      sendBtn:"Invia ad Amazon Relay", sendSending:"Invio…",
+      sendBtn:"Invia ad Amazon Relay", sendSending:"Invio.",
+      sendWarning:"Tutti i pedaggi elaborati nell'intervallo di date selezionato verranno inviati ad Amazon Relay.",
       sendSuccess:"Inviato con successo",
       sendSuccessMsg:"I pedaggi sono stati inviati ad Amazon Relay.",
       colChargeEx:"Tariffa (IVA esclusa)", colVat:"IVA",
@@ -2581,6 +2586,7 @@ export const translations: Record<Lang, Translations> = {
       sendTitle:"Wyslij do Amazon", sendSubtitle:"Przeslij oplaty za przejazd do Amazon Relay za wybrany okres",
       sendFromDate:"Data od", sendToDate:"Data do", sendPreviewBtn:"Podglad danych przed wyslaniem", sendDownloading:"Pobieranie...",
       sendBtn:"Wyslij do Amazon Relay", sendSending:"Wysylanie...",
+      sendWarning:"Spowoduje to przeslanie wszystkich przetworzonych oplat za przejazd w wybranym zakresie dat do Amazon Relay.",
       sendSuccess:"Przeslano pomyslnie",
       sendSuccessMsg:"Oplaty za przejazd zostaly wyslane do Amazon Relay.",
       colChargeEx:"Oplata (bez VAT)", colVat:"VAT",
