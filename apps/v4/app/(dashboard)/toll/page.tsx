@@ -336,63 +336,65 @@ function AddReceiptsModal({ onClose, onDone }: { onClose: () => void; onDone: ()
                   )}
                 </div>
 
-                {/* Right: review table */}
+                {/* Right: receipt card grid */}
                 <div className="flex flex-1 flex-col overflow-hidden">
                   {files.length === 0 ? (
                     <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
                       <FileText className="h-14 w-14 opacity-15" />
                       <p className="text-sm font-medium">Drop receipts on the left to review them here</p>
-                      <p className="text-xs opacity-60">Thumbnails, quality scores and amounts will appear in this table</p>
+                      <p className="text-xs opacity-60">Card previews with quality scores and amounts will appear here</p>
                     </div>
                   ) : (
-                    <>
-                      <div className="grid shrink-0 grid-cols-[60px_1fr_150px_110px_64px_36px] items-center gap-3 border-b bg-muted/40 px-4 py-2.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Preview</span>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">File</span>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Quality</span>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Amount</span>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Size</span>
-                        <span />
-                      </div>
-                      <div className="flex-1 overflow-y-auto divide-y">
+                    <div className="flex-1 overflow-y-auto p-4">
+                      <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
                         {files.map((f, i) => {
                           const q = qualities.get(fileKey(f))
                           const previewUrl = previews.get(fileKey(f))
                           return (
-                            <div key={i} className="grid grid-cols-[60px_1fr_150px_110px_64px_36px] items-center gap-3 px-4 py-2 hover:bg-muted/20">
-                              <div className="h-12 w-12 overflow-hidden rounded-lg border bg-muted shrink-0">
+                            <div key={i} className="group relative flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition-shadow hover:shadow-md">
+                              {/* Image hero */}
+                              <div className="relative aspect-[3/4] w-full overflow-hidden bg-muted">
                                 {previewUrl
-                                  ? <img src={previewUrl} alt="" className="h-full w-full object-cover" />
-                                  : <div className="flex h-full w-full items-center justify-center"><FileText className="h-5 w-5 text-muted-foreground/40" /></div>
+                                  ? <img src={previewUrl} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                                  : <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground/40">
+                                      <FileText className="h-10 w-10" />
+                                      <span className="text-[10px]">PDF</span>
+                                    </div>
                                 }
-                              </div>
-                              <span className="truncate text-xs font-medium" title={f.name}>{f.name}</span>
-                              <div>
-                                {q
-                                  ? <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${ocrBadgeClass(q.status)}`}>
+                                {/* Quality badge overlaid bottom-left */}
+                                {q && (
+                                  <div className="absolute bottom-2 left-2">
+                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold shadow-sm backdrop-blur-sm ${ocrBadgeClass(q.status)}`}>
                                       {q.status === "checking"
                                         ? <><svg className="h-2.5 w-2.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Scanning…</>
                                         : ocrBadgeLabel(q.status, q.confidence)
                                       }
                                     </span>
-                                  : <span className="text-[10px] text-muted-foreground">—</span>
-                                }
+                                  </div>
+                                )}
+                                {/* Remove button overlaid top-right */}
+                                <button
+                                  onClick={() => removeFile(i)}
+                                  className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-500"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
                               </div>
-                              <div>
+                              {/* Card footer */}
+                              <div className="flex flex-col gap-1 p-2.5">
                                 {q?.amount
-                                  ? <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums ${ocrBadgeClass(q.status)}`}>{q.amount}</span>
-                                  : <span className="text-[10px] text-muted-foreground">{q?.status === "checking" ? "…" : "—"}</span>
+                                  ? <span className={`text-sm font-bold tabular-nums ${ocrBadgeClass(q.status)} rounded-lg px-2 py-1 text-center`}>{q.amount}</span>
+                                  : <span className="rounded-lg bg-muted px-2 py-1 text-center text-sm font-medium text-muted-foreground">
+                                      {q?.status === "checking" ? "Reading…" : "No amount"}
+                                    </span>
                                 }
+                                <span className="text-center text-[10px] tabular-nums text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
                               </div>
-                              <span className="text-[10px] tabular-nums text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
-                              <button onClick={() => removeFile(i)} className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/20">
-                                <X className="h-3.5 w-3.5" />
-                              </button>
                             </div>
                           )
                         })}
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
               </>
