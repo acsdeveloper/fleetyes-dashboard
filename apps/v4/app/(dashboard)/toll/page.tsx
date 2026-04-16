@@ -351,22 +351,31 @@ function AddReceiptsModal({ onClose, onDone }: { onClose: () => void; onDone: ()
                           <div key={i} className="flex items-center gap-3 px-3 py-2">
                             <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                             <span className="flex-1 truncate text-xs">{f.name}</span>
-                            {/* OCR quality badge */}
+                            {/* OCR quality badge + detected amount */}
                             {q && (
-                              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                ocrBadgeClass(q.status)
-                              }`}>
-                                {q.status === "checking"
-                                  ? <span className="inline-flex items-center gap-1">
-                                      <svg className="h-2.5 w-2.5 animate-spin" viewBox="0 0 24 24" fill="none">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                                      </svg>
-                                      Scanning…
-                                    </span>
-                                  : ocrBadgeLabel(q.status, q.confidence)
-                                }
-                              </span>
+                              <>
+                                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                  ocrBadgeClass(q.status)
+                                }`}>
+                                  {q.status === "checking"
+                                    ? <span className="inline-flex items-center gap-1">
+                                        <svg className="h-2.5 w-2.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                                        </svg>
+                                        Scanning…
+                                      </span>
+                                    : ocrBadgeLabel(q.status, q.confidence)
+                                  }
+                                </span>
+                                {q.amount && (
+                                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums ${
+                                    ocrBadgeClass(q.status)
+                                  }`}>
+                                    {q.amount}
+                                  </span>
+                                )}
+                              </>
                             )}
                             <span className="text-[10px] text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</span>
                             <button onClick={() => removeFile(i)} className="rounded p-0.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20">
